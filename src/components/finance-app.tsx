@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FinanceForm, type FormState, type Mutate } from "./finance-form";
 import { PrivacyContext } from "./finance-privacy";
+import { AnimatedLabel, IconSwap, NavigationIndicator } from "./finance-motion";
 import {
   DashboardView,
   TransactionsView,
@@ -215,14 +216,8 @@ export function FinanceApp() {
             onClick={() => navigate("dashboard")}
             aria-label="Clara, página inicial"
           >
-            <span className="brand-icon">
-              <span />
-              <span />
-              <span />
-            </span>
             <span>
               clara<span className="brand-dot">.</span>
-              <small>Seu dinheiro, no seu ritmo</small>
             </span>
           </button>
           <div className="workspace-chip">
@@ -242,6 +237,7 @@ export function FinanceApp() {
                 className={`nav-item ${view === id ? "active" : ""}`}
                 aria-current={view === id ? "page" : undefined}
               >
+                {view === id && <NavigationIndicator />}
                 <Icon size={19} strokeWidth={1.8} />
                 <span>{label}</span>
                 {id === "goals" && !!data?.goals.length && (
@@ -256,15 +252,17 @@ export function FinanceApp() {
               className={`nav-item ${view === "groups" ? "active" : ""}`}
               onClick={() => navigate("groups")}
             >
+              {view === "groups" && <NavigationIndicator />}
               <Layers3 size={19} strokeWidth={1.8} />
-              Meus grupos
+              <span>Meus grupos</span>
             </button>
             <button
               className={`nav-item ${view === "accounts" ? "active" : ""}`}
               onClick={() => navigate("accounts")}
             >
+              {view === "accounts" && <NavigationIndicator />}
               <Landmark size={19} strokeWidth={1.8} />
-              Contas & conexões
+              <span>Contas & conexões</span>
             </button>
           </nav>
           <div className="sidebar-bottom">
@@ -288,7 +286,11 @@ export function FinanceApp() {
               </button>
             </div>
             <button className="theme-toggle" onClick={() => setDark((v) => !v)}>
-              {dark ? <Moon size={16} /> : <Sun size={16} />}
+              <IconSwap
+                active={dark}
+                first={<Sun size={16} />}
+                second={<Moon size={16} />}
+              />
               <span>Aparência</span>
               <span className="theme-track">
                 <Sun size={13} />
@@ -357,7 +359,11 @@ export function FinanceApp() {
                 aria-label={hidden ? "Mostrar valores" : "Ocultar valores"}
                 onClick={() => setHidden((v) => !v)}
               >
-                {hidden ? <EyeOff size={19} /> : <Eye size={19} />}
+                <IconSwap
+                  active={hidden}
+                  first={<Eye size={19} />}
+                  second={<EyeOff size={19} />}
+                />
               </button>
               <a
                 className="icon-button help-button"
@@ -458,7 +464,7 @@ export function FinanceApp() {
                       <ChevronLeft size={17} />
                     </button>
                     <label className="period-label">
-                      <span>{monthLabel(month)}</span>
+                      <AnimatedLabel value={monthLabel(month)} />
                       <ChevronDown size={14} />
                       <input
                         aria-label="Mês de referência"
@@ -509,12 +515,16 @@ export function FinanceApp() {
                   className="sync-button"
                   onClick={sync}
                   disabled={syncing}
+                  aria-label={syncing ? "Sincronizando…" : "Sincronizar"}
+                  aria-busy={syncing}
                 >
                   <RefreshCw
                     size={14}
                     className={syncing ? "animate-spin" : ""}
                   />
-                  <span>{syncing ? "Sincronizando…" : "Sincronizar"}</span>
+                  <AnimatedLabel
+                    value={syncing ? "Sincronizando…" : "Sincronizar"}
+                  />
                 </button>
               </div>
             </div>

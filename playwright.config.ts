@@ -11,7 +11,9 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run dev -- --port 3014",
+    command: process.env.E2E_PRODUCTION
+      ? "npm start -- --port 3014"
+      : "npm run dev -- --port 3014",
     url: "http://127.0.0.1:3014",
     reuseExistingServer: false,
     timeout: 60000,

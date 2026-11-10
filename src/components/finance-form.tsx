@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { localDate, parseMoney } from "@/lib/format";
+import { AnimatedLabel, MotionSegmentedControl } from "./finance-motion";
 import type { FinanceData } from "@/lib/types";
 
 export type FormState = {
@@ -37,6 +38,8 @@ export function FinanceForm({
   mutate: Mutate;
 }) {
   const row = form.record;
+  const [open, setOpen] = useState(true);
+  const close = () => setOpen(false);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [confirmDelete, setConfirmDelete] = useState(false);
@@ -106,7 +109,7 @@ export function FinanceForm({
     if (form.resource === "groups" && !body.icon) body.icon = "layers";
     try {
       await mutate(form.resource, body, row ? "PATCH" : "POST");
-      onClose();
+      close();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar.");
     } finally {
@@ -117,7 +120,7 @@ export function FinanceForm({
     setBusy(true);
     try {
       await mutate(form.resource, { id: row?.id }, "DELETE");
-      onClose();
+      close();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Não foi possível excluir.",
@@ -128,9 +131,12 @@ export function FinanceForm({
   }
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
-        if (!open && !busy) onClose();
+        if (!open && !busy) close();
+      }}
+      onOpenChangeComplete={(isOpen) => {
+        if (!isOpen) onClose();
       }}
     >
       <DialogContent className="finance-dialog sm:max-w-[480px] p-7">
@@ -168,22 +174,16 @@ export function FinanceForm({
             <>
               {form.resource === "transactions" && (
                 <>
-                  <div className="type-switch">
-                    {[
+                  <MotionSegmentedControl
+                    label="Tipo do lançamento"
+                    value={kind}
+                    onChange={setKind}
+                    options={[
                       ["expense", "Saída"],
                       ["income", "Entrada"],
                       ["transfer", "Transferência"],
-                    ].map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        data-active={kind === value}
-                        onClick={() => setKind(value)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                    ]}
+                  />
                   <Field title="Descrição" name="description">
                     <Input
                       id="description"
@@ -589,19 +589,25 @@ export function FinanceForm({
                 type="button"
                 variant="outline"
                 disabled={busy}
-                onClick={onClose}
+                onClick={close}
               >
                 Cancelar
               </Button>
               <Button type="submit" disabled={busy}>
                 {busy && <LoaderCircle className="animate-spin" size={16} />}{" "}
-                {form.contribute
-                  ? "Registrar progresso"
-                  : row
-                    ? "Salvar alterações"
-                    : form.resource === "connections"
-                      ? "Adicionar conexão"
-                      : "Salvar"}
+                <AnimatedLabel
+                  value={
+                    busy
+                      ? "Salvando…"
+                      : form.contribute
+                        ? "Registrar progresso"
+                        : row
+                          ? "Salvar alterações"
+                          : form.resource === "connections"
+                            ? "Adicionar conexão"
+                            : "Salvar"
+                  }
+                />
               </Button>
             </div>
           )}

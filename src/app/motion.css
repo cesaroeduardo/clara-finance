@@ -1,0 +1,219 @@
+/* Free Transitions.dev recipes, Copyright 2026 Jakub Antalik.
+   Sources and license: docs/microinteractions.md. */
+:root {
+  --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-open: 250ms;
+  --motion-close: 150ms;
+  --motion-icon: 250ms;
+  --motion-link: 350ms;
+}
+.t-modal {
+  opacity: 1;
+  scale: 1;
+  transform-origin: center;
+  transition:
+    scale var(--motion-open) var(--motion-ease-out),
+    opacity var(--motion-open) var(--motion-ease-out);
+}
+.t-modal[data-starting-style],
+.t-modal[data-ending-style] {
+  animation: clara-modal-exit var(--motion-close) var(--motion-ease-out) both;
+  opacity: 0;
+  scale: 0.96;
+}
+.t-modal[data-open] {
+  animation: clara-modal-enter var(--motion-open) var(--motion-ease-out) both;
+}
+@keyframes clara-modal-enter {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+@keyframes clara-modal-exit {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+.t-modal-backdrop[data-open] {
+  animation: clara-backdrop-enter var(--motion-open) var(--motion-ease-out) both;
+}
+@keyframes clara-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.t-modal[data-ending-style] {
+  transition-duration: var(--motion-close);
+  pointer-events: none;
+}
+.t-modal-backdrop {
+  opacity: 1;
+  transition: opacity var(--motion-open) var(--motion-ease-out);
+}
+.t-modal-backdrop[data-starting-style],
+.t-modal-backdrop[data-ending-style] {
+  opacity: 0;
+}
+.t-modal-backdrop[data-ending-style] {
+  transition-duration: var(--motion-close);
+  animation: clara-backdrop-exit var(--motion-close) var(--motion-ease-out) both;
+}
+@keyframes clara-backdrop-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.t-dropdown {
+  opacity: 1;
+  scale: 1;
+  transform-origin: var(--transform-origin, top right);
+  transition:
+    scale var(--motion-open) var(--motion-ease-out),
+    opacity var(--motion-open) var(--motion-ease-out);
+}
+.t-dropdown[data-starting-style] {
+  opacity: 0;
+  scale: 0.97;
+}
+.t-dropdown[data-ending-style] {
+  opacity: 0;
+  scale: 0.99;
+  transition-duration: var(--motion-close);
+  pointer-events: none;
+}
+.nav-item {
+  position: relative;
+  isolation: isolate;
+  transition: color var(--motion-open) var(--motion-ease-out);
+}
+.nav-item.active {
+  background: transparent;
+}
+.nav-indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  z-index: -1;
+  pointer-events: none;
+}
+.motion-segments > button {
+  position: relative;
+  isolation: isolate;
+  transition: color var(--motion-open) var(--motion-ease-out);
+}
+.motion-segments > button[data-active="true"] {
+  background: transparent;
+  box-shadow: none;
+}
+.segment-indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--card);
+  box-shadow: 0 1px 5px #0000000b;
+  z-index: -1;
+  pointer-events: none;
+}
+.t-icon-swap {
+  position: relative;
+  display: inline-grid;
+  flex-shrink: 0;
+}
+.t-icon-swap .t-icon {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  transition:
+    opacity var(--motion-icon) ease-in-out,
+    filter var(--motion-icon) ease-in-out,
+    transform var(--motion-icon) ease-in-out;
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="a"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="b"] {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="b"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="a"] {
+  opacity: 0;
+  filter: blur(2px);
+  transform: scale(0.25);
+}
+.animated-label {
+  position: relative;
+  display: inline-block;
+}
+.animated-label-value {
+  display: inline-block;
+}
+.t-learn-chevron {
+  display: inline-flex;
+  transform: translateX(0);
+  transition: transform var(--motion-link) var(--motion-ease-out);
+}
+.t-learn-arm {
+  transform-box: view-box;
+  transform-origin: 10px 8px;
+  vector-effect: non-scaling-stroke;
+  transition: transform var(--motion-link) var(--motion-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .t-learn:hover .t-learn-chevron {
+    transform: translateX(2px);
+  }
+  .t-learn:hover .t-learn-arm-top {
+    transform: rotate(8deg);
+  }
+  .t-learn:hover .t-learn-arm-bot {
+    transform: rotate(-8deg);
+  }
+}
+[data-slot="button"],
+.icon-button {
+  transition-property: color, background-color, border-color, box-shadow, scale;
+  transition-duration: 150ms;
+  transition-timing-function: var(--motion-ease-out);
+}
+[data-slot="button"]:active:not(:disabled),
+.icon-button:active:not(:disabled) {
+  scale: 0.97;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-modal,
+  .t-modal-backdrop {
+    animation: none !important;
+  }
+  .t-modal,
+  .t-modal-backdrop,
+  .t-dropdown,
+  .t-icon-swap .t-icon,
+  .t-learn-chevron,
+  .t-learn-arm,
+  .motion-segments > button,
+  .nav-item,
+  [data-slot="button"],
+  .icon-button {
+    transition: none !important;
+  }
+  [data-slot="button"]:active:not(:disabled),
+  .icon-button:active:not(:disabled) {
+    scale: 1;
+  }
+}

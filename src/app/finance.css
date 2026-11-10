@@ -103,37 +103,6 @@ button {
 .brand-dot {
   color: #2563eb;
 }
-.brand small {
-  display: block;
-  font-size: 9px;
-  letter-spacing: 0;
-  font-weight: 400;
-  color: var(--muted-foreground);
-  margin-top: 8px;
-}
-.brand-icon {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 32px;
-  margin-bottom: 9px;
-  transform: rotate(-10deg);
-}
-.brand-icon span {
-  display: block;
-  width: 6px;
-  background: #2563eb;
-  border-radius: 5px;
-  height: 20px;
-}
-.brand-icon span:nth-child(2) {
-  height: 32px;
-  background: #72a0ff;
-}
-.brand-icon span:nth-child(3) {
-  height: 26px;
-  background: #b2ccff;
-}
 .workspace-chip {
   display: flex;
   gap: 10px;
@@ -2148,9 +2117,6 @@ h1 {
   .brand {
     margin-left: 11px;
     font-size: 29px;
-  }
-  .brand small {
-    font-size: 8px;
   }
   .nav-item {
     font-size: 11px;

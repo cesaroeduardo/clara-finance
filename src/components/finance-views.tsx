@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FinanceIcon, Illustration } from "./finance-icons";
 import { PrivacyContext } from "./finance-privacy";
+import { LinkChevron } from "./finance-motion";
 import type { FormState, Mutate } from "./finance-form";
 import type { FinanceData, Goal, Mode, Transaction } from "@/lib/types";
 import type { View } from "./finance-app";
@@ -109,9 +110,9 @@ function TextLink({
   onClick: () => void;
 }) {
   return (
-    <button className="text-link" onClick={onClick}>
+    <button className="text-link t-learn" onClick={onClick}>
       {children}
-      <ChevronRight size={14} />
+      <LinkChevron />
     </button>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { Toaster } from "sonner";
+import { FinanceMotion } from "@/components/finance-motion";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,8 +19,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="pt-BR" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full">
-        {children}
-        <Toaster richColors position="bottom-right" closeButton />
+        <FinanceMotion>
+          {children}
+          <Toaster richColors position="bottom-right" closeButton />
+        </FinanceMotion>
       </body>
     </html>
   );
