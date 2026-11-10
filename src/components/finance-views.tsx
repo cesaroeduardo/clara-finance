@@ -176,8 +176,10 @@ export function DashboardView(props: Props) {
           <Illustration name="wallet" className="wallet-art" />
         </div>
         <div className="allocation-track">
-          <span style={{ width: `${expenseWidth}%`, background: "#2563eb" }} />
-          <span style={{ flex: 1, background: "#19a76f" }} />
+          <span
+            style={{ width: `${expenseWidth}%`, background: "var(--chart-1)" }}
+          />
+          <span style={{ flex: 1, background: "var(--success)" }} />
         </div>
         <div className="balance-metrics">
           <div>
@@ -190,7 +192,7 @@ export function DashboardView(props: Props) {
           </div>
           <div>
             <span className="metric-label">
-              <i className="dot blue" /> Saídas
+              <i className="dot neutral" /> Saídas
             </span>
             <strong>
               <Amount value={stats.expenses} />
@@ -275,7 +277,7 @@ export function DashboardView(props: Props) {
                       width: `${Math.min(100, g.budget ? (g.spent / g.budget) * 100 : 100)}%`,
                       background:
                         g.spent > g.budget && g.budget > 0
-                          ? "#f59e0b"
+                          ? "var(--warning)"
                           : g.color,
                     }}
                   />
@@ -293,11 +295,11 @@ export function DashboardView(props: Props) {
         <CardTitle title="Fluxo de caixa" subtitle="Acumulado" />
         <div className="chart-legend">
           <span>
-            <i className="dot blue" />
+            <i className="dot neutral" />
             Entradas
           </span>
           <span>
-            <i className="dot lightblue" />
+            <i className="dot secondary" />
             Saídas
           </span>
         </div>
@@ -319,8 +321,16 @@ export function DashboardView(props: Props) {
                   x2="0"
                   y2="1"
                 >
-                  <stop offset="0%" stopColor="#2563eb" stopOpacity={0.16} />
-                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  <stop
+                    offset="0%"
+                    stopColor="var(--chart-1)"
+                    stopOpacity={0.16}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--chart-1)"
+                    stopOpacity={0}
+                  />
                 </linearGradient>
               </defs>
               <CartesianGrid
@@ -332,7 +342,7 @@ export function DashboardView(props: Props) {
                 dataKey="day"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 10, fill: "#9298a3" }}
+                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                 ticks={[1, 5, 10, 15, 20, 25, 30].filter(
                   (day) => day <= stats.flow.length,
                 )}
@@ -341,7 +351,7 @@ export function DashboardView(props: Props) {
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 10, fill: "#9298a3" }}
+                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                 tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))}
                 width={54}
               />
@@ -363,7 +373,7 @@ export function DashboardView(props: Props) {
                 dataKey="income"
                 type="stepAfter"
                 isAnimationActive={false}
-                stroke="#2563eb"
+                stroke="var(--chart-1)"
                 fill="url(#income-gradient)"
                 strokeWidth={2.5}
               />
@@ -371,7 +381,7 @@ export function DashboardView(props: Props) {
                 dataKey="expenses"
                 type="monotone"
                 isAnimationActive={false}
-                stroke="#8db2fa"
+                stroke="var(--chart-2)"
                 fill="transparent"
                 strokeDasharray="4 4"
                 strokeWidth={2}
@@ -407,7 +417,13 @@ export function DashboardView(props: Props) {
               <span>
                 <i
                   className="dot"
-                  style={{ background: ["#2563eb", "#6d99f2", "#b4ccff"][i] }}
+                  style={{
+                    background: [
+                      "var(--chart-1)",
+                      "var(--chart-2)",
+                      "var(--chart-3)",
+                    ][i],
+                  }}
                 />
                 {inv.name}
               </span>
@@ -729,7 +745,7 @@ function TransactionTable({
                 </td>
                 <td>
                   <span className="group-pill">
-                    <i style={{ background: g?.color || "#94a3b8" }} />
+                    <i style={{ background: g?.color || "#8a8f98" }} />
                     {g?.name || "Sem grupo"}
                   </span>
                 </td>
@@ -843,7 +859,7 @@ export function TransactionsView(props: Props) {
           label="Saídas no mês"
           value={stats.expenses}
           icon={<ArrowUpRight />}
-          color="blue"
+          color="neutral"
         />
         <MiniStat
           label="Ainda pendente"
@@ -1002,7 +1018,7 @@ export function InvestmentsView({ data, month, group, openForm }: Props) {
           label="Em renda fixa · BRL"
           value={fixed}
           icon={<ShieldCheck />}
-          color="blue"
+          color="neutral"
         />
         <MiniStat
           label="Outros investimentos · BRL"
@@ -1024,7 +1040,7 @@ export function InvestmentsView({ data, month, group, openForm }: Props) {
         />
         {all.length ? (
           <div className="investment-positions">
-            {all.map((row, i) => (
+            {all.map((row) => (
               <button
                 key={row.id}
                 className="investment-position"
@@ -1035,8 +1051,8 @@ export function InvestmentsView({ data, month, group, openForm }: Props) {
                 <span
                   className="position-icon"
                   style={{
-                    background: ["#edf3ff", "#edfaf4", "#fff8e9"][i % 3],
-                    color: ["#2563eb", "#10a36b", "#d89319"][i % 3],
+                    background: "var(--muted)",
+                    color: "var(--foreground)",
                   }}
                 >
                   <Sprout size={21} />

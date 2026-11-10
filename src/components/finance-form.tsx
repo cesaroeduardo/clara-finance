@@ -328,7 +328,7 @@ export function FinanceForm({
                         id="color"
                         name="color"
                         type="color"
-                        defaultValue={String(row?.color || "#2563eb")}
+                        defaultValue={String(row?.color || "#737373")}
                       />
                     </Field>
                   </div>
@@ -405,7 +405,7 @@ export function FinanceForm({
                         id="color"
                         name="color"
                         type="color"
-                        defaultValue={String(row?.color || "#2563eb")}
+                        defaultValue={String(row?.color || "#737373")}
                       />
                     </Field>
                   </div>
