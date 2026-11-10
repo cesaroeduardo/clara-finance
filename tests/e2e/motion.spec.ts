@@ -57,7 +57,7 @@ test("ocultação de valores é imediata e movimento reduzido é respeitado", as
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await expect(page.getByText("Saldo previsto do mês")).toBeVisible();
+  await expect(page.getByText("Saldo previsto")).toBeVisible();
   await page.getByRole("button", { name: "Ocultar valores" }).click();
   expect(
     (await page.locator(".amount").allTextContents()).every(

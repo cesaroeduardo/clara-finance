@@ -122,7 +122,7 @@ function Empty({
   action,
 }: {
   title: string;
-  description: string;
+  description?: string;
   action?: React.ReactNode;
 }) {
   return (
@@ -131,7 +131,7 @@ function Empty({
         <Sprout size={25} />
       </div>
       <h3>{title}</h3>
-      <p>{description}</p>
+      {description && <p>{description}</p>}
       {action}
     </div>
   );
@@ -162,19 +162,15 @@ export function DashboardView(props: Props) {
       <section className="finance-card balance-card">
         <div className="balance-top">
           <div>
-            <div className="balance-label">
-              Saldo previsto do mês{" "}
-              <span className="tiny-tag">VISÃO MENSAL</span>
-            </div>
+            <div className="balance-label">Saldo previsto</div>
             <div className="balance-value">
               <Amount value={stats.balance} />
             </div>
             <div className="balance-caption">
               <span className={stats.balance >= 0 ? "positive" : "negative"}>
                 <ArrowUpRight size={14} />
-                {availablePercent}% das entradas disponíveis
+                {availablePercent}% disponível
               </span>
-              <span>após as saídas do mês</span>
             </div>
           </div>
           <Illustration name="wallet" className="wallet-art" />
@@ -213,8 +209,8 @@ export function DashboardView(props: Props) {
       <UpcomingCard {...props} />
       <section className="finance-card spending-card">
         <CardTitle
-          title="Para onde vai seu dinheiro"
-          subtitle="Suas saídas, organizadas por grupo"
+          title="Saídas por grupo"
+
           action={
             <button
               className="icon-button"
@@ -251,9 +247,7 @@ export function DashboardView(props: Props) {
                 </strong>
               </div>
             ))}
-            {!spendingGroups.length && (
-              <p className="muted">Seu mês começa aqui.</p>
-            )}
+            {!spendingGroups.length && <p className="muted">Sem saídas</p>}
           </div>
         </div>
         <div className="group-budget-list">
@@ -296,10 +290,7 @@ export function DashboardView(props: Props) {
         </div>
       </section>
       <section className="finance-card cashflow-card">
-        <CardTitle
-          title="O ritmo do seu mês"
-          subtitle="Entradas e saídas acumuladas"
-        />
+        <CardTitle title="Fluxo de caixa" subtitle="Acumulado" />
         <div className="chart-legend">
           <span>
             <i className="dot blue" />
@@ -403,12 +394,10 @@ export function DashboardView(props: Props) {
       <section className="finance-card investments-summary">
         <div className="investment-summary-top">
           <div>
-            <span className="muted-label">Um olhar para o futuro</span>
-            <h2>Seu dinheiro crescendo.</h2>
+            <h2>Investimentos</h2>
             <div className="investment-total">
               <Amount value={stats.invested} />
             </div>
-            <p>Patrimônio investido em reais</p>
           </div>
           <Illustration name="coins" />
         </div>
@@ -429,17 +418,15 @@ export function DashboardView(props: Props) {
           ))}
         </div>
         <TextLink onClick={() => navigate("investments")}>
-          Explorar investimentos
+          Ver investimentos
         </TextLink>
       </section>
       <section className="finance-card goals-overview">
         <CardTitle
-          title="Planos que estão saindo do papel"
-          subtitle="Um passo de cada vez, na direção certa"
+          title="Metas"
+
           action={
-            <TextLink onClick={() => navigate("goals")}>
-              Todas as metas
-            </TextLink>
+            <TextLink onClick={() => navigate("goals")}>Ver todas</TextLink>
           }
         />
         {stats.goals.length ? (
@@ -461,12 +448,12 @@ export function DashboardView(props: Props) {
           </div>
         ) : (
           <Empty
-            title="Qual é o seu próximo sonho?"
-            description="Crie uma meta e acompanhe seu progresso."
+            title="Nenhuma meta"
+
             action={
               <Button onClick={() => openForm({ resource: "goals" })}>
                 <Plus size={15} />
-                Criar primeira meta
+                Criar meta
               </Button>
             }
           />
@@ -474,8 +461,8 @@ export function DashboardView(props: Props) {
       </section>
       <section className="finance-card recent-card">
         <CardTitle
-          title="Últimos movimentos"
-          subtitle="Os detalhes também fazem parte do todo"
+          title="Últimos lançamentos"
+
           action={
             <TextLink onClick={() => navigate("transactions")}>
               Ver todos
@@ -491,8 +478,8 @@ export function DashboardView(props: Props) {
           />
         ) : (
           <Empty
-            title="Seu mês está em branco"
-            description="Adicione uma entrada ou saída para começar."
+            title="Nenhum lançamento"
+
             action={
               <Button onClick={() => openForm({ resource: "transactions" })}>
                 <Plus size={15} />
@@ -541,17 +528,14 @@ function UpcomingCard({ data, month, group, openForm, mutate }: Props) {
     <section className="finance-card upcoming-card">
       <div className="upcoming-header">
         <div>
-          <h2>O que vem pela frente</h2>
-          <span className="muted-label">Contas pendentes do mês</span>
+          <h2>Contas a pagar</h2>
+
           <div className="upcoming-total">
             <Amount value={bills.reduce((n, t) => n + t.amount, 0)} />
           </div>
           <p>
             <span className="dot amber" />
-            {bills.length}{" "}
-            {bills.length === 1
-              ? "conta para acompanhar"
-              : "contas para acompanhar"}
+            {bills.length} {bills.length === 1 ? "pendente" : "pendentes"}
           </p>
         </div>
         <Illustration name="calendar" />
@@ -616,18 +600,9 @@ function UpcomingCard({ data, month, group, openForm, mutate }: Props) {
         ) : (
           <div className="bills-empty">
             <ShieldCheck size={24} />
-            <strong>Tudo em dia por aqui.</strong>
-            <p>Nenhuma conta pendente neste período.</p>
+            <strong>Nenhuma conta pendente</strong>
           </div>
         )}
-      </div>
-      <div className="upcoming-tip">
-        <span className="tip-icon">✦</span>
-        <p>
-          Organizar o agora é abrir
-          <br />
-          espaço para o que vem depois.
-        </p>
       </div>
     </section>
   );
@@ -670,13 +645,13 @@ function GoalCard({
         <span style={{ width: `${percent}%`, background: goal.color }} />
       </div>
       <div className="goal-card-footer">
-        <span>{percent}% do caminho</span>
+        <span>{percent}%</span>
         <button
           onClick={onClick}
           aria-label={`Atualizar progresso de ${goal.name}`}
         >
           <Plus size={13} />
-          {compact ? "Reservar" : "Registrar progresso"}
+          {compact ? "Atualizar" : "Registrar progresso"}
         </button>
       </div>
       {!compact && (
@@ -879,8 +854,8 @@ export function TransactionsView(props: Props) {
       </div>
       <section className="finance-card full-table">
         <CardTitle
-          title="Seus lançamentos"
-          subtitle={`${filtered.length} registros no período`}
+          title="Lançamentos"
+          subtitle={`${filtered.length} registros`}
           action={
             <Button variant="outline" onClick={exportCsv}>
               <Download size={15} />
@@ -967,7 +942,7 @@ export function TransactionsView(props: Props) {
         ) : (
           <Empty
             title="Nenhum lançamento encontrado"
-            description="Ajuste os filtros ou adicione um novo movimento."
+
             action={
               <Button onClick={() => openForm({ resource: "transactions" })}>
                 <Plus size={15} />
@@ -978,10 +953,7 @@ export function TransactionsView(props: Props) {
         )}
       </section>
       <p className="view-footnote">
-        Os resumos usam reais (BRL). Transferências entre suas contas e
-        pagamentos de fatura devem ser classificados como Transferência para não
-        duplicar entradas ou saídas. O saldo previsto é o resultado mensal, não
-        o saldo bancário.
+        Totais em BRL. Transferências não compõem o resultado mensal.
       </p>
     </>
   );
@@ -1041,8 +1013,8 @@ export function InvestmentsView({ data, month, group, openForm }: Props) {
       </div>
       <section className="finance-card investment-page">
         <CardTitle
-          title="Minha carteira"
-          subtitle="Posições atuais por instituição"
+          title="Carteira"
+
           action={
             <Button onClick={() => openForm({ resource: "investments" })}>
               <Plus size={15} />
@@ -1099,8 +1071,8 @@ export function InvestmentsView({ data, month, group, openForm }: Props) {
           </div>
         ) : (
           <Empty
-            title="Comece a acompanhar seu futuro"
-            description="Adicione um investimento ou conecte sua conta pelo Meu Pluggy."
+            title="Nenhum investimento"
+
             action={
               <Button onClick={() => openForm({ resource: "investments" })}>
                 Adicionar investimento
@@ -1109,20 +1081,8 @@ export function InvestmentsView({ data, month, group, openForm }: Props) {
           />
         )}
       </section>
-      <div className="insight-banner">
-        <Illustration name="piggy-bank" />
-        <div>
-          <h3>Consistência também é um investimento.</h3>
-          <p>
-            Organize seus investimentos em grupos e vincule seus planos a metas
-            que você consegue acompanhar.
-          </p>
-        </div>
-      </div>
       <p className="view-footnote">
-        Saldos de investimentos refletem a última importação ou atualização
-        manual. Posições em outras moedas são exibidas separadamente e não
-        entram no total em reais.
+        Saldos da última atualização. Totais em BRL.
       </p>
     </>
   );
@@ -1136,11 +1096,11 @@ export function GoalsView({ data, group, openForm }: Props) {
       <div className="section-top">
         <span>
           <strong>{goals.length}</strong>{" "}
-          {goals.length === 1 ? "sonho em construção" : "sonhos em construção"}
+          {goals.length === 1 ? "meta" : "metas"}
         </span>
         <Button onClick={() => openForm({ resource: "goals" })}>
           <Plus size={16} />
-          Criar nova meta
+          Nova meta
         </Button>
       </div>
       {goals.length ? (
@@ -1165,27 +1125,16 @@ export function GoalsView({ data, group, openForm }: Props) {
       ) : (
         <section className="finance-card">
           <Empty
-            title="Todo plano começa com um primeiro passo"
-            description="Dê um nome ao seu sonho, defina um valor e escolha uma data."
+            title="Nenhuma meta"
+
             action={
               <Button onClick={() => openForm({ resource: "goals" })}>
-                Criar primeira meta
+                Criar meta
               </Button>
             }
           />
         </section>
       )}
-      <div className="insight-banner">
-        <Illustration name="target" />
-        <div>
-          <h3>Um destino claro faz toda a diferença.</h3>
-          <p>
-            O progresso das metas é um acompanhamento do valor que você
-            reservou. Registrar progresso não faz transferências nem altera o
-            saldo bancário.
-          </p>
-        </div>
-      </div>
     </>
   );
 }
@@ -1194,7 +1143,7 @@ export function GroupsView({ data, month, group, openForm }: Props) {
   return (
     <>
       <div className="section-top">
-        <span>Seu dinheiro, organizado por propósito.</span>
+        <span>{stats.groups.length} grupos</span>
         <Button onClick={() => openForm({ resource: "groups" })}>
           <Plus size={16} />
           Criar grupo
@@ -1261,17 +1210,14 @@ export function GroupsView({ data, month, group, openForm }: Props) {
                   openForm({ resource: "groups", record: record(g) })
                 }
               >
-                Ajustar grupo e orçamento
+                Editar grupo
                 <ChevronRight size={14} />
               </button>
             </section>
           );
         })}
       </div>
-      <p className="view-footnote">
-        O orçamento é mensal. Investimentos e metas também podem ser organizados
-        por grupo; os valores acima mostram apenas saídas do mês selecionado.
-      </p>
+      <p className="view-footnote">Orçamentos e saídas do mês selecionado.</p>
     </>
   );
 }
@@ -1288,110 +1234,92 @@ export function AccountsView({
 }) {
   return (
     <>
-      <section className="finance-card connect-hero">
-        <div>
-          <span className="section-eyebrow">OPEN FINANCE PESSOAL</span>
-          <h2>
-            Uma visão completa começa
-            <br />
-            com suas contas.
-          </h2>
-          <p>
-            Use o Meu Pluggy para trazer contas, transações e investimentos.
-            <br />
-            Seus dados são armazenados aqui, no seu computador.
-          </p>
-          <div className="connect-actions">
-            {data.mode === "demo" ? (
-              <Button onClick={() => switchMode("personal")}>
-                Configurar minhas contas
-                <ArrowUpRight size={15} />
-              </Button>
-            ) : (
-              <Button onClick={() => openForm({ resource: "connections" })}>
-                <Plus size={15} />
-                Adicionar conexão
-              </Button>
-            )}
-            <a
-              href="https://meu.pluggy.ai/api-guide"
-              target="_blank"
-              rel="noreferrer"
-              className="text-link"
-            >
-              Guia do Meu Pluggy
-              <ExternalLink size={13} />
-            </a>
-          </div>
+      <section className="finance-card connection-toolbar">
+        <h2>Open Finance</h2>
+        <div className="connect-actions">
+          {data.mode === "demo" ? (
+            <Button onClick={() => switchMode("personal")}>
+              Configurar
+              <ArrowUpRight size={15} />
+            </Button>
+          ) : (
+            <Button onClick={() => openForm({ resource: "connections" })}>
+              <Plus size={15} />
+              Adicionar conexão
+            </Button>
+          )}
+          <a
+            href="https://meu.pluggy.ai/api-guide"
+            target="_blank"
+            rel="noreferrer"
+            className="text-link"
+          >
+            Guia
+            <ExternalLink size={13} />
+          </a>
         </div>
-        <Illustration name="wallet" />
       </section>
-      {data.mode === "personal" && (
-        <section className="finance-card setup-card">
-          <CardTitle
-            title="Seu primeiro acesso"
-            subtitle="O caminho para conectar apenas as suas próprias contas"
-          />
-          <div className="setup-steps">
-            <div>
-              <span>1</span>
-              <h3>Autorize seus bancos</h3>
-              <p>
-                Acesse o Meu Pluggy e conecte suas instituições pelo fluxo de
-                consentimento.
-              </p>
-              <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer">
-                Abrir Meu Pluggy
-                <ExternalLink size={12} />
-              </a>
+      {data.mode === "personal" &&
+        (data.connections.length === 0 || !data.pluggyConfigured) && (
+          <section className="finance-card setup-card">
+            <CardTitle title="Configuração" />
+            <div className="setup-steps">
+              <div>
+                <span>1</span>
+                <h3>Conectar bancos</h3>
+                <p>Conecte seus bancos no Meu Pluggy.</p>
+                <a
+                  href="https://meu.pluggy.ai"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Abrir Meu Pluggy
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+              <div>
+                <span>2</span>
+                <h3>Autorizar MeuPluggy</h3>
+                <p>
+                  Autorize o conector MeuPluggy no Dashboard e copie os itemIds.
+                </p>
+                <a
+                  href="https://dashboard.pluggy.ai"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Abrir Dashboard
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+              <div>
+                <span>3</span>
+                <h3>Adicionar conexões</h3>
+                <p>
+                  Preencha o .env.local, reinicie o app e adicione os itemIds.
+                </p>
+                <span
+                  className={`config-status ${data.pluggyConfigured ? "configured" : ""}`}
+                >
+                  {data.pluggyConfigured ? (
+                    <>
+                      <Check size={13} />
+                      Credenciais configuradas
+                    </>
+                  ) : (
+                    "Credenciais pendentes"
+                  )}
+                </span>
+              </div>
             </div>
-            <div>
-              <span>2</span>
-              <h3>Habilite o MeuPluggy</h3>
-              <p>
-                No Dashboard Pluggy, abra a aplicação e autorize o conector
-                MeuPluggy. Copie cada itemId.
-              </p>
-              <a
-                href="https://dashboard.pluggy.ai"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir Dashboard
-                <ExternalLink size={12} />
-              </a>
-            </div>
-            <div>
-              <span>3</span>
-              <h3>Traga para a Clara</h3>
-              <p>
-                Preencha as credenciais no .env.local, reinicie o aplicativo e
-                adicione o itemId de cada conexão.
-              </p>
-              <span
-                className={`config-status ${data.pluggyConfigured ? "configured" : ""}`}
-              >
-                {data.pluggyConfigured ? (
-                  <>
-                    <Check size={13} />
-                    Credenciais configuradas
-                  </>
-                ) : (
-                  "Credenciais ainda não configuradas"
-                )}
-              </span>
-            </div>
-          </div>
-        </section>
-      )}
+          </section>
+        )}
       <div className="accounts-layout">
         <section className="finance-card">
           <CardTitle
-            title="Minhas contas"
+            title="Contas"
             subtitle={
-              data.mode === "demo"
-                ? "Exemplos para explorar o dashboard"
-                : "Saldo da última leitura da instituição"
+              data.mode === "demo" ? undefined : "Saldos da instituição"
             }
           />
           {data.accounts.length ? (
@@ -1423,16 +1351,13 @@ export function AccountsView({
               ))}
             </div>
           ) : (
-            <Empty
-              title="Suas contas vão aparecer aqui"
-              description="Adicione uma conexão e sincronize para trazer seus saldos."
-            />
+            <Empty title="Nenhuma conta" />
           )}
         </section>
         <section className="finance-card">
           <CardTitle
-            title="Conexões Meu Pluggy"
-            subtitle="Leitura dos dados já disponíveis na Pluggy"
+            title="Conexões"
+
             action={
               <button
                 className="icon-button"
@@ -1483,9 +1408,7 @@ export function AccountsView({
           ) : (
             <Empty
               title={
-                data.mode === "demo"
-                  ? "O modo demo não conecta bancos"
-                  : "Pronto para conectar?"
+                data.mode === "demo" ? "Modo demonstração" : "Nenhuma conexão"
               }
               description="Adicione o itemId fornecido pela sua aplicação Pluggy."
               action={
@@ -1495,7 +1418,7 @@ export function AccountsView({
                     onClick={() => openForm({ resource: "connections" })}
                   >
                     <Plus size={15} />
-                    Adicionar itemId
+                    Adicionar conexão
                   </Button>
                 ) : undefined
               }
@@ -1504,10 +1427,7 @@ export function AccountsView({
         </section>
       </div>
       <p className="view-footnote">
-        O botão Sincronizar lê os dados disponíveis na Pluggy. O Meu Pluggy
-        atualiza as conexões bancárias a cada 24 horas. Autorizações e
-        renovações são feitas no Meu Pluggy. O uso pessoal permite até cinco
-        conexões.
+        Sincronização bancária a cada 24 h. Até 5 conexões pessoais.
       </p>
     </>
   );

@@ -51,7 +51,7 @@ export function FinanceForm({
       ? "Atualizar progresso"
       : row
         ? "Editar meta"
-        : "Uma nova meta",
+        : "Nova meta",
     investments: row ? "Editar investimento" : "Novo investimento",
     connections: "Conectar Meu Pluggy",
   };
@@ -141,17 +141,16 @@ export function FinanceForm({
     >
       <DialogContent className="finance-dialog sm:max-w-[480px] p-7">
         <DialogHeader>
-          <div className="dialog-eyebrow">SEU ESPAÇO FINANCEIRO</div>
           <DialogTitle className="text-[24px] font-semibold tracking-tight">
             {titles[form.resource]}
           </DialogTitle>
-          <DialogDescription>
-            {form.contribute
-              ? "Registre quanto você já reservou. Isso não movimenta dinheiro entre contas."
-              : isImported
-                ? "Você pode ajustar o grupo, a categoria e o tipo. Os valores vêm da instituição."
-                : "Cada pequeno passo deixa sua vida financeira mais clara."}
-          </DialogDescription>
+          {(form.contribute || isImported) && (
+            <DialogDescription>
+              {form.contribute
+                ? "O valor será somado ao progresso. Não movimenta contas."
+                : "Valores importados. Edite o grupo, a categoria ou o tipo."}
+            </DialogDescription>
+          )}
         </DialogHeader>
         <form onSubmit={submit} className="finance-form">
           {form.contribute ? (
@@ -166,9 +165,6 @@ export function FinanceForm({
                   autoFocus
                 />
               </Field>
-              <p className="muted text-xs">
-                Este valor será somado ao progresso atual da meta.
-              </p>
             </>
           ) : (
             <>
@@ -351,7 +347,7 @@ export function FinanceForm({
                     />
                   </Field>
                   <div className="form-row">
-                    <Field title="Quero juntar (R$)" name="target">
+                    <Field title="Valor da meta (R$)" name="target">
                       <Input
                         id="target"
                         name="target"
@@ -361,7 +357,7 @@ export function FinanceForm({
                         placeholder="0,00"
                       />
                     </Field>
-                    <Field title="Já tenho (R$)" name="current">
+                    <Field title="Valor reservado (R$)" name="current">
                       <Input
                         id="current"
                         name="current"
@@ -373,7 +369,7 @@ export function FinanceForm({
                   </div>
                   <div className="form-row">
                     {groupField}
-                    <Field title="Até quando" name="deadline">
+                    <Field title="Prazo" name="deadline">
                       <Input
                         id="deadline"
                         name="deadline"

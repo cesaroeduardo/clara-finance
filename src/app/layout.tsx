@@ -10,9 +10,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Clara · Suas finanças, com clareza",
-  description:
-    "Seu espaço pessoal para organizar entradas, saídas, investimentos e sonhos.",
+  title: "Clara · Finanças pessoais",
+  description: "Controle de entradas, saídas, investimentos e metas.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

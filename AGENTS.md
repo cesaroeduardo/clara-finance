@@ -7,3 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Texto da interface
+
+Use português direto, títulos funcionais e rótulos curtos. Não use slogans, frases motivacionais, linguagem emocional ou subtítulos decorativos. Inclua explicações apenas quando necessárias para operar o sistema ou interpretar os dados.

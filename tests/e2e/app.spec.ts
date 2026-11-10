@@ -3,7 +3,7 @@ test("criar, filtrar, editar e excluir lançamento com persistência", async ({
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByText("Saldo previsto do mês")).toBeVisible();
+  await expect(page.getByText("Saldo previsto")).toBeVisible();
   await page.getByRole("button", { name: "Adicionar", exact: true }).click();
   await page.getByRole("menuitem", { name: "Nova saída" }).click();
   await page
@@ -47,15 +47,15 @@ test("metas e grupos gravam sem misturar demonstração com o modo pessoal", asy
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Usar meus dados" }).click();
-  await expect(page.getByText("Seu primeiro acesso")).toBeVisible();
-  await page.getByRole("button", { name: "Minhas metas", exact: true }).click();
-  await page.getByRole("button", { name: "Criar nova meta" }).click();
+  await expect(page.getByText("Configuração")).toBeVisible();
+  await page.getByRole("button", { name: "Metas", exact: true }).click();
+  await page.getByRole("button", { name: "Nova meta" }).click();
   await page.getByLabel("Nome da meta").fill("Reserva de verificação");
-  await page.getByLabel("Quero juntar (R$)", { exact: true }).fill("1000,00");
-  await page.getByLabel("Já tenho (R$)", { exact: true }).fill("100,00");
-  await page.getByLabel("Até quando").fill("2027-12-31");
+  await page.getByLabel("Valor da meta (R$)", { exact: true }).fill("1000,00");
+  await page.getByLabel("Valor reservado (R$)", { exact: true }).fill("100,00");
+  await page.getByLabel("Prazo").fill("2027-12-31");
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
-  await expect(page.getByText("10% do caminho")).toBeVisible();
+  await expect(page.getByText("10%")).toBeVisible();
   await page
     .getByRole("button", {
       name: "Atualizar progresso de Reserva de verificação",
@@ -65,10 +65,10 @@ test("metas e grupos gravam sem misturar demonstração com o modo pessoal", asy
   await page
     .getByRole("button", { name: "Registrar progresso", exact: true })
     .click();
-  await expect(page.getByText("20% do caminho")).toBeVisible();
+  await expect(page.getByText("20%")).toBeVisible();
   await page.getByRole("button", { name: "Lançamentos", exact: true }).click();
   await expect(page.getByText("Nenhum lançamento encontrado")).toBeVisible();
-  await page.getByRole("button", { name: "Meus grupos", exact: true }).click();
+  await page.getByRole("button", { name: "Grupos", exact: true }).click();
   await page.getByRole("button", { name: "Criar grupo" }).click();
   await page.getByLabel("Nome do grupo").fill("Viagens de teste");
   await page.getByLabel("Orçamento mensal (R$)").fill("500,00");
@@ -84,7 +84,7 @@ test("navegação mobile, tema, privacidade e telas sem erro de execução", asy
   page.on("pageerror", (e) => errors.push(e.message));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await expect(page.getByText("Saldo previsto do mês")).toBeVisible();
+  await expect(page.getByText("Saldo previsto")).toBeVisible();
   expect(await page.evaluate(() => document.body.scrollWidth)).toBe(390);
   await page.getByRole("button", { name: "Ocultar valores" }).click();
   await expect(page.locator(".app-shell")).toHaveClass(/values-hidden/);
@@ -97,9 +97,7 @@ test("navegação mobile, tema, privacidade e telas sem erro de execução", asy
   await page
     .getByRole("button", { name: "Investimentos", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "Minha carteira" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Carteira" })).toBeVisible();
   expect(await page.evaluate(() => document.body.scrollWidth)).toBe(390);
   expect(errors).toEqual([]);
 });
@@ -127,7 +125,7 @@ test("posição de investimento manual é criada, atualizada e removida", async 
   await page.getByRole("button", { name: /Tesouro de verificação/ }).click();
   await page.getByRole("button", { name: "Excluir registro" }).click();
   await page.getByRole("button", { name: "Confirmar exclusão" }).click();
-  await expect(page.getByText("Comece a acompanhar seu futuro")).toBeVisible();
+  await expect(page.getByText("Nenhum investimento")).toBeVisible();
 });
 test("filtros de tipo e exportação refletem a consulta da tabela", async ({
   page,

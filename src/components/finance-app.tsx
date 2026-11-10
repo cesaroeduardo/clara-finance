@@ -56,7 +56,7 @@ const navigation = [
   { id: "dashboard", label: "Visão geral", icon: LayoutGrid },
   { id: "transactions", label: "Lançamentos", icon: ArrowLeftRight },
   { id: "investments", label: "Investimentos", icon: Sprout },
-  { id: "goals", label: "Minhas metas", icon: Target },
+  { id: "goals", label: "Metas", icon: Target },
 ] as const;
 const subscribePreferences = (callback: () => void) => {
   window.addEventListener("storage", callback);
@@ -141,9 +141,7 @@ export function FinanceApp() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       setRefresh((v) => v + 1);
-      toast.success(
-        method === "DELETE" ? "Registro excluído." : "Tudo salvo por aqui.",
-      );
+      toast.success(method === "DELETE" ? "Registro excluído." : "Salvo.");
     },
     [mode],
   );
@@ -223,8 +221,7 @@ export function FinanceApp() {
           <div className="workspace-chip">
             <span className="avatar">E</span>
             <div>
-              <strong>Meu espaço</strong>
-              <span>Finanças pessoais</span>
+              <strong>Pessoal</strong>
             </div>
             <ChevronDown size={15} />
           </div>
@@ -254,7 +251,7 @@ export function FinanceApp() {
             >
               {view === "groups" && <NavigationIndicator />}
               <Layers3 size={19} strokeWidth={1.8} />
-              <span>Meus grupos</span>
+              <span>Grupos</span>
             </button>
             <button
               className={`nav-item ${view === "accounts" ? "active" : ""}`}
@@ -262,29 +259,10 @@ export function FinanceApp() {
             >
               {view === "accounts" && <NavigationIndicator />}
               <Landmark size={19} strokeWidth={1.8} />
-              <span>Contas & conexões</span>
+              <span>Contas</span>
             </button>
           </nav>
           <div className="sidebar-bottom">
-            <div className="connect-promo">
-              <div className="promo-symbol">
-                <ArrowLeftRight size={20} />
-                <span />
-              </div>
-              <strong>
-                Todos os bancos.
-                <br />
-                Um só lugar.
-              </strong>
-              <p>Traga suas contas e enxergue o todo com clareza.</p>
-              <button
-                onClick={() => {
-                  navigate("accounts");
-                }}
-              >
-                Conectar minhas contas <ArrowUpRight size={15} />
-              </button>
-            </div>
             <button className="theme-toggle" onClick={() => setDark((v) => !v)}>
               <IconSwap
                 active={dark}
@@ -320,7 +298,7 @@ export function FinanceApp() {
                 <Menu size={21} />
               </button>
               <span className="breadcrumb">
-                Meu espaço <ChevronRight size={13} />{" "}
+                Pessoal <ChevronRight size={13} />{" "}
                 <strong>
                   {view === "dashboard"
                     ? "Visão geral"
@@ -329,16 +307,16 @@ export function FinanceApp() {
                       : view === "investments"
                         ? "Investimentos"
                         : view === "goals"
-                          ? "Minhas metas"
+                          ? "Metas"
                           : view === "groups"
-                            ? "Meus grupos"
-                            : "Contas & conexões"}
+                            ? "Grupos"
+                            : "Contas"}
                 </strong>
               </span>
             </div>
             <div className="topbar-actions">
               <span className="local-indicator">
-                <span /> Tudo no seu computador
+                <span /> Local
               </span>
               <button
                 className="icon-button"
@@ -380,35 +358,19 @@ export function FinanceApp() {
           <main className="main-content">
             <div className="page-heading">
               <div>
-                <div className="eyebrow">
-                  UM POUCO MAIS DE CLAREZA, TODOS OS DIAS
-                </div>
                 <h1>
                   {view === "dashboard"
-                    ? "Seu dinheiro, bem cuidado."
+                    ? "Visão geral"
                     : view === "transactions"
-                      ? "Cada movimento conta."
+                      ? "Lançamentos"
                       : view === "investments"
-                        ? "Seu futuro está crescendo."
+                        ? "Investimentos"
                         : view === "goals"
-                          ? "Dê espaço aos seus sonhos."
+                          ? "Metas"
                           : view === "groups"
-                            ? "Tudo no seu lugar."
-                            : "Suas contas, conectadas."}
+                            ? "Grupos"
+                            : "Contas"}
                 </h1>
-                <p>
-                  {view === "dashboard"
-                    ? "Uma visão tranquila de onde você está e para onde quer ir."
-                    : view === "transactions"
-                      ? "Acompanhe o que entra, o que sai e o que fica para depois."
-                      : view === "investments"
-                        ? "Acompanhe suas posições e organize o que você está construindo."
-                        : view === "goals"
-                          ? "Transforme planos em pequenos passos possíveis."
-                          : view === "groups"
-                            ? "Organize sua vida financeira de um jeito que faça sentido para você."
-                            : "Importe seus dados com o Meu Pluggy e mantenha uma cópia local."}
-                </p>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger render={<Button className="add-button" />}>
@@ -488,7 +450,7 @@ export function FinanceApp() {
                     {view === "investments"
                       ? "Posições atuais"
                       : view === "goals"
-                        ? "Minhas metas"
+                        ? "Metas"
                         : "Leitura mais recente"}
                   </span>
                 )}
@@ -531,7 +493,7 @@ export function FinanceApp() {
             {mode === "demo" ? (
               <div className="demo-banner">
                 <span>
-                  <i /> Você está explorando com dados de demonstração.
+                  <i /> Dados de demonstração
                 </span>
                 <button
                   onClick={() => {
@@ -545,16 +507,14 @@ export function FinanceApp() {
             ) : (
               <div className="personal-banner">
                 <span>
-                  <i /> Meu espaço pessoal
+                  <i /> Dados pessoais
                 </span>
-                <button onClick={() => switchMode("demo")}>
-                  Explorar demonstração
-                </button>
+                <button onClick={() => switchMode("demo")}>Demonstração</button>
               </div>
             )}
             {error ? (
               <div className="error-state" role="alert">
-                <h2>Vamos tentar de novo?</h2>
+                <h2>Erro ao carregar</h2>
                 <p>{error}</p>
                 <Button onClick={() => setRefresh((v) => v + 1)}>
                   Recarregar
@@ -563,7 +523,7 @@ export function FinanceApp() {
             ) : !props ? (
               <div className="loading-state">
                 <LoaderCircle className="animate-spin" size={24} />
-                <p>Preparando seu espaço…</p>
+                <p>Carregando…</p>
               </div>
             ) : (
               <div className="view-content" key={`${view}-${mode}`}>
@@ -587,13 +547,6 @@ export function FinanceApp() {
                 )}
               </div>
             )}
-            <footer className="main-footer">
-              <span>
-                <span className="footer-brand">clara.</span> Feito para dar
-                tranquilidade.
-              </span>
-              <span>Seus planos. Seu ritmo.</span>
-            </footer>
           </main>
         </div>
         {form && data && (
