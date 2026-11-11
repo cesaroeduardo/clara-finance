@@ -311,8 +311,11 @@ button {
   height: calc(100vh - 16px);
   overflow: auto;
   background: var(--panel);
-  border: 1px solid color-mix(in srgb, var(--foreground) 6%, transparent);
+  border: 1px solid var(--border);
   border-radius: 14px;
+}
+.dark .app-main {
+  border-color: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 .icon-button {
   display: inline-flex;
@@ -487,6 +490,9 @@ h1 {
   overflow: hidden;
   min-width: 0;
   box-shadow: none;
+}
+.dark .finance-card {
+  border-color: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 .finance-card h2 {
   font-size: 12px;
@@ -1200,24 +1206,33 @@ h1 {
 .status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  border-radius: 20px;
-  font-size: 8px;
-  padding: 4px 7px;
-  background: var(--warning-soft);
+  gap: 6px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--warning);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
 }
 .status-pill.paid {
-  background: var(--success-soft);
+  background: transparent;
   color: var(--success);
 }
-.dark .status-pill {
-  background: var(--warning-soft);
-  color: var(--warning);
+.status-pill.muted {
+  background: transparent;
+  color: var(--muted-foreground);
 }
-.dark .status-pill.paid {
-  background: var(--success-soft);
-  color: var(--success);
+.status-glyph {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: block;
+}
+.status-glyph path {
+  stroke: var(--background);
 }
 .transaction-amount {
   font-weight: 550;

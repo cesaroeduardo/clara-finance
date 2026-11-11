@@ -113,7 +113,9 @@ export function FinanceApp() {
   );
   const [month, setMonth] = useState(monthKey()),
     [group, setGroup] = useState("all"),
-    [query, setQuery] = useState("");
+    [query, setQuery] = useState(""),
+    [txType, setTxType] = useState("all"),
+    [txCategory, setTxCategory] = useState("all");
   const [form, setForm] = useState<FormState | null>(null),
     [refresh, setRefresh] = useState(0),
     [error, setError] = useState("");
@@ -172,6 +174,17 @@ export function FinanceApp() {
     setView(next);
     setSidebar(false);
   };
+  const openTransactions = (filters?: {
+    groupId?: string;
+    category?: string;
+    type?: string;
+  }) => {
+    setGroup(filters?.groupId ?? "all");
+    setTxCategory(filters?.category ?? "all");
+    setTxType(filters?.type ?? "all");
+    setQuery("");
+    navigate("transactions");
+  };
   const mutate: Mutate = useCallback(
     async (resource, body, method = "POST") => {
       const response = await fetch(`/api/manage/${resource}?mode=${mode}`, {
@@ -229,9 +242,14 @@ export function FinanceApp() {
           group,
           query,
           setQuery,
+          txType,
+          setTxType,
+          txCategory,
+          setTxCategory,
           openForm: setForm,
           mutate,
           navigate,
+          openTransactions,
         }
       : null;
   return (
@@ -402,6 +420,7 @@ export function FinanceApp() {
                       onChange={(e) => setGroup(e.target.value)}
                     >
                       <option value="all">Todos os grupos</option>
+                      <option value="ungrouped">Sem grupo</option>
                       {data?.groups.map((g) => (
                         <option value={g.id} key={g.id}>
                           {g.name}

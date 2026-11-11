@@ -1,5 +1,5 @@
 "use client";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useId, useRef, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowSquareOut,
@@ -15,6 +15,7 @@ import {
   CreditCard,
   DownloadSimple,
   DotsThree,
+  Eye,
   Info,
   MagnifyingGlass,
   PencilSimple,
@@ -27,7 +28,9 @@ import {
 import {
   Area,
   AreaChart,
-  ReferenceLine,
+  ComposedChart,
+  Line,
+  ReferenceDot,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -38,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { FinanceIcon, Illustration } from "./finance-icons";
 import { PrivacyContext } from "./finance-privacy";
 import {
+  AnimatedLabel,
   LinkChevron,
   MotionSegmentedControl,
   SpinningAmount,
@@ -45,7 +49,14 @@ import {
 import type { FormState, Mutate } from "./finance-form";
 import type { Account, FinanceData, Goal, Transaction } from "@/lib/types";
 import type { View } from "./finance-app";
-import { summarize, filterTransactions, netWorth } from "@/lib/analytics";
+import {
+  filterTransactions,
+  matchesGroupFilter,
+  netWorth,
+  spendingPace,
+  summarize,
+} from "@/lib/analytics";
+import { colorForCategory, iconForCategory } from "@/lib/categorize";
 import {
   compactMoney,
   dateLabel,
@@ -53,7 +64,7 @@ import {
   money,
   monthLabel,
 } from "@/lib/format";
-import { useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 
 function shiftMonthKey(month: string, delta: number) {
   const date = new Date(`${month}-15T12:00:00`);
@@ -67,10 +78,43 @@ function shortMonthLabel(month: string) {
     .replace(".", "");
 }
 
+function donutPoint(cx: number, cy: number, radius: number, angle: number) {
+  const radians = ((angle - 90) * Math.PI) / 180;
+  return {
+    x: cx + radius * Math.cos(radians),
+    y: cy + radius * Math.sin(radians),
+  };
+}
+
+function donutSlicePath(
+  cx: number,
+  cy: number,
+  outer: number,
+  inner: number,
+  startPct: number,
+  endPct: number,
+) {
+  const start = startPct * 3.6;
+  const end = Math.min(endPct * 3.6, start + 359.999);
+  const large = end - start > 180 ? 1 : 0;
+  const a = donutPoint(cx, cy, outer, start);
+  const b = donutPoint(cx, cy, outer, end);
+  const c = donutPoint(cx, cy, inner, end);
+  const d = donutPoint(cx, cy, inner, start);
+  return [
+    `M ${a.x} ${a.y}`,
+    `A ${outer} ${outer} 0 ${large} 1 ${b.x} ${b.y}`,
+    `L ${c.x} ${c.y}`,
+    `A ${inner} ${inner} 0 ${large} 0 ${d.x} ${d.y}`,
+    "Z",
+  ].join(" ");
+}
+
 function cardInvoiceTotal(
   data: FinanceData,
   accountId: string,
   month: string,
+  pendingOnly = false,
 ) {
   return data.transactions
     .filter(
@@ -78,34 +122,32 @@ function cardInvoiceTotal(
         row.accountId === accountId &&
         row.currency === "BRL" &&
         row.kind === "expense" &&
-        row.date.startsWith(month),
+        row.date.startsWith(month) &&
+        (!pendingOnly || row.status === "pending"),
     )
     .reduce((total, row) => total + row.amount, 0);
 }
 
-function cardDueDay(data: FinanceData, accountId: string, month: string) {
-  const dates = data.transactions
-    .filter(
-      (row) =>
-        row.accountId === accountId &&
-        row.currency === "BRL" &&
-        row.kind === "expense" &&
-        row.status === "pending" &&
-        row.date.startsWith(month),
-    )
-    .map((row) => row.date)
-    .sort();
-  return dates[0]?.slice(8, 10) || null;
-}
+type TransactionFilters = {
+  groupId?: string;
+  category?: string;
+  type?: string;
+};
+
 type Props = {
   data: FinanceData;
   month: string;
   group: string;
   query: string;
   setQuery: (value: string) => void;
+  txType: string;
+  setTxType: (value: string) => void;
+  txCategory: string;
+  setTxCategory: (value: string) => void;
   openForm: (form: FormState) => void;
   mutate: Mutate;
   navigate: (view: View) => void;
+  openTransactions: (filters?: TransactionFilters) => void;
 };
 const record = (value: object) => value as Record<string, unknown>;
 const assetNames: Record<string, string> = {
@@ -190,6 +232,61 @@ function TextLink({
     </button>
   );
 }
+function StatusGlyph({
+  tone,
+}: {
+  tone: "success" | "warning" | "muted";
+}) {
+  if (tone === "muted") {
+    return (
+      <svg className="status-glyph" viewBox="0 0 16 16" aria-hidden>
+        <circle
+          cx="8"
+          cy="8"
+          r="6.25"
+          fill="none"
+          stroke="currentColor"
+          strokeDasharray="2.2 2.1"
+          strokeWidth="1.25"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg className="status-glyph" viewBox="0 0 16 16" aria-hidden>
+      <circle cx="8" cy="8" r="7" fill="currentColor" />
+      <path
+        d="M4 9.4 6.3 7.1 8.1 8.7 12 4.7"
+        fill="none"
+        strokeWidth="1.45"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function StatusTag({
+  tone,
+  children,
+}: {
+  tone: "success" | "warning" | "muted";
+  children: React.ReactNode;
+}) {
+  const className =
+    tone === "success"
+      ? "status-pill paid"
+      : tone === "muted"
+        ? "status-pill muted"
+        : "status-pill";
+  return (
+    <span className={className}>
+      <StatusGlyph tone={tone} />
+      {children}
+    </span>
+  );
+}
+
 function Empty({
   title,
   description,
@@ -211,10 +308,13 @@ function Empty({
   );
 }
 export function DashboardView(props: Props) {
-  const { data, month, group, openForm, navigate } = props;
+  const { data, month, group, openForm, navigate, openTransactions } = props;
   const stats = summarize(data, month, group);
+  const pace = spendingPace(data, month, group);
   const hidden = useContext(PrivacyContext);
   const reducedMotion = useReducedMotion();
+  const [insightIndex, setInsightIndex] = useState(0);
+  const [insightDir, setInsightDir] = useState(1);
   const confirmedIncome = stats.records
     .filter((row) => row.status === "paid" && row.kind === "income")
     .reduce((sum, row) => sum + row.amount, 0);
@@ -223,10 +323,6 @@ export function DashboardView(props: Props) {
   const bills = pendingBills(data, month, group);
   const featuredGoal =
     stats.goals.find((goal) => goal.icon === "shield") || stats.goals[0];
-  const flow = stats.flow.map((point) => ({
-    day: point.day,
-    result: point.income - point.expenses,
-  }));
   const wealth = netWorth(data);
   const wealthFlow = wealth.series.map((point) => ({
     month: point.month,
@@ -234,6 +330,100 @@ export function DashboardView(props: Props) {
   }));
   const updateGoal = (goal: Goal) =>
     openForm({ resource: "goals", record: record(goal), contribute: true });
+  const underPace = pace.paceDelta >= 0;
+  const paceStroke = underPace ? "var(--success)" : "var(--destructive)";
+  const paceFill = underPace
+    ? "var(--success)"
+    : "var(--destructive)";
+  const todayPoint = pace.series.find((point) => point.day === pace.todayDay);
+  const shiftDelta = pace.categoryShift?.delta;
+  const shiftCategory = pace.categoryShift?.category;
+  const shiftInsight =
+    shiftDelta == null || shiftCategory == null
+      ? {
+          id: "shift",
+          title: "Mudança nos gastos",
+          body: <>Sem variação relevante por categoria no período.</>,
+        }
+      : {
+          id: "shift",
+          title: "Mudança nos gastos",
+          body: (
+            <>
+              Você gastou{" "}
+              <strong>
+                <Amount value={Math.abs(shiftDelta)} motion="reel" />{" "}
+                {shiftDelta >= 0 ? "a mais" : "a menos"}
+              </strong>{" "}
+              em {shiftCategory} este mês vs. o mesmo período do mês passado.
+            </>
+          ),
+        };
+  const insights = [
+    {
+      id: "pace",
+      title: "Ritmo de gastos",
+      body: (
+        <>
+          Você usou{" "}
+          <strong>
+            <AnimatedLabel value={`${pace.limitUsedPercent}%`} />
+          </strong>{" "}
+          do limite. No ritmo atual, pode gastar até{" "}
+          <strong>
+            <Amount value={pace.dailyAllowance} motion="reel" />
+          </strong>{" "}
+          por dia até o fim do mês.
+        </>
+      ),
+    },
+    shiftInsight,
+    {
+      id: "projection",
+      title: "Projeção de saldo",
+      body: (
+        <>
+          Mantendo seu ritmo atual, em 3 meses você terá{" "}
+          <strong>
+            <Amount
+              value={Math.abs(pace.projectedSurplus3m)}
+              motion="reel"
+            />{" "}
+            {pace.projectedSurplus3m >= 0 ? "sobrando" : "a menos"}
+          </strong>{" "}
+          {pace.projectedSurplus3m >= 0
+            ? "para usar como quiser."
+            : "no limite planejado."}
+        </>
+      ),
+    },
+  ];
+  const activeInsight = insights[insightIndex] ?? insights[0];
+  const showPrevInsight = () => {
+    setInsightDir(-1);
+    setInsightIndex((index) => (index + insights.length - 1) % insights.length);
+  };
+  const showNextInsight = () => {
+    setInsightDir(1);
+    setInsightIndex((index) => (index + 1) % insights.length);
+  };
+  const insightSlide = {
+    enter: (direction: number) => ({
+      opacity: 0,
+      x: reducedMotion ? 0 : direction * 14,
+      filter: reducedMotion ? "blur(0px)" : "blur(3px)",
+    }),
+    center: {
+      opacity: 1,
+      x: 0,
+      filter: "blur(0px)",
+    },
+    exit: (direction: number) => ({
+      opacity: 0,
+      x: reducedMotion ? 0 : direction * -10,
+      filter: reducedMotion ? "blur(0px)" : "blur(2px)",
+    }),
+  };
 
   return (
     <div className="home-grid">
@@ -241,97 +431,253 @@ export function DashboardView(props: Props) {
         <section className="finance-card home-forecast">
           <div className="home-forecast-body">
             <div className="home-card-heading">
-              <h2>Saldo previsto</h2>
-              <span title="Entradas menos saídas do mês, incluindo pendências.">
-                <Info size={14} aria-label="Cálculo do saldo previsto" />
+              <h2>Você ainda pode gastar</h2>
+              <span title="Limite = entradas do mês menos o aporte estimado das metas. O ritmo ideal divide esse limite pelos dias do mês. A linha sólida projeta o gasto até o fim do mês no ritmo atual.">
+                <Info size={14} aria-label="Cálculo do limite de gastos" />
               </span>
             </div>
-            <div className="home-amount home-forecast-amount">
-              <Amount value={stats.balance} motion="reel" />
-            </div>
-            <div
-              className="home-chart"
-              role="img"
-              aria-label="Resultado acumulado dos lançamentos do mês"
-              aria-hidden={hidden}
-            >
-              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                <AreaChart
-                  data={flow}
-                  accessibilityLayer={!hidden}
-                  margin={{ top: 16, right: 6, bottom: 0, left: 6 }}
+            {pace.empty ? (
+              <div className="home-pace-empty">
+                <p>Sem entradas neste mês.</p>
+              </div>
+            ) : (
+              <>
+                <div className="home-amount home-forecast-amount home-pace-amount">
+                  <Amount value={pace.remaining} motion="reel" />
+                  <span className="home-pace-limit">
+                    / <Amount value={pace.monthlyLimit} />
+                  </span>
+                </div>
+                <div
+                  className="home-chart home-pace-chart"
+                  role="img"
+                  aria-label="Ritmo ideal, gasto acumulado e previsão até o fim do mês"
+                  aria-hidden={hidden}
                 >
-                  <defs>
-                    <linearGradient
-                      id="home-result-gradient"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="0%"
-                        stopColor="var(--chart-1)"
-                        stopOpacity={0.12}
-                      />
-                      <stop
-                        offset="100%"
-                        stopColor="var(--chart-1)"
-                        stopOpacity={0}
-                      />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="day" hide />
-                  <YAxis hide domain={["auto", "auto"]} />
-                  <ReferenceLine
-                    y={0}
-                    stroke="var(--border)"
-                    strokeDasharray="4 4"
-                  />
                   {!hidden && (
-                    <Tooltip
-                      formatter={(value) => [
-                        money(Number(value) * 100),
-                        "Resultado",
-                      ]}
-                      labelFormatter={(day) => `Dia ${day}`}
-                      contentStyle={{
-                        borderRadius: 8,
-                        border: "1px solid var(--border)",
-                        fontSize: 11,
-                        background: "var(--popover)",
-                        color: "var(--foreground)",
-                      }}
-                    />
+                    <span
+                      className={`home-pace-pill ${underPace ? "" : "over"}`.trim()}
+                    >
+                      <Amount value={Math.abs(pace.paceDelta)} motion="reel" />{" "}
+                      {underPace ? "abaixo" : "acima"}
+                    </span>
                   )}
-                  <Area
-                    dataKey="result"
-                    type="stepAfter"
-                    isAnimationActive={!hidden && !reducedMotion}
-                    animationDuration={800}
-                    animationEasing="ease-out"
-                    stroke="var(--chart-1)"
-                    strokeWidth={2}
-                    fill="url(#home-result-gradient)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <ComposedChart
+                      data={pace.series}
+                      accessibilityLayer={!hidden}
+                      margin={{ top: 28, right: 10, bottom: 0, left: 6 }}
+                    >
+                      <defs>
+                        <linearGradient
+                          id="home-pace-fill"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor={paceFill}
+                            stopOpacity={0.18}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor={paceFill}
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="day" hide domain={[1, pace.daysInMonth]} />
+                      <YAxis hide domain={[0, "auto"]} />
+                      {!hidden && (
+                        <Tooltip
+                          formatter={(value, name) => {
+                            if (value == null) return [null, ""];
+                            const label =
+                              name === "ideal"
+                                ? "Ritmo ideal"
+                                : name === "forecast"
+                                  ? "Previsão"
+                                  : "Gasto";
+                            return [money(Number(value) * 100), label];
+                          }}
+                          labelFormatter={(day) => `Dia ${day}`}
+                          contentStyle={{
+                            borderRadius: 8,
+                            border: "1px solid var(--border)",
+                            fontSize: 11,
+                            background: "var(--popover)",
+                            color: "var(--foreground)",
+                          }}
+                        />
+                      )}
+                      <Area
+                        dataKey="track"
+                        type="monotone"
+                        stroke="none"
+                        fill="url(#home-pace-fill)"
+                        isAnimationActive={!hidden && !reducedMotion}
+                        animationDuration={800}
+                        animationEasing="ease-out"
+                      />
+                      <Line
+                        dataKey="ideal"
+                        type="linear"
+                        stroke="var(--chart-2)"
+                        strokeWidth={1.5}
+                        strokeDasharray="4 4"
+                        dot={false}
+                        connectNulls={false}
+                        isAnimationActive={!hidden && !reducedMotion}
+                        animationDuration={800}
+                        animationEasing="ease-out"
+                      />
+                      <Line
+                        dataKey="actual"
+                        type="monotone"
+                        stroke={paceStroke}
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls={false}
+                        isAnimationActive={!hidden && !reducedMotion}
+                        animationDuration={800}
+                        animationEasing="ease-out"
+                      />
+                      <Line
+                        dataKey="forecast"
+                        type="linear"
+                        stroke={paceStroke}
+                        strokeWidth={2}
+                        strokeDasharray="5 4"
+                        strokeOpacity={0.7}
+                        dot={false}
+                        connectNulls={false}
+                        isAnimationActive={!hidden && !reducedMotion}
+                        animationDuration={800}
+                        animationEasing="ease-out"
+                      />
+                      {todayPoint?.actual != null && (
+                        <ReferenceDot
+                          x={todayPoint.day}
+                          y={todayPoint.actual}
+                          r={4}
+                          fill={paceStroke}
+                          stroke="var(--card)"
+                          strokeWidth={2}
+                        />
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="home-chart-dates">
+                  <span>01</span>
+                  <span>{String(pace.daysInMonth).padStart(2, "0")}</span>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="home-forecast-footer home-pace-insights">
+            <button
+              type="button"
+              className="home-pace-insight-head"
+              onClick={() => openTransactions()}
+            >
+              <span>
+                <Eye size={15} />
+                <span className="home-pace-insight-title">
+                  <AnimatePresence mode="wait" initial={false} custom={insightDir}>
+                    <m.span
+                      key={pace.empty ? "empty" : activeInsight.id}
+                      className="home-pace-insight-title-value"
+                      custom={insightDir}
+                      variants={insightSlide}
+                      initial="enter"
+                      animate="center"
+                      exit="exit"
+                      transition={{
+                        duration: reducedMotion ? 0 : 0.22,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                    >
+                      {pace.empty ? "Ritmo de gastos" : activeInsight.title}
+                    </m.span>
+                  </AnimatePresence>
+                </span>
+              </span>
+              <ArrowUpRight size={16} />
+            </button>
+            <div className="home-pace-insight-body" aria-live="polite">
+              <AnimatePresence mode="wait" initial={false} custom={insightDir}>
+                <m.p
+                  key={pace.empty ? "empty" : activeInsight.id}
+                  className="home-pace-insight-copy"
+                  custom={insightDir}
+                  variants={insightSlide}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{
+                    duration: reducedMotion ? 0 : 0.24,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                >
+                  {pace.empty ? (
+                    <>
+                      Cadastre entradas do mês para ver o ritmo e as projeções.
+                    </>
+                  ) : (
+                    activeInsight.body
+                  )}
+                </m.p>
+              </AnimatePresence>
             </div>
-            <div className="home-chart-dates">
-              <span>01</span>
-              <span>{stats.flow.length}</span>
+            <div className="home-pace-insight-nav">
+              <button
+                type="button"
+                aria-label="Insight anterior"
+                onClick={showPrevInsight}
+                disabled={pace.empty}
+              >
+                <CaretLeft size={14} />
+              </button>
+              <div className="home-pace-insight-dots" aria-hidden="true">
+                {insights.map((insight, index) => (
+                  <button
+                    key={insight.id}
+                    type="button"
+                    className="home-pace-insight-dot"
+                    aria-label={`Ver ${insight.title}`}
+                    aria-current={index === insightIndex}
+                    disabled={pace.empty}
+                    onClick={() => {
+                      setInsightDir(index > insightIndex ? 1 : -1);
+                      setInsightIndex(index);
+                    }}
+                  >
+                    {index === insightIndex && (
+                      <m.span
+                        layoutId="pace-insight-dot"
+                        className="home-pace-insight-dot-active"
+                        transition={{
+                          duration: reducedMotion ? 0 : 0.25,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                aria-label="Próximo insight"
+                onClick={showNextInsight}
+                disabled={pace.empty}
+              >
+                <CaretRight size={14} />
+              </button>
             </div>
           </div>
-          <button
-            className="home-forecast-footer"
-            onClick={() => navigate("transactions")}
-          >
-            <span>
-              <ArrowsLeftRight size={15} />
-              Ver lançamentos
-            </span>
-            <ArrowUpRight size={16} />
-          </button>
         </section>
         <button
           className="finance-card home-bills-summary"
@@ -364,6 +710,7 @@ export function DashboardView(props: Props) {
         month={month}
         group={group}
         navigate={navigate}
+        openTransactions={openTransactions}
       />
 
       <div className="home-left-stack">
@@ -372,7 +719,7 @@ export function DashboardView(props: Props) {
             <h2>Resultado mensal</h2>
             <DashboardLink
               label="Ver lançamentos"
-              onClick={() => navigate("transactions")}
+              onClick={() => openTransactions()}
             />
           </div>
           <div className="home-value-line">
@@ -643,7 +990,7 @@ function pendingBills(data: FinanceData, month: string, group: string) {
         row.status === "pending" &&
         row.currency === "BRL" &&
         row.date.startsWith(month) &&
-        (group === "all" || row.groupId === group),
+        matchesGroupFilter(row.groupId, group),
     )
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -653,8 +1000,10 @@ function SpendingDistribution({
   month,
   group,
   navigate,
-}: Pick<Props, "data" | "month" | "group" | "navigate">) {
+  openTransactions,
+}: Pick<Props, "data" | "month" | "group" | "navigate" | "openTransactions">) {
   const [breakdown, setBreakdown] = useState("category");
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const stats = summarize(data, month, group);
   const categories = new Map<
     string,
@@ -677,8 +1026,8 @@ function SpendingDistribution({
         id: name,
         name,
         spent: row.amount,
-        color: parent?.color || "var(--chart-3)",
-        icon: parent?.icon || "layers",
+        color: colorForCategory(name, categories.size),
+        icon: iconForCategory(name, parent?.icon || "layers"),
         budget: 0,
       });
     }
@@ -704,31 +1053,64 @@ function SpendingDistribution({
             : []),
         ]
       : [...categories.values()];
-  const sorted = source
-    .filter((item) => item.spent > 0 || item.budget > 0)
+  const visible = source.filter((item) => item.spent > 0 || item.budget > 0);
+  const uncategorized = visible.find(
+    (item) => item.name === "Sem categoria" || item.id === "Sem categoria",
+  );
+  const named = visible
+    .filter(
+      (item) => item.name !== "Sem categoria" && item.id !== "Sem categoria",
+    )
     .sort((a, b) => b.spent - a.spent);
+  const namedLimit = uncategorized ? 5 : 6;
   const items =
-    sorted.length > 7
+    named.length > namedLimit
       ? [
-          ...sorted.slice(0, 6),
+          ...named.slice(0, namedLimit),
           {
             id: "other",
             name: "Outros",
-            spent: sorted.slice(6).reduce((sum, item) => sum + item.spent, 0),
-            budget: sorted.slice(6).reduce((sum, item) => sum + item.budget, 0),
-            color: "var(--chart-3)",
-            icon: "layers",
+            spent: named
+              .slice(namedLimit)
+              .reduce((sum, item) => sum + item.spent, 0),
+            budget: named
+              .slice(namedLimit)
+              .reduce((sum, item) => sum + item.budget, 0),
+            color: colorForCategory("Outros"),
+            icon: iconForCategory("Outros"),
           },
+          ...(uncategorized ? [uncategorized] : []),
         ]
-      : sorted;
-  const stops = items.map((item, index) => {
+      : [...named, ...(uncategorized ? [uncategorized] : [])];
+  const total = stats.expenses || 1;
+  const slices = items.map((item, index) => {
     const start =
-      (items.slice(0, index).reduce((sum, item) => sum + item.spent, 0) /
-        (stats.expenses || 1)) *
+      (items.slice(0, index).reduce((sum, entry) => sum + entry.spent, 0) /
+        total) *
       100;
-    const end = start + (item.spent / (stats.expenses || 1)) * 100;
-    return `${item.color} ${start}% ${end}%`;
+    const end = start + (item.spent / total) * 100;
+    return { ...item, start, end };
   });
+  const hovered = slices.find((item) => item.id === hoveredId) ?? null;
+  function openItem(item: (typeof items)[number]) {
+    if (item.id === "other") {
+      openTransactions({ type: "expense", category: "all", groupId: group });
+      return;
+    }
+    if (breakdown === "group") {
+      openTransactions({
+        type: "expense",
+        category: "all",
+        groupId: item.id,
+      });
+      return;
+    }
+    openTransactions({
+      type: "expense",
+      category: item.name,
+      groupId: group,
+    });
+  }
   return (
     <section className="finance-card home-distribution">
       <div className="home-card-heading">
@@ -736,7 +1118,10 @@ function SpendingDistribution({
         <div className="home-distribution-actions">
           <MotionSegmentedControl
             value={breakdown}
-            onChange={setBreakdown}
+            onChange={(value) => {
+              setBreakdown(value);
+              setHoveredId(null);
+            }}
             options={[
               ["category", "Categorias"],
               ["group", "Grupos"],
@@ -749,35 +1134,65 @@ function SpendingDistribution({
           />
         </div>
       </div>
-      <div className="home-distribution-body">
-        <div
-          className="home-donut"
-          style={{
-            background: stops.length
-              ? `conic-gradient(${stops.join(",")})`
-              : "var(--track)",
-          }}
-        >
-          <div>
-            <span>Total de saídas</span>
+      <div
+        className="home-distribution-body"
+        onMouseLeave={() => setHoveredId(null)}
+      >
+        <div className={`home-donut${hoveredId ? " is-filtering" : ""}`}>
+          {slices.length ? (
+            <svg
+              className="home-donut-svg"
+              viewBox="0 0 100 100"
+              aria-hidden="true"
+            >
+              {slices.map((item) => (
+                <path
+                  key={item.id}
+                  className={`home-donut-slice${hoveredId === item.id ? " is-hovered" : ""}`}
+                  d={donutSlicePath(50, 50, 48, 33, item.start, item.end)}
+                  fill={item.color}
+                  onMouseEnter={() => setHoveredId(item.id)}
+                  onClick={() => openItem(item)}
+                />
+              ))}
+            </svg>
+          ) : (
+            <div className="home-donut-empty" />
+          )}
+          <div className="home-donut-center">
+            <span>{hovered ? hovered.name : "Total de saídas"}</span>
             <strong>
-              <Amount value={stats.expenses} motion="reel" />
+              <Amount
+                value={hovered ? hovered.spent : stats.expenses}
+                motion="reel"
+              />
             </strong>
           </div>
         </div>
-        <div className="home-spending-list">
+        <div
+          className={`home-spending-list${hoveredId ? " is-filtering" : ""}`}
+        >
           {items.length ? (
             items.map((item) => (
-              <div className="home-spending-row" key={item.id}>
+              <button
+                type="button"
+                className={`home-spending-row${hoveredId === item.id ? " is-hovered" : ""}`}
+                key={item.id}
+                onMouseEnter={() => setHoveredId(item.id)}
+                onClick={() => openItem(item)}
+              >
                 <span
                   className="home-category-icon"
-                  style={{ color: item.color }}
+                  style={{
+                    color: item.color,
+                    background: `color-mix(in srgb, ${item.color} 16%, transparent)`,
+                  }}
                 >
                   <FinanceIcon name={item.icon} size={15} />
                 </span>
                 <strong>{item.name}</strong>
                 <span className="home-percentage">
-                  {Math.round((item.spent / (stats.expenses || 1)) * 100)}%
+                  {Math.round((item.spent / total) * 100)}%
                 </span>
                 <span
                   className={`home-category-amount ${item.budget && item.spent > item.budget ? "negative" : ""}`}
@@ -790,7 +1205,7 @@ function SpendingDistribution({
                     </small>
                   )}
                 </span>
-              </div>
+              </button>
             ))
           ) : (
             <div className="home-empty">
@@ -816,38 +1231,181 @@ function CreditCardsCard({
     (row) => row.type === "CREDIT" && row.currency === "BRL",
   );
   const [index, setIndex] = useState(0);
-  const [forecastIndex, setForecastIndex] = useState(0);
-  const active = cards[Math.min(index, Math.max(0, cards.length - 1))];
-  const forecastMonths = [0, 1, 2].map((offset) => {
+  const [forecastIndex, setForecastIndex] = useState(1);
+  const reduced = useReducedMotion();
+  const trackRef = useRef<HTMLDivElement>(null);
+  const scrollTimerRef = useRef(0);
+  const dragRef = useRef({
+    id: null as number | null,
+    startX: 0,
+    startScroll: 0,
+    moved: false,
+  });
+  const activeIndex = Math.min(index, Math.max(0, cards.length - 1));
+  const active = cards[activeIndex];
+  const forecastMonths = ([-1, 0, 1] as const).map((offset) => {
     const key = shiftMonthKey(month, offset);
-    const charged = active
-      ? cardInvoiceTotal(data, active.id, key)
+    const pending = active
+      ? cardInvoiceTotal(data, active.id, key, true)
       : 0;
-    const openBalance =
-      offset === 0 && active ? Math.abs(active.balance) : charged;
+    const closed = active
+      ? cardInvoiceTotal(data, active.id, key, false)
+      : 0;
+    // Passado: fatura fechada. Atual: saldo. Futuro: pendências.
+    const amount =
+      offset < 0
+        ? closed
+        : offset === 0 && active
+          ? Math.abs(active.balance) || pending
+          : pending;
+    const monthLabel = shortMonthLabel(key);
     return {
       key,
-      label: shortMonthLabel(key),
-      amount: Math.max(openBalance, charged),
+      label:
+        offset === 0
+          ? monthLabel
+          : `${monthLabel} ${key.slice(2, 4)}`,
+      amount,
       open: offset === 0,
     };
   });
-  const selected = forecastMonths[forecastIndex] || forecastMonths[0];
-  const dueDay = active ? cardDueDay(data, active.id, month) : null;
+  const selected = forecastMonths[forecastIndex] || forecastMonths[1];
+
+  function nearestCardIndex() {
+    const track = trackRef.current;
+    if (!track) return 0;
+    const slots = [
+      ...track.querySelectorAll<HTMLElement>(".home-credit-card-slot"),
+    ];
+    const paddingLeft =
+      Number.parseFloat(getComputedStyle(track).paddingLeft) || 0;
+    const origin = track.getBoundingClientRect().left + paddingLeft;
+    let best = 0;
+    let distance = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < slots.length; i++) {
+      const delta = Math.abs(slots[i].getBoundingClientRect().left - origin);
+      if (delta < distance) {
+        distance = delta;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  function scrollToCard(next: number, behavior?: ScrollBehavior) {
+    const track = trackRef.current;
+    const slot = track?.querySelectorAll<HTMLElement>(".home-credit-card-slot")[
+      next
+    ];
+    if (!track || !slot) return;
+    const paddingLeft =
+      Number.parseFloat(getComputedStyle(track).paddingLeft) || 0;
+    const left =
+      slot.getBoundingClientRect().left -
+      track.getBoundingClientRect().left +
+      track.scrollLeft -
+      paddingLeft;
+    track.scrollTo({
+      left,
+      behavior: behavior ?? (reduced ? "auto" : "smooth"),
+    });
+  }
+
+  function goTo(next: number) {
+    const clamped = Math.max(0, Math.min(cards.length - 1, next));
+    setIndex(clamped);
+    setForecastIndex(1);
+    scrollToCard(clamped);
+  }
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const sync = () => {
+      const next = nearestCardIndex();
+      setIndex((current) => (current === next ? current : next));
+    };
+
+    const onScrollEnd = () => sync();
+    const onScroll = () => {
+      window.clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = window.setTimeout(sync, 80);
+    };
+
+    track.addEventListener("scrollend", onScrollEnd);
+    track.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.clearTimeout(scrollTimerRef.current);
+      track.removeEventListener("scrollend", onScrollEnd);
+      track.removeEventListener("scroll", onScroll);
+    };
+  }, [cards.length]);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || event.pointerType === "touch") return;
+      dragRef.current = {
+        id: event.pointerId,
+        startX: event.clientX,
+        startScroll: track.scrollLeft,
+        moved: false,
+      };
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (drag.id !== event.pointerId) return;
+      const delta = event.clientX - drag.startX;
+      if (!drag.moved && Math.abs(delta) > 4) {
+        drag.moved = true;
+        track.classList.add("dragging");
+        track.setPointerCapture(event.pointerId);
+      }
+      if (!drag.moved) return;
+      track.scrollLeft = drag.startScroll - delta;
+    };
+
+    const finishDrag = (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (drag.id !== event.pointerId) return;
+      const moved = drag.moved;
+      dragRef.current = { ...drag, id: null };
+      track.classList.remove("dragging");
+      if (track.hasPointerCapture(event.pointerId))
+        track.releasePointerCapture(event.pointerId);
+      if (!moved) return;
+      const next = nearestCardIndex();
+      setIndex(next);
+      setForecastIndex(1);
+      scrollToCard(next, reduced ? "auto" : "smooth");
+    };
+
+    track.addEventListener("pointerdown", onPointerDown);
+    track.addEventListener("pointermove", onPointerMove);
+    track.addEventListener("pointerup", finishDrag);
+    track.addEventListener("pointercancel", finishDrag);
+    return () => {
+      track.removeEventListener("pointerdown", onPointerDown);
+      track.removeEventListener("pointermove", onPointerMove);
+      track.removeEventListener("pointerup", finishDrag);
+      track.removeEventListener("pointercancel", finishDrag);
+    };
+  }, [cards.length, reduced]);
 
   return (
     <section className="finance-card home-cards" aria-label="Cartões">
       <div className="home-cards-top">
         <div className="home-cards-heading">
-          <div>
-            <h2>Cartões</h2>
-            <span className="home-muted">
-              Fatura de{" "}
-              {new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(
-                new Date(`${selected.key}-15T12:00:00`),
-              )}
-            </span>
-          </div>
+          <span className="home-muted">
+            Fatura de{" "}
+            {new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(
+              new Date(`${selected.key}-15T12:00:00`),
+            )}
+          </span>
         </div>
         <strong className="home-amount home-cards-amount">
           <Amount value={selected.amount} motion="reel" />
@@ -864,18 +1422,16 @@ function CreditCardsCard({
               <button
                 className="icon-button"
                 aria-label="Cartão anterior"
-                disabled={index <= 0}
-                onClick={() => setIndex((value) => Math.max(0, value - 1))}
+                disabled={activeIndex <= 0}
+                onClick={() => goTo(activeIndex - 1)}
               >
                 <CaretLeft size={16} />
               </button>
               <button
                 className="icon-button"
                 aria-label="Próximo cartão"
-                disabled={index >= cards.length - 1}
-                onClick={() =>
-                  setIndex((value) => Math.min(cards.length - 1, value + 1))
-                }
+                disabled={activeIndex >= cards.length - 1}
+                onClick={() => goTo(activeIndex + 1)}
               >
                 <CaretRight size={16} />
               </button>
@@ -886,46 +1442,30 @@ function CreditCardsCard({
 
       {cards.length ? (
         <>
-          <div className="home-cards-track">
-            {cards.map((card, cardIndex) => (
-              <CreditCardVisual
-                key={card.id}
-                card={card}
-                active={card.id === active?.id}
-                dueDay={
-                  card.id === active?.id
-                    ? dueDay
-                    : cardDueDay(data, card.id, month)
-                }
-                onSelect={() => {
-                  setIndex(cardIndex);
-                  setForecastIndex(0);
-                }}
-              />
+          <div ref={trackRef} className="home-cards-track">
+            {cards.map((card) => (
+              <div key={card.id} className="home-credit-card-slot">
+                <CreditCardVisual
+                  card={card}
+                  active={card.id === active?.id}
+                  onSelect={() => {
+                    if (dragRef.current.moved) {
+                      dragRef.current.moved = false;
+                      return;
+                    }
+                    goTo(cards.findIndex((row) => row.id === card.id));
+                  }}
+                />
+              </div>
             ))}
           </div>
 
-          <div className="home-cards-forecast">
-            <span className="home-cards-forecast-label">Próximas faturas</span>
-            <div className="home-cards-forecast-list">
-              {forecastMonths.map((item, itemIndex) => (
-                <button
-                  key={item.key}
-                  className={`home-cards-forecast-item ${forecastIndex === itemIndex ? "selected" : ""}`}
-                  onClick={() => setForecastIndex(itemIndex)}
-                >
-                  <span className="home-cards-forecast-month">
-                    {item.label}
-                    {item.open && (
-                      <span className="home-cards-status">Aberta</span>
-                    )}
-                  </span>
-                  <strong>
-                    <Amount value={item.amount} />
-                  </strong>
-                </button>
-              ))}
-            </div>
+          <div className="home-cards-forecast" aria-label="Próximas faturas">
+            <ForecastMonths
+              months={forecastMonths}
+              selectedIndex={forecastIndex}
+              onSelect={setForecastIndex}
+            />
           </div>
         </>
       ) : (
@@ -971,11 +1511,72 @@ function creditCardLabel(card: Account, theme: string) {
   return `${institution} ${card.name}`.trim();
 }
 
-function cardAvailableLimit(card: Account) {
-  if (card.availableCreditLimit != null) return card.availableCreditLimit;
-  if (card.creditLimit != null)
-    return Math.max(0, card.creditLimit - Math.abs(card.balance));
-  return null;
+function CreditCardChip({
+  variant = "generic",
+}: {
+  variant?: "ultravioleta" | "sicredi" | "generic";
+}) {
+  const reactId = useId().replace(/:/g, "");
+  const fillId = `chip-fill-${variant}-${reactId}`;
+  const clipId = `chip-clip-${variant}-${reactId}`;
+
+  return (
+    <svg
+      className="home-credit-card-chip"
+      viewBox="0 0 90 60"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={fillId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ddd3c4" />
+          <stop offset="38%" stopColor="#c4b49a" />
+          <stop offset="70%" stopColor="#a89478" />
+          <stop offset="100%" stopColor="#c8bba8" />
+        </linearGradient>
+        <clipPath id={clipId}>
+          <rect width="90" height="60" rx="7" />
+        </clipPath>
+      </defs>
+      <rect width="90" height="60" rx="7" fill={`url(#${fillId})`} />
+      <g
+        clipPath={`url(#${clipId})`}
+        transform="translate(90 0) rotate(90)"
+        fill="none"
+        stroke="#5f5343"
+        strokeWidth="1.05"
+        strokeLinejoin="round"
+        strokeLinecap="butt"
+      >
+        {variant === "ultravioleta" ? (
+          <>
+            {/* Ref 1: laterais em 3 faixas + pad central arredondado */}
+            <rect x="0.75" y="0.75" width="58.5" height="88.5" rx="7" />
+            <path d="M13.5 0.75 V89.25" />
+            <path d="M46.5 0.75 V89.25" />
+            <path d="M30 0.75 V34.5" />
+            <path d="M30 55.5 V89.25" />
+            <path d="M13.5 34.5 H21" />
+            <path d="M39 34.5 H46.5" />
+            <path d="M13.5 55.5 H21" />
+            <path d="M39 55.5 H46.5" />
+            <rect x="21" y="34.5" width="18" height="21" rx="9" />
+            <rect x="24.5" y="39" width="11" height="12" rx="1.2" />
+          </>
+        ) : (
+          <>
+            {/* Ref 2: padrão em H com cortes diagonais */}
+            <rect x="0.75" y="0.75" width="58.5" height="88.5" rx="7" />
+            <path d="M30 0.75 V26" />
+            <path d="M30 64 V89.25" />
+            <path d="M0.75 34 H21 L30 26 L39 34 H59.25" />
+            <path d="M59.25 56 H39 L30 64 L21 56 H0.75" />
+            <path d="M21 34 V56" />
+            <path d="M39 34 V56" />
+          </>
+        )}
+      </g>
+    </svg>
+  );
 }
 
 function NubankLogo({ id }: { id: string }) {
@@ -983,15 +1584,14 @@ function NubankLogo({ id }: { id: string }) {
     <svg
       className="home-credit-nu"
       viewBox="0 0 24 24"
-      width="34"
-      height="34"
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f5f5f5" />
-          <stop offset="48%" stopColor="#bdbdbd" />
-          <stop offset="100%" stopColor="#8d8d8d" />
+        <linearGradient id={id} x1="0" y1="0" x2="0.2" y2="1">
+          <stop offset="0%" stopColor="#f7f7f7" />
+          <stop offset="35%" stopColor="#d8d8d8" />
+          <stop offset="70%" stopColor="#9a9a9a" />
+          <stop offset="100%" stopColor="#6e6e6e" />
         </linearGradient>
       </defs>
       <path
@@ -1007,8 +1607,6 @@ function SicrediMark() {
     <svg
       className="home-credit-sicredi-mark"
       viewBox="-32 -28 160 140"
-      width="20"
-      height="20"
       aria-hidden="true"
     >
       <path
@@ -1017,27 +1615,227 @@ function SicrediMark() {
       />
       <path
         fill="currentColor"
-        opacity="0.72"
+        opacity="0.78"
         d="m56.172 25.261c1.6164-8.4186 4.2429-17.039 8.7552-24.515-9.6307-1.347-19.531-0.20205-28.556 3.1654 5.5227 5.3879 10.978 10.843 15.894 16.703 0.5742 0.69489 1.1889 1.4169 1.7956 2.1295 0.74577 0.87594 1.4794 1.7377 2.1107 2.5175zm30.51-16.902c-0.40402 6.4655-0.87549 12.864-1.8184 19.194-0.11207 0.70157-0.22449 1.4616-0.33657 2.2216-0.15739 1.064-0.31443 2.128-0.47147 3.0316 6.8693-3.0307 13.739-5.8593 21.349-6.6002-4.7815-7.2063-11.18-13.335-18.723-17.847zm27.138 37.309c-4.3778 3.4348-8.8901 6.8022-13.672 9.6982-0.60949 0.36562-1.2463 0.77275-1.88 1.1775l-3.46e-4 3.46e-4c-0.76618 0.48946-1.5272 0.9758-2.228 1.3815 6.6677 3.2325 13.066 7.3408 18.184 12.527 1.2124-8.5532 1.145-16.231-0.40401-24.784zm-23.51 39.802c5.2533 1.9533 10.709 3.4348 16.163 4.7818-4.5123 7.2737-10.708 13.672-18.049 18.454 0.53892-8.3512-0.67348-16.837-2.6939-24.919v-0.06745c1.1183 0.50329 2.5154 1.0066 3.8057 1.4715l6.92e-4 3.46e-4h3.46e-4c0.26323 0.09478 0.52197 0.18783 0.7731 0.27914zm-23.231 31.519c-2.559-6.1288-4.9838-12.325-6.9368-18.521-0.13975-0.45452-0.28849-0.92668-0.43965-1.4058v-1e-3l-3.45e-4 -3.45e-4v-3.46e-4c-0.43065-1.366-0.87722-2.7839-1.1764-3.9803-5.8593 7.8797-12.123 15.49-19.935 21.686 9.429 2.7614 18.656 3.9734 28.488 2.2224zm-37.775-35.624c-4.5797 6.3979-8.7553 13.268-12.729 20.137-7.8125-7.6106-13.335-17.174-16.029-27.478 10.506 2.4919 21.686 2.8959 32.395 2.155h0.06735c-0.68697 0.92945-1.4467 2.0045-2.2064 3.0793l-5.53e-4 1e-3 -6.57e-4 6.92e-4c-0.50606 0.71602-1.0121 1.4321-1.4966 2.1052zm-29.303-34.823c8.4186-1.0104 16.905-1.8859 25.256-2.1553 0.70665-0.02179 1.4495-0.05119 2.1953-0.0806h5.19e-4c1.5286-0.06053 3.0697-0.12141 4.337-0.12141-6.8696-7.7448-12.998-16.433-16.972-25.794-7.4757 7.8798-12.594 17.713-14.817 28.152z"
       />
     </svg>
   );
 }
 
+function VisaMark() {
+  return (
+    <svg
+      className="home-credit-visa"
+      viewBox="0 7.8 24 8.2"
+      aria-hidden="true"
+    >
+      <path
+        fill="currentColor"
+        d="M9.112 8.262L5.97 15.758H3.92L2.374 9.775c-.094-.368-.175-.503-.461-.658C1.447 8.864.677 8.627 0 8.479l.046-.217h3.3a.904.904 0 01.894.764l.817 4.338 2.018-5.102zm8.033 5.049c.008-1.979-2.736-2.088-2.717-2.972.006-.269.262-.555.822-.628a3.66 3.66 0 011.913.336l.34-1.59a5.207 5.207 0 00-1.814-.333c-1.917 0-3.266 1.02-3.278 2.479-.012 1.079.963 1.68 1.698 2.04.756.367 1.01.603 1.006.931-.005.504-.602.725-1.16.734-.975.015-1.54-.263-1.992-.473l-.351 1.642c.453.208 1.289.39 2.156.398 2.037 0 3.37-1.006 3.377-2.564m5.061 2.447H24l-1.565-7.496h-1.656a.883.883 0 00-.826.55l-2.909 6.946h2.036l.405-1.12h2.488zm-2.163-2.656l1.02-2.815.588 2.815zm-8.16-4.84l-1.603 7.496H8.34l1.605-7.496z"
+      />
+    </svg>
+  );
+}
+
+function ContactlessMark() {
+  return (
+    <svg
+      className="home-credit-contactless"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M8 9.5c1.6-1.5 3.7-1.5 5.2 0M6.2 7c2.5-2.4 6.1-2.4 8.6 0M9.8 12c.9-.8 2.1-.8 3 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ForecastMonths({
+  months,
+  selectedIndex,
+  onSelect,
+}: {
+  months: {
+    key: string;
+    label: string;
+    amount: number;
+    open: boolean;
+  }[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const fillId = useId().replace(/:/g, "");
+  const [chart, setChart] = useState<{
+    width: number;
+    height: number;
+    top: number;
+    centers: number[];
+    lefts: number[];
+  } | null>(null);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+
+    const measure = () => {
+      const items = [
+        ...list.querySelectorAll<HTMLElement>(".home-cards-forecast-item"),
+      ];
+      const plots = [
+        ...list.querySelectorAll<HTMLElement>(".home-cards-forecast-plot"),
+      ];
+      if (!items.length || !plots.length) return;
+      const listRect = list.getBoundingClientRect();
+      const plotRect = plots[0].getBoundingClientRect();
+      setChart({
+        width: listRect.width,
+        height: plotRect.height,
+        top: plotRect.top - listRect.top,
+        centers: items.map((item) => {
+          const rect = item.getBoundingClientRect();
+          return rect.left - listRect.left + rect.width / 2;
+        }),
+        lefts: items.map(
+          (item) => item.getBoundingClientRect().left - listRect.left,
+        ),
+      });
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [months]);
+
+  const amounts = months.map((item) => item.amount);
+  const maxAmount = Math.max(...amounts, 1);
+  const minAmount = Math.min(...amounts);
+  const span = Math.max(maxAmount - minAmount, 1);
+  const pointY = (amount: number, height: number) => {
+    if (maxAmount === minAmount) return height * 0.5;
+    const level = (amount - minAmount) / span;
+    return height * (0.12 + (1 - level) * 0.76);
+  };
+
+  const points =
+    chart?.centers.map((x, index) => ({
+      x,
+      y: pointY(amounts[index], chart.height),
+    })) ?? [];
+  const selected = points[selectedIndex];
+  const trend = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const selectedLeft = chart?.lefts[selectedIndex] ?? 0;
+  const fillPath =
+    chart && selected
+      ? [
+          `M ${selectedLeft} ${selected.y}`,
+          `L ${selected.x} ${selected.y}`,
+          `L ${selected.x} ${chart.height}`,
+          `L ${selectedLeft} ${chart.height}`,
+          "Z",
+        ].join(" ")
+      : "";
+
+  return (
+    <div className="home-cards-forecast-list" ref={listRef}>
+      {chart && points.length > 0 && (
+        <svg
+          className="home-cards-forecast-chart"
+          width={chart.width}
+          height={chart.height}
+          viewBox={`0 0 ${chart.width} ${chart.height}`}
+          style={{ top: chart.top }}
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor="var(--foreground)"
+                stopOpacity="0.14"
+              />
+              <stop
+                offset="100%"
+                stopColor="var(--foreground)"
+                stopOpacity="0"
+              />
+            </linearGradient>
+          </defs>
+          {selected && (
+            <path d={fillPath} fill={`url(#${fillId})`} />
+          )}
+          {points.length > 1 && (
+            <polyline
+              className="home-cards-forecast-path is-dashed"
+              fill="none"
+              points={trend}
+            />
+          )}
+          {selected && (
+            <line
+              className="home-cards-forecast-path is-solid"
+              x1={selectedLeft}
+              y1={selected.y}
+              x2={selected.x}
+              y2={selected.y}
+            />
+          )}
+          {points.map((point, index) => {
+            const isSelected = index === selectedIndex;
+            const past = index < selectedIndex;
+            return (
+              <circle
+                key={months[index].key}
+                className={`home-cards-forecast-dot ${isSelected ? "active" : past ? "done" : ""}`}
+                cx={point.x}
+                cy={point.y}
+                r={isSelected ? 5.5 : 5}
+              />
+            );
+          })}
+        </svg>
+      )}
+      {months.map((item, itemIndex) => {
+        const isSelected = selectedIndex === itemIndex;
+        return (
+          <button
+            key={item.key}
+            type="button"
+            className={`home-cards-forecast-item ${isSelected ? "selected" : ""}`}
+            onClick={() => onSelect(itemIndex)}
+          >
+            <span className="home-cards-forecast-head">
+              <span className="home-cards-forecast-month">{item.label}</span>
+              {item.open && <span className="home-cards-status">Aberta</span>}
+            </span>
+            <span className="home-cards-forecast-plot" />
+            <strong>
+              <Amount value={item.amount} />
+            </strong>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function CreditCardVisual({
   card,
   active,
-  dueDay,
   onSelect,
 }: {
   card: Account;
   active: boolean;
-  dueDay: string | null;
   onSelect: () => void;
 }) {
   const theme = creditCardTheme(card);
   const label = creditCardLabel(card, theme);
-  const freeLimit = cardAvailableLimit(card);
   return (
     <button
       type="button"
@@ -1054,55 +1852,34 @@ function CreditCardVisual({
       <span className="home-credit-card-sheen" aria-hidden="true" />
       {theme === "sicredi" ? (
         <>
-          <div className="home-credit-card-top">
-            <span className="home-credit-sicredi-brand" aria-hidden="true">
-              <SicrediMark />
-              <strong>Sicredi</strong>
-            </span>
-            <span className="home-credit-contactless" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                <path
-                  d="M8 9.5c1.6-1.5 3.7-1.5 5.2 0M6.2 7c2.5-2.4 6.1-2.4 8.6 0M9.8 12c.9-.8 2.1-.8 3 0"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>
-          </div>
-          <div className="home-credit-card-chip" aria-hidden="true" />
-          <div className="home-credit-card-network">
+          <span className="home-credit-sicredi-brand" aria-hidden="true">
+            <SicrediMark />
+            <strong>Sicredi</strong>
+          </span>
+          <ContactlessMark />
+          <CreditCardChip variant="sicredi" />
+          <div className="home-credit-card-network" aria-hidden="true">
             <span>internacional</span>
-            <strong>VISA</strong>
+            <VisaMark />
           </div>
         </>
       ) : theme === "ultravioleta" ? (
         <>
-          <div className="home-credit-card-chip" aria-hidden="true" />
-          <div className="home-credit-ultra-footer">
-            <span className="home-credit-card-name">Ultravioleta</span>
+          <CreditCardChip variant="ultravioleta" />
+          <span className="home-credit-ultra-brand" aria-hidden="true">
+            <span className="home-credit-ultra-name">Eduardo C Amarante</span>
             <NubankLogo id={`nu-logo-${card.id}`} />
-          </div>
+          </span>
         </>
       ) : (
         <>
           <div className="home-credit-card-top">
             <strong>{label}</strong>
-            {active && (
-              <span className="home-cards-status on-card">Aberta</span>
-            )}
           </div>
-          <div className="home-credit-card-chip" aria-hidden="true" />
+          <CreditCardChip variant="generic" />
           <span className="home-credit-card-name">{card.name}</span>
         </>
       )}
-      <div className="home-credit-card-bottom">
-        <span>{dueDay ? `Vence ${dueDay}` : "Sem vencimento"}</span>
-        <span>
-          Limite livre{" "}
-          {freeLimit == null ? "—" : <Amount value={freeLimit} />}
-        </span>
-      </div>
     </button>
   );
 }
@@ -1113,7 +1890,7 @@ function UpcomingCard({
   group,
   openForm,
   mutate,
-  navigate,
+  openTransactions,
 }: Props) {
   const [day, setDay] = useState("all"),
     [busy, setBusy] = useState("");
@@ -1151,7 +1928,7 @@ function UpcomingCard({
         <h2>Contas a pagar</h2>
         <DashboardLink
           label="Ver todos os lançamentos"
-          onClick={() => navigate("transactions")}
+          onClick={() => openTransactions({ type: "expense" })}
         />
       </div>
       <strong className="home-amount">
@@ -1224,7 +2001,9 @@ function UpcomingCard({
       </div>
       <div className="home-card-footer">
         <span>Vencimentos do mês</span>
-        <TextLink onClick={() => navigate("transactions")}>Ver todos</TextLink>
+        <TextLink onClick={() => openTransactions({ type: "expense" })}>
+          Ver todos
+        </TextLink>
       </div>
     </section>
   );
@@ -1361,16 +2140,11 @@ function TransactionTable({
                 )}
                 <td className="table-date">{dateLabel(row.date)}</td>
                 <td>
-                  <span className={`status-pill ${row.status}`}>
-                    {row.status === "paid" ? (
-                      <>
-                        <Check size={11} />
-                        Confirmado
-                      </>
-                    ) : (
-                      <>Pendente</>
-                    )}
-                  </span>
+                  <StatusTag
+                    tone={row.status === "paid" ? "success" : "warning"}
+                  >
+                    {row.status === "paid" ? "Confirmado" : "Pendente"}
+                  </StatusTag>
                 </td>
                 <td
                   className={`right transaction-amount ${row.kind === "income" ? "positive" : ""}`}
@@ -1410,16 +2184,37 @@ function TransactionTable({
   );
 }
 export function TransactionsView(props: Props) {
-  const { data, month, group, query, setQuery, openForm } = props;
-  const [type, setType] = useState("all"),
-    [status, setStatus] = useState("all"),
+  const {
+    data,
+    month,
+    group,
+    query,
+    setQuery,
+    txType,
+    setTxType,
+    txCategory,
+    setTxCategory,
+    openForm,
+  } = props;
+  const [status, setStatus] = useState("all"),
     [page, setPage] = useState(1);
   const stats = summarize(data, month, group);
   const baseRows = data.transactions.filter(
     (row) =>
-      row.date.startsWith(month) && (group === "all" || row.groupId === group),
+      row.date.startsWith(month) && matchesGroupFilter(row.groupId, group),
   );
-  const filtered = filterTransactions(baseRows, query, type, status);
+  const categories = [
+    ...new Set(
+      baseRows.map((row) => row.category || "Sem categoria").filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const filtered = filterTransactions(
+    baseRows,
+    query,
+    txType,
+    status,
+    txCategory,
+  );
   const pages = Math.max(1, Math.ceil(filtered.length / 10)),
     currentPage = Math.min(page, pages);
   function exportCsv() {
@@ -1503,9 +2298,9 @@ export function TransactionsView(props: Props) {
           <select
             className="field-select"
             aria-label="Filtrar por tipo"
-            value={type}
+            value={txType}
             onChange={(e) => {
-              setType(e.target.value);
+              setTxType(e.target.value);
               setPage(1);
             }}
           >
@@ -1513,6 +2308,22 @@ export function TransactionsView(props: Props) {
             <option value="income">Entradas</option>
             <option value="expense">Saídas</option>
             <option value="transfer">Transferências</option>
+          </select>
+          <select
+            className="field-select"
+            aria-label="Filtrar por categoria"
+            value={txCategory}
+            onChange={(e) => {
+              setTxCategory(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="all">Todas as categorias</option>
+            {categories.map((name) => (
+              <option value={name} key={name}>
+                {name}
+              </option>
+            ))}
           </select>
           <select
             className="field-select"
@@ -1606,8 +2417,8 @@ function MiniStat({
 }
 export function InvestmentsView({ data, month, group, openForm }: Props) {
   const stats = summarize(data, month, group);
-  const all = data.investments.filter(
-    (row) => group === "all" || row.groupId === group,
+  const all = data.investments.filter((row) =>
+    matchesGroupFilter(row.groupId, group),
   );
   const fixed = stats.investments
     .filter((row) => row.type === "FIXED_INCOME")
@@ -1711,9 +2522,7 @@ export function InvestmentsView({ data, month, group, openForm }: Props) {
   );
 }
 export function GoalsView({ data, group, openForm }: Props) {
-  const goals = data.goals.filter(
-    (g) => group === "all" || g.groupId === group,
-  );
+  const goals = data.goals.filter((g) => matchesGroupFilter(g.groupId, group));
   return (
     <>
       <div className="section-top">
@@ -1986,15 +2795,21 @@ export function AccountsView({
                   <div>
                     <Bank size={19} />
                     <h3>{connection.name}</h3>
-                    <span
-                      className={`status-pill ${connection.status === "UPDATED" ? "paid" : "pending"}`}
+                    <StatusTag
+                      tone={
+                        connection.status === "UPDATED"
+                          ? "success"
+                          : connection.status === "ERROR"
+                            ? "warning"
+                            : "muted"
+                      }
                     >
                       {connection.status === "UPDATED"
                         ? "Atualizado"
                         : connection.status === "ERROR"
                           ? "Requer atenção"
                           : "Aguardando"}
-                    </span>
+                    </StatusTag>
                   </div>
                   <p>
                     {connection.lastSync

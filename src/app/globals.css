@@ -62,19 +62,19 @@
   --popover-foreground: #171717;
   --primary: #000000;
   --primary-foreground: #ffffff;
-  --secondary: #ebebeb;
+  --secondary: #f0f0f0;
   --secondary-foreground: #525252;
   --muted: #f5f5f5;
   --muted-foreground: #666666;
-  --accent: #ebebeb;
+  --accent: #f0f0f0;
   --accent-foreground: #171717;
   --destructive: #c62a32;
   --destructive-soft: #fff0f0;
-  --border: #e5e5e5;
-  --input: #d4d4d4;
+  --border: #ebebeb;
+  --input: #e0e0e0;
   --ring: #737373;
-  --track: #ebebeb;
-  --chart-grid: #ebebeb;
+  --track: #ececec;
+  --chart-grid: #ececec;
   --chart-1: #171717;
   --chart-2: #a3a3a3;
   --chart-3: #737373;
@@ -93,8 +93,9 @@
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: transparent;
   --sidebar-ring: var(--ring);
-  --divider-top: rgba(0, 0, 0, 0.55);
-  --divider-bottom: rgba(255, 255, 255, 0.1);
+  /* Hairlines for light surfaces — dual-tone depth without dark emboss */
+  --divider-top: rgba(0, 0, 0, 0.08);
+  --divider-bottom: rgba(255, 255, 255, 0.9);
 }
 
 .dark {

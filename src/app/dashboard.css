@@ -98,12 +98,58 @@
   font-size: clamp(27px, 2.3vw, 38px);
   letter-spacing: -1.5px;
 }
+.home-pace-amount {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.home-pace-limit {
+  font-size: clamp(14px, 1.2vw, 18px);
+  font-weight: 500;
+  letter-spacing: -0.3px;
+  color: var(--muted-foreground);
+}
+.home-pace-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 160px;
+}
+.home-pace-empty p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
 .home-chart {
   height: 145px;
   min-height: 100px;
   min-width: 0;
   flex: 1;
   margin: 12px -3px 0;
+}
+.home-pace-chart {
+  position: relative;
+}
+.home-pace-pill {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  background: var(--success-soft);
+  color: var(--success);
+  pointer-events: none;
+}
+.home-pace-pill.over {
+  background: var(--destructive-soft);
+  color: var(--destructive);
 }
 .home-chart-dates {
   display: flex;
@@ -124,13 +170,135 @@
   font-size: 11px;
   text-align: left;
 }
-.home-forecast-footer > span {
+.home-forecast-footer > span,
+.home-forecast-footer-copy {
   display: flex;
   gap: 8px;
   align-items: center;
 }
+.home-forecast-footer-copy {
+  gap: 10px;
+}
+.home-forecast-footer-copy strong {
+  font-weight: 600;
+}
 .home-forecast-footer:hover {
   opacity: 0.88;
+}
+.home-pace-insights {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 118px;
+  padding: 12px 16px 10px;
+  text-align: left;
+}
+.home-pace-insights:hover {
+  opacity: 1;
+}
+.home-pace-insight-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+.home-pace-insight-head > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.home-pace-insight-title {
+  position: relative;
+  display: inline-grid;
+  min-width: 0;
+}
+.home-pace-insight-title-value {
+  display: inline-block;
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+.home-pace-insight-head:hover {
+  opacity: 0.88;
+}
+.home-pace-insight-body {
+  position: relative;
+  overflow: hidden;
+  min-height: 2.9em;
+}
+.home-pace-insight-copy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--primary-foreground) 82%, transparent);
+}
+.home-pace-insight-copy strong {
+  color: var(--primary-foreground);
+  font-weight: 700;
+}
+.home-pace-insight-copy .animated-label,
+.home-pace-insight-copy .amount {
+  display: inline-block;
+  vertical-align: baseline;
+}
+.home-pace-insight-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 2px;
+}
+.home-pace-insight-nav > button:not(.home-pace-insight-dot) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: inherit;
+  opacity: 0.8;
+}
+.home-pace-insight-nav > button:not(.home-pace-insight-dot):hover:not(:disabled) {
+  opacity: 1;
+  background: color-mix(in srgb, var(--primary-foreground) 12%, transparent);
+}
+.home-pace-insight-nav > button:disabled {
+  opacity: 0.35;
+}
+.home-pace-insight-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.home-pace-insight-dot {
+  position: relative;
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-foreground) 35%, transparent);
+  opacity: 1;
+}
+.home-pace-insight-dot[aria-current="true"] {
+  width: 14px;
+  background: transparent;
+}
+.home-pace-insight-dot-active {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--primary-foreground);
+}
+.home-pace-insight-nav .home-pace-insight-dot:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-foreground) 55%, transparent);
+}
+.home-pace-insight-nav
+  .home-pace-insight-dot[aria-current="true"]:hover:not(:disabled) {
+  background: transparent;
 }
 .home-bills-summary {
   display: flex;
@@ -203,6 +371,7 @@
   min-height: 285px;
 }
 .home-donut {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -210,12 +379,35 @@
   height: auto;
   aspect-ratio: 1;
   flex-shrink: 0;
-  border-radius: 50%;
-  padding: 18px;
 }
-.home-donut > div {
+.home-donut-svg {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  overflow: visible;
+}
+.home-donut-slice {
+  cursor: pointer;
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+.home-donut.is-filtering .home-donut-slice:not(.is-hovered) {
+  opacity: 0.35;
+}
+.home-donut-slice.is-hovered {
+  filter: brightness(1.08);
+}
+.home-donut-empty {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--track);
+  mask: radial-gradient(circle, transparent 66%, #000 67%);
+}
+.home-donut-center {
+  position: relative;
+  z-index: 1;
+  width: 62%;
   aspect-ratio: 1;
   border-radius: 50%;
   background: var(--card);
@@ -224,10 +416,17 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+  pointer-events: none;
+  text-align: center;
+  padding: 8px;
 }
-.home-donut > div > span {
+.home-donut-center > span {
   color: var(--muted-foreground);
   font-size: 9px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .home-donut strong {
   font-size: clamp(13px, 1.3vw, 19px);
@@ -245,12 +444,26 @@
   gap: 7px;
   width: 100%;
   min-height: 39px;
-  border-bottom: 1px solid var(--divider-top);
-  box-shadow: 0 1px 0 var(--divider-bottom);
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
-.home-spending-row:last-child {
-  border-bottom: 0;
-  box-shadow: none;
+.home-spending-list.is-filtering .home-spending-row:not(.is-hovered) {
+  opacity: 0.4;
+}
+.home-spending-row.is-hovered,
+.home-spending-row:hover,
+.home-spending-row:focus-visible {
+  background: var(--muted);
+  opacity: 1;
+  outline: none;
 }
 .home-category-icon {
   display: inline-flex;
@@ -509,10 +722,10 @@
 .home-cards {
   grid-column: 3;
   grid-row: 2;
+  align-self: start;
   display: flex;
   flex-direction: column;
-  padding: 17px 19px 0;
-  min-height: 420px;
+  padding: 17px 19px 16px;
   overflow: hidden;
 }
 .home-cards-top {
@@ -568,32 +781,36 @@
   gap: 12px;
   overflow-x: auto;
   margin-inline: -19px;
-  padding: 4px 19px 18px;
+  padding: 4px 19px 12px;
   scroll-snap-type: x mandatory;
   scroll-padding-inline: 19px;
   scrollbar-width: none;
+  cursor: grab;
+  touch-action: pan-x;
+  user-select: none;
+}
+.home-cards-track.dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
 }
 .home-cards-track::-webkit-scrollbar {
   display: none;
+}
+.home-credit-card-slot {
+  flex: 0 0 min(280px, 86%);
+  scroll-snap-align: start;
 }
 .home-credit-card {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  flex: 0 0 min(248px, 78%);
-  min-height: 156px;
-  padding: 14px 15px;
-  border-radius: 16px;
+  width: 100%;
+  aspect-ratio: 1.586 / 1;
+  border-radius: 14px;
   color: #fff;
   text-align: left;
-  scroll-snap-align: start;
-  box-shadow: 0 12px 28px #00000033;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.home-credit-card.active {
-  flex-basis: min(268px, 84%);
+  box-shadow: 0 12px 28px #00000040;
+  cursor: inherit;
 }
 .home-credit-card-sheen {
   pointer-events: none;
@@ -602,38 +819,50 @@
   z-index: 0;
 }
 .home-credit-card > *:not(.home-credit-card-sheen) {
-  position: relative;
+  position: absolute;
   z-index: 1;
 }
 .home-credit-card.theme-ultravioleta {
   background:
-    radial-gradient(120% 90% at 88% 8%, #c45bff 0%, transparent 42%),
-    linear-gradient(145deg, #12031f 0%, #2a0a4d 28%, #5a1a8f 62%, #8a2bb8 100%);
+    radial-gradient(80% 90% at 88% 12%, #5a1a8f44 0%, transparent 62%),
+    linear-gradient(
+      148deg,
+      #0c0118 0%,
+      #1a062e 32%,
+      #2a0a4a 58%,
+      #3b1066 82%,
+      #4a1678 100%
+    );
 }
 .home-credit-card.theme-ultravioleta .home-credit-card-sheen {
   background:
     linear-gradient(
       118deg,
-      transparent 42%,
-      #ffffff14 48%,
-      #ffffff28 52%,
-      #ffffff10 56%,
-      transparent 64%
+      transparent 40%,
+      #ffffff08 48%,
+      #ffffff12 52%,
+      #ffffff06 58%,
+      transparent 68%
     ),
-    radial-gradient(80% 70% at 100% 0%, #ffffff22, transparent 55%);
+    radial-gradient(90% 70% at 100% 0%, #ffffff0d, transparent 60%);
 }
 .home-credit-card.theme-sicredi {
   background:
-    radial-gradient(90% 80% at 12% 0%, #74d67a 0%, transparent 48%),
-    linear-gradient(160deg, #2f9a3a 0%, #3fb449 42%, #2d8f36 100%);
+    radial-gradient(55% 65% at 18% 28%, #8be48f 0%, transparent 58%),
+    radial-gradient(45% 55% at 72% 18%, #63d56acc 0%, transparent 60%),
+    radial-gradient(40% 50% at 88% 78%, #1f8a2a66 0%, transparent 70%),
+    linear-gradient(155deg, #3fb449 0%, #48c050 38%, #2f9a3a 100%);
 }
 .home-credit-card.theme-sicredi .home-credit-card-sheen {
   background:
-    radial-gradient(40% 55% at 18% 62%, #1f7a28aa 0%, transparent 70%),
-    radial-gradient(45% 60% at 8% 30%, #24822caa 0%, transparent 68%),
-    linear-gradient(135deg, #ffffff18, transparent 40%);
+    radial-gradient(42% 58% at 12% 68%, #187a22b3 0%, transparent 72%),
+    radial-gradient(38% 48% at 6% 22%, #1f8628aa 0%, transparent 70%),
+    linear-gradient(135deg, #ffffff22, transparent 42%);
 }
 .home-credit-card-top {
+  top: 14px;
+  left: 14px;
+  right: 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -644,108 +873,108 @@
   font-weight: 650;
   letter-spacing: 0.2px;
 }
+.home-credit-card-chip {
+  left: 14px;
+  top: 42%;
+  width: 36px;
+  height: 24px;
+  overflow: hidden;
+  border-radius: 5px;
+  filter: none;
+  box-shadow: none;
+}
+.home-credit-card.theme-sicredi .home-credit-card-chip {
+  top: 46%;
+}
+.home-credit-card.theme-ultravioleta .home-credit-card-chip {
+  top: 38%;
+}
 .home-credit-sicredi-brand {
+  top: 14px;
+  left: 14px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: #fff;
 }
 .home-credit-sicredi-brand strong {
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 700;
   font-style: italic;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.3px;
+  line-height: 1;
+}
+.home-credit-sicredi-mark {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex-shrink: 0;
 }
 .home-credit-contactless {
-  display: inline-flex;
+  top: 14px;
+  right: 14px;
+  width: 18px;
+  height: 18px;
   color: #fff;
-  opacity: 0.95;
 }
-.home-credit-card-chip {
+.home-credit-card-network {
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.home-credit-card-network > span {
+  font-size: 10px;
+  font-weight: 450;
+  letter-spacing: 0.1px;
+  text-transform: lowercase;
+  line-height: 1;
+}
+.home-credit-visa {
+  width: 46px;
+  height: 15px;
+  display: block;
+  color: #fff;
+}
+.home-credit-ultra-brand {
+  top: 16px;
+  right: 10px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-end;
+  gap: 8px;
   width: 34px;
-  height: 24px;
-  margin-top: 8px;
-  border-radius: 5px;
-  background:
-    linear-gradient(90deg, #8f8680 0 1px, transparent 1px) 8px 0 / 1px 100%
-      no-repeat,
-    linear-gradient(90deg, #8f8680 0 1px, transparent 1px) 16px 0 / 1px 100%
-      no-repeat,
-    linear-gradient(90deg, #8f8680 0 1px, transparent 1px) 25px 0 / 1px 100%
-      no-repeat,
-    linear-gradient(180deg, #8f8680 0 1px, transparent 1px) 0 8px / 100% 1px
-      no-repeat,
-    linear-gradient(180deg, #8f8680 0 1px, transparent 1px) 0 15px / 100% 1px
-      no-repeat,
-    linear-gradient(135deg, #f3eee4, #cfc5b6 40%, #a89f93 72%, #e8e0d4);
-  box-shadow:
-    inset 0 0 0 1px #ffffff66,
-    0 1px 2px #00000033;
+  overflow: hidden;
+}
+.home-credit-ultra-name {
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  line-height: 1;
+  white-space: nowrap;
+  color: #b8b8b8;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+.home-credit-nu {
+  width: 22px;
+  height: 22px;
+  display: block;
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+  transform-origin: center center;
+  margin-bottom: 1px;
 }
 .home-credit-card-name {
-  margin-top: auto;
+  left: 14px;
+  bottom: 14px;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-}
-.home-credit-ultra-footer {
-  margin-top: auto;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
-}
-.home-credit-ultra-footer .home-credit-card-name {
-  margin-top: 0;
-  max-width: 70%;
-  font-size: 11px;
-  letter-spacing: 1px;
-  text-shadow: 0 1px 2px #00000055;
-}
-.home-credit-nu {
-  display: block;
-  flex-shrink: 0;
-  filter: drop-shadow(0 1px 1px #00000066);
-}
-.home-credit-sicredi-mark {
-  display: block;
-  flex-shrink: 0;
-}
-.home-credit-card-network {
-  margin-top: auto;
-  margin-left: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-.home-credit-card-network > span {
-  font-size: 9px;
-  letter-spacing: 0.2px;
-  text-transform: lowercase;
-  opacity: 0.95;
-}
-.home-credit-card-network > strong {
-  font-size: 22px;
-  font-weight: 750;
-  letter-spacing: 1.5px;
-  font-style: italic;
-  line-height: 1;
-}
-.home-credit-card-bottom {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 9px;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  opacity: 0.92;
-}
-.home-credit-card.theme-ultravioleta .home-credit-card-bottom,
-.home-credit-card.theme-sicredi .home-credit-card-bottom {
-  margin-top: 4px;
-  opacity: 0.88;
 }
 .home-cards-status {
   display: inline-flex;
@@ -758,60 +987,96 @@
   font-size: 9px;
   font-weight: 550;
 }
-.home-cards-status.on-card {
-  background: #ffffff22;
-  color: #fff;
-}
 .home-cards-forecast {
-  margin-top: auto;
-  margin-inline: -19px;
-  padding: 14px 19px 16px;
-  border-top: 1px solid var(--divider-top);
-  box-shadow: inset 0 1px 0 var(--divider-bottom);
-}
-.home-cards-forecast-label {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 9px;
-  font-weight: 550;
-  letter-spacing: 1.1px;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
+  margin-top: 2px;
 }
 .home-cards-forecast-list {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+.home-cards-forecast-chart {
+  position: absolute;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
+.home-cards-forecast-path {
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.home-cards-forecast-path.is-dashed {
+  stroke: color-mix(in srgb, var(--foreground) 30%, transparent);
+  stroke-dasharray: 3.5 3.5;
+}
+.home-cards-forecast-path.is-solid {
+  stroke: var(--foreground);
+}
 .home-cards-forecast-item {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 18px;
-  min-height: 92px;
-  padding: 10px;
-  border-radius: 12px;
+  gap: 8px;
+  min-height: 132px;
+  padding: 12px 10px;
+  border-radius: 14px;
   background: var(--muted);
   text-align: left;
-  border: 1px solid transparent;
+  border: 1.5px solid transparent;
+  overflow: hidden;
 }
 .home-cards-forecast-item.selected {
   background: var(--panel);
   border-color: var(--foreground);
 }
-.home-cards-forecast-month {
+.home-cards-forecast-head {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
-  font-size: 12px;
-  font-weight: 550;
+  min-height: 34px;
+}
+.home-cards-forecast-month {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
   text-transform: capitalize;
+  color: var(--muted-foreground);
+  line-height: 1.1;
+}
+.home-cards-forecast-item.selected .home-cards-forecast-month {
   color: var(--foreground);
 }
+.home-cards-forecast-item.selected .home-cards-status {
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+.home-cards-forecast-plot {
+  flex: 1;
+  min-height: 64px;
+}
+.home-cards-forecast-dot {
+  fill: var(--panel);
+  stroke: color-mix(in srgb, var(--foreground) 35%, transparent);
+  stroke-width: 1.5;
+}
+.home-cards-forecast-dot.done {
+  fill: var(--foreground);
+  stroke: var(--foreground);
+}
+.home-cards-forecast-dot.active {
+  fill: var(--panel);
+  stroke: var(--foreground);
+  stroke-width: 2.5;
+}
 .home-cards-forecast-item strong {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
   color: var(--muted-foreground);
 }
 .home-cards-forecast-item.selected strong {
@@ -949,9 +1214,6 @@
   .home-wealth {
     min-height: 294px;
   }
-  .home-cards {
-    min-height: 460px;
-  }
 }
 @media (max-width: 1250px) and (min-width: 1001px) {
   .home-grid {
@@ -987,7 +1249,6 @@
   .home-cards {
     grid-column: 1 / -1;
     grid-row: 3;
-    min-height: 360px;
   }
   .home-bill-list {
     display: grid;
@@ -1019,7 +1280,6 @@
   }
   .home-cards {
     grid-row: 3;
-    min-height: 380px;
   }
   .home-donut {
     width: 160px;

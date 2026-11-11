@@ -53,12 +53,18 @@ export function netWorth(data: FinanceData, months = 6) {
   };
 }
 
+export function matchesGroupFilter(groupId: string, filter: string) {
+  if (filter === "all") return true;
+  if (filter === "ungrouped") return !groupId;
+  return groupId === filter;
+}
+
 export function summarize(data: FinanceData, month: string, groupId = "all") {
   const records = data.transactions.filter(
     (row) =>
       row.currency === "BRL" &&
       row.date.startsWith(month) &&
-      (groupId === "all" || row.groupId === groupId),
+      matchesGroupFilter(row.groupId, groupId),
   );
   const sum = (kind: string, status?: string) =>
     records
@@ -74,7 +80,7 @@ export function summarize(data: FinanceData, month: string, groupId = "all") {
         .filter((row) => row.groupId === group.id && row.kind === "expense")
         .reduce((total, row) => total + row.amount, 0),
     }))
-    .filter((group) => groupId === "all" || groupId === group.id);
+    .filter((group) => matchesGroupFilter(group.id, groupId));
   const daysInMonth = new Date(
     Number(month.slice(0, 4)),
     Number(month.slice(5, 7)),
@@ -97,7 +103,7 @@ export function summarize(data: FinanceData, month: string, groupId = "all") {
   });
   const investments = data.investments.filter(
     (row) =>
-      row.currency === "BRL" && (groupId === "all" || row.groupId === groupId),
+      row.currency === "BRL" && matchesGroupFilter(row.groupId, groupId),
   );
   return {
     records,
@@ -111,24 +117,218 @@ export function summarize(data: FinanceData, month: string, groupId = "all") {
     flow,
     investments,
     invested: investments.reduce((n, row) => n + row.balance, 0),
-    goals: data.goals.filter(
-      (row) => groupId === "all" || row.groupId === groupId,
+    goals: data.goals.filter((row) =>
+      matchesGroupFilter(row.groupId, groupId),
     ),
   };
 }
+
 export function filterTransactions(
   rows: Transaction[],
   query: string,
   type: string,
   status: string,
+  category = "all",
 ) {
   const text = query.toLocaleLowerCase("pt-BR");
   return rows.filter(
     (row) =>
       (type === "all" || row.kind === type) &&
       (status === "all" || row.status === status) &&
+      (category === "all" ||
+        (row.category || "Sem categoria") === category) &&
       `${row.description} ${row.category}`
         .toLocaleLowerCase("pt-BR")
         .includes(text),
   );
+}
+
+function monthsUntilDeadline(deadline: string, from: string) {
+  const months =
+    (Number(deadline.slice(0, 4)) - Number(from.slice(0, 4))) * 12 +
+    (Number(deadline.slice(5, 7)) - Number(from.slice(5, 7)));
+  return Math.max(1, months);
+}
+
+function expenseByCategoryUntil(
+  data: FinanceData,
+  month: string,
+  throughDay: number,
+  groupId: string,
+) {
+  const cutoff = `${month}-${String(throughDay).padStart(2, "0")}`;
+  const totals = new Map<string, number>();
+  for (const row of data.transactions) {
+    if (
+      row.currency !== "BRL" ||
+      row.kind !== "expense" ||
+      !row.date.startsWith(month) ||
+      row.date > cutoff ||
+      !matchesGroupFilter(row.groupId, groupId)
+    ) {
+      continue;
+    }
+    const key = row.category || "Sem categoria";
+    totals.set(key, (totals.get(key) || 0) + row.amount);
+  }
+  return totals;
+}
+
+/** Ritmo ideal vs real: limite = renda do mês − aporte estimado das metas. */
+export function spendingPace(
+  data: FinanceData,
+  month: string,
+  groupId = "all",
+) {
+  const today = localDate();
+  const currentMonth = today.slice(0, 7);
+  const daysInMonth = new Date(
+    Number(month.slice(0, 4)),
+    Number(month.slice(5, 7)),
+    0,
+  ).getDate();
+  const todayDay =
+    month === currentMonth
+      ? Number(today.slice(8, 10))
+      : month < currentMonth
+        ? daysInMonth
+        : 1;
+  const cutoff =
+    month === currentMonth
+      ? today
+      : month < currentMonth
+        ? `${month}-${String(daysInMonth).padStart(2, "0")}`
+        : `${month}-01`;
+  const isCurrent = month === currentMonth;
+  const isPast = month < currentMonth;
+
+  const records = data.transactions.filter(
+    (row) =>
+      row.currency === "BRL" &&
+      row.date.startsWith(month) &&
+      matchesGroupFilter(row.groupId, groupId),
+  );
+  const incomeMonth = records
+    .filter((row) => row.kind === "income")
+    .reduce((total, row) => total + row.amount, 0);
+  const expenses = records.filter((row) => row.kind === "expense");
+  const spentToDate = expenses
+    .filter((row) => row.date <= cutoff)
+    .reduce((total, row) => total + row.amount, 0);
+
+  const savingsNeed = data.goals
+    .filter(
+      (goal) =>
+        matchesGroupFilter(goal.groupId, groupId) &&
+        goal.current < goal.target,
+    )
+    .reduce((total, goal) => {
+      const remaining = Math.max(0, goal.target - goal.current);
+      return (
+        total +
+        Math.round(remaining / monthsUntilDeadline(goal.deadline, today))
+      );
+    }, 0);
+
+  const monthlyLimit = Math.max(0, incomeMonth - savingsNeed);
+  const remaining = monthlyLimit - spentToDate;
+  const daysLeft =
+    isCurrent
+      ? Math.max(1, daysInMonth - todayDay + 1)
+      : isPast
+        ? 1
+        : daysInMonth;
+  const dailyAllowance = Math.round(remaining / daysLeft);
+  const avgDailySpend = spentToDate / Math.max(1, todayDay);
+  const projectedEndSpend = Math.round(avgDailySpend * daysInMonth);
+  const projectedSurplus = monthlyLimit - projectedEndSpend;
+  const paceDelta = Math.round(
+    (monthlyLimit * todayDay) / daysInMonth - spentToDate,
+  );
+
+  const series = Array.from({ length: daysInMonth }, (_, index) => {
+    const day = index + 1;
+    const date = `${month}-${String(day).padStart(2, "0")}`;
+    const ideal = (monthlyLimit * day) / daysInMonth / 100;
+    const known = day <= todayDay;
+    const actualCents = known
+      ? expenses
+          .filter((row) => row.date <= date)
+          .reduce((total, row) => total + row.amount, 0)
+      : null;
+    const forecastCents =
+      isCurrent && day >= todayDay
+        ? Math.round(avgDailySpend * day)
+        : isPast
+          ? null
+          : day >= todayDay
+            ? Math.round(avgDailySpend * day)
+            : null;
+    const actual = actualCents == null ? null : actualCents / 100;
+    const forecast = forecastCents == null ? null : forecastCents / 100;
+    const track = actual ?? forecast;
+    return { day, ideal, actual, forecast, track };
+  });
+
+  const previousMonth = shiftMonth(month, -1);
+  const previousDays = new Date(
+    Number(previousMonth.slice(0, 4)),
+    Number(previousMonth.slice(5, 7)),
+    0,
+  ).getDate();
+  const compareDay = Math.min(todayDay, previousDays);
+  const currentCats = expenseByCategoryUntil(
+    data,
+    month,
+    compareDay,
+    groupId,
+  );
+  const previousCats = expenseByCategoryUntil(
+    data,
+    previousMonth,
+    compareDay,
+    groupId,
+  );
+  let categoryShift: { category: string; delta: number } | null = null;
+  const categories = new Set([...currentCats.keys(), ...previousCats.keys()]);
+  for (const category of categories) {
+    const delta =
+      (currentCats.get(category) || 0) - (previousCats.get(category) || 0);
+    if (
+      !categoryShift ||
+      Math.abs(delta) > Math.abs(categoryShift.delta)
+    ) {
+      categoryShift = { category, delta };
+    }
+  }
+  const notableShift =
+    categoryShift && categoryShift.delta !== 0 ? categoryShift : null;
+
+  const limitUsedPercent =
+    monthlyLimit > 0
+      ? Math.min(999, Math.round((spentToDate / monthlyLimit) * 100))
+      : 0;
+
+  return {
+    incomeMonth,
+    savingsNeed,
+    monthlyLimit,
+    spentToDate,
+    remaining,
+    daysLeft,
+    dailyAllowance,
+    paceDelta,
+    todayDay,
+    daysInMonth,
+    series,
+    projectedEndSpend,
+    projectedSurplus,
+    projectedSurplus3m: projectedSurplus * 3,
+    limitUsedPercent,
+    categoryShift: notableShift as {
+      category: string;
+      delta: number;
+    } | null,
+    empty: incomeMonth <= 0,
+  };
 }
