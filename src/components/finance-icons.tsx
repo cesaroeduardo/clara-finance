@@ -1,29 +1,31 @@
 import {
-  House,
-  Coffee,
-  Sprout,
-  BriefcaseBusiness,
-  Layers3,
-  Plane,
-  Heart,
+  Airplane,
+  Briefcase,
   Car,
+  Coffee,
+  Heart,
+  House,
+  Plant,
   ShieldCheck,
+  Stack,
   Target,
-  type LucideIcon,
-} from "lucide-react";
+  type Icon,
+} from "@phosphor-icons/react";
 import Image from "next/image";
-const icons: Record<string, LucideIcon> = {
+
+const icons: Record<string, Icon> = {
   house: House,
   coffee: Coffee,
-  sprout: Sprout,
-  briefcase: BriefcaseBusiness,
-  layers: Layers3,
-  plane: Plane,
+  sprout: Plant,
+  briefcase: Briefcase,
+  layers: Stack,
+  plane: Airplane,
   heart: Heart,
   car: Car,
   shield: ShieldCheck,
   target: Target,
 };
+
 export function FinanceIcon({
   name,
   size = 18,
@@ -34,9 +36,10 @@ export function FinanceIcon({
   className?: string;
   style?: React.CSSProperties;
 }) {
-  const Icon = icons[name] || Layers3;
-  return <Icon size={size} strokeWidth={1.75} {...props} />;
+  const IconComponent = icons[name] || Stack;
+  return <IconComponent size={size} {...props} />;
 }
+
 export function Illustration({
   name,
   className = "",

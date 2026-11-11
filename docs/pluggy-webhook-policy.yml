@@ -1,0 +1,8 @@
+# Expose only the webhook. Clara's pages and other API routes remain private.
+on_http_request:
+  - expressions:
+      - "req.url.path != '/api/webhooks/pluggy' || req.method != 'POST'"
+    actions:
+      - type: deny
+        config:
+          status_code: 404

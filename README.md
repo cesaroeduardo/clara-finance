@@ -55,18 +55,58 @@ PLUGGY_CLIENT_SECRET=seu_client_secret
 
 As credenciais e a API key ficam no servidor; o navegador recebe apenas o indicador de configuração. `.env.local`, banco, backups e arquivos de teste não são enviados ao Git.
 
-A integração usa `/auth`, `/items/{id}`, `/accounts`, `/transactions` e `/investments`. Ela não depende de listar todos os itens, recurso indisponível no uso pessoal. O fluxo de autorização permanece nos sites oficiais; não solicitamos a senha do banco dentro deste aplicativo.
+A integração usa `/auth`, `/items/{id}`, `/accounts`, `/v2/transactions` e `/investments`. Ela não depende de listar todos os itens, recurso indisponível no uso pessoal. O fluxo de autorização permanece nos sites oficiais; não solicitamos a senha do banco dentro deste aplicativo.
 
 ### Comportamento da sincronização
 
 - O botão lê os dados já disponíveis na Pluggy. Ele **não força uma atualização no banco**; o Meu Pluggy atualiza suas conexões a cada 24 horas.
 - Importa todas as páginas e grava cada instituição de forma atômica. Erros não apagam os dados locais existentes.
 - Reimportações atualizam pelo ID da Pluggy, sem duplicar transações. Grupo, categoria e tipo ajustados pelo usuário são preservados.
-- Categorias são locais e manuais; a aplicação não depende da categorização paga da Pluggy.
-- Pagamentos com `operationType=PAGAMENTO_FATURA` são classificados automaticamente como transferência. Confira transferências e pagamentos de fatura sem esse identificador para evitar dupla contagem.
+- Categorias usam uma taxonomia local por palavras-chave na descrição (Uber → Transporte, Unifique → Contas da casa, etc.). A categorização paga da Pluggy não é usada. Edições manuais e categorias já preenchidas são preservadas na reimportação; só `Sem categoria` recebe classificação automática.
+- Pagamentos de fatura (`PAGAMENTO_FATURA`), aplicações e resgates financeiros (`APLICACAO_FINANCEIRA`, `RESGATE_APLIC_FINANCEIRA`, saldos reservados) e descrições típicas de aplicação/resgate/tesouro são classificados como transferência, para não entrar no resultado do mês. Rendimentos (`RENDIMENTO_APLIC_FINANCEIRA`) continuam como entrada. Confira PIX/TED para corretora e pagamentos de fatura sem identificador para evitar dupla contagem.
 - Se investimentos não estiverem autorizados, a sincronização avisa e preserva as posições anteriores.
 - A autorização pessoal expira após um ano. Renove no Dashboard/Meu Pluggy e confira os novos itemIds.
 - O aplicativo limita o cadastro a cinco conexões pessoais, conforme o fluxo oficial.
+
+### Webhooks opcionais
+
+O receptor `POST /api/webhooks/pluggy` aceita `item/created`, `item/updated` e `item/error`. Ele grava o identificador do aviso no SQLite e responde `200 {"received":true}` antes de consultar a Pluggy. O processamento acontece com `after()` do Next.js. Apenas conexões pessoais já cadastradas na Clara são importadas; outros itens, aplicações e eventos são ignorados com `200`. O corpo do aviso não é usado como fonte de saldos ou mensagens de erro: o servidor lê o estado atual com sua própria API key.
+
+Client ID e Client Secret continuam no `.env.local`, com os nomes `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET`. Não copie esses valores para o código. Gere um segredo separado para autenticar os avisos:
+
+```powershell
+node --env-file-if-exists=.env.local scripts/pluggy-webhook.cjs setup
+```
+
+O comando adiciona `PLUGGY_WEBHOOK_SECRET` ao arquivo sem alterar as credenciais existentes nem imprimir o segredo. Reinicie o app e teste o receptor local:
+
+```powershell
+npm run dev
+# Em outro terminal, na mesma pasta (substitua 3000 se usar outra porta):
+node --env-file-if-exists=.env.local scripts/pluggy-webhook.cjs test 3000
+```
+
+O teste envia um item fictício não cadastrado. A resposta esperada é `200` com `received: true` e `ignored: true`; não consulta bancos e não comprova suas credenciais na Pluggy.
+
+Para uma entrega real, a Pluggy exige HTTPS público. Com o [ngrok instalado e configurado](https://ngrok.com/docs/getting-started/), abra um túnel **limitado ao POST do webhook**, usando a política incluída. Ela bloqueia o dashboard e todas as outras rotas do aplicativo:
+
+```powershell
+ngrok http http://127.0.0.1:3000 --traffic-policy-file docs/pluggy-webhook-policy.yml
+```
+
+Cadastre a URL HTTPS mostrada pelo ngrok, acrescentando `/api/webhooks/pluggy`:
+
+```powershell
+node --env-file-if-exists=.env.local scripts/pluggy-webhook.cjs register https://SEU-DOMINIO.ngrok-free.app/api/webhooks/pluggy
+```
+
+Esse comando cria uma assinatura `all` na sua aplicação, com o cabeçalho `x-pluggy-webhook-secret`. Os cabeçalhos personalizados precisam ser cadastrados pela API, não pelo formulário do Dashboard. Execute uma vez por URL e remova a assinatura de teste no Dashboard ao terminar. Uma nova URL de túnel exige atualizar ou cadastrar o destino novamente.
+
+Em [Eventos do Dashboard](https://dashboard.pluggy.ai/events), acompanhe uma nova entrega ou use **Retry** em uma entrega existente para esse destino. O app e o túnel precisam permanecer abertos. Um `401` indica segredo ausente/incorreto; `503`, configuração incompleta; `400`, JSON ou campos inválidos. Um `200` confirma o recebimento, e não a conclusão da importação. Veja o resultado da importação em **Contas & conexões** e atualize a página para exibir novos dados.
+
+Avisos concluídos são deduplicados por `eventId`. Se o processamento falhar, a falha fica registrada e o mesmo evento pode ser reenviado. Avisos pendentes após um reinício são retomados na próxima entrega aceita. Não há um serviço de fila independente: se o computador for desligado depois do recebimento, reenvie pelo Dashboard; **Sincronizar** também recupera os dados diretamente. O recebimento de um `item/error` pode manter a conexão em erro até você renovar sua autorização no Meu Pluggy.
+
+Referências: [webhooks da Pluggy](https://docs.pluggy.ai/en/docs/developer-tools/webhooks-ref), [cadastro pela API](https://docs.pluggy.ai/en/reference/webhooks) e [políticas do ngrok](https://ngrok.com/docs/gateway/traffic-policy/getting-started/agent-endpoints).
 
 ## Como os números são calculados
 

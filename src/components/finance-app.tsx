@@ -2,28 +2,27 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   ArrowDownLeft,
-  ArrowLeftRight,
   ArrowUpRight,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  CircleHelp,
+  ArrowsClockwise,
+  ArrowsLeftRight,
+  Bank,
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+  CircleNotch,
   Eye,
-  EyeOff,
-  LayoutGrid,
-  Menu,
+  EyeSlash,
+  List,
+  MagnifyingGlass,
   Moon,
+  Plant,
   Plus,
-  RefreshCw,
-  Search,
-  Settings2,
-  Sprout,
+  Question,
+  SquaresFour,
+  Stack,
   Sun,
   Target,
-  Layers3,
-  Landmark,
-  LoaderCircle,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +33,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FinanceForm, type FormState, type Mutate } from "./finance-form";
 import { PrivacyContext } from "./finance-privacy";
-import { AnimatedLabel, IconSwap, NavigationIndicator } from "./finance-motion";
+import {
+  AnimatedLabel,
+  IconSwap,
+  NavigationIndicator,
+  NavAccordion,
+  PageEnter,
+} from "./finance-motion";
 import {
   DashboardView,
   TransactionsView,
@@ -44,7 +49,7 @@ import {
   AccountsView,
 } from "./finance-views";
 import { monthKey, monthLabel } from "@/lib/format";
-import type { FinanceData, Mode } from "@/lib/types";
+import type { FinanceData } from "@/lib/types";
 export type View =
   | "dashboard"
   | "transactions"
@@ -52,11 +57,25 @@ export type View =
   | "goals"
   | "groups"
   | "accounts";
-const navigation = [
-  { id: "dashboard", label: "Visão geral", icon: LayoutGrid },
-  { id: "transactions", label: "Lançamentos", icon: ArrowLeftRight },
-  { id: "investments", label: "Investimentos", icon: Sprout },
-  { id: "goals", label: "Metas", icon: Target },
+const navigationSections = [
+  {
+    id: "principal",
+    label: "Principal",
+    items: [
+      { id: "dashboard", label: "Visão geral", icon: SquaresFour },
+      { id: "transactions", label: "Lançamentos", icon: ArrowsLeftRight },
+      { id: "investments", label: "Investimentos", icon: Plant },
+      { id: "goals", label: "Metas", icon: Target },
+    ],
+  },
+  {
+    id: "organizacao",
+    label: "Organização",
+    items: [
+      { id: "groups", label: "Grupos", icon: Stack },
+      { id: "accounts", label: "Contas", icon: Bank },
+    ],
+  },
 ] as const;
 const subscribePreferences = (callback: () => void) => {
   window.addEventListener("storage", callback);
@@ -82,10 +101,9 @@ function usePreference(key: string, fallback: string) {
 export function FinanceApp() {
   const [view, setView] = useState<View>("dashboard"),
     [data, setData] = useState<FinanceData | null>(null);
-  const [modeValue, saveMode] = usePreference("clara-mode", "demo"),
-    [theme, saveTheme] = usePreference("clara-theme", "light");
-  const mode: Mode = modeValue === "personal" ? "personal" : "demo",
-    dark = theme === "dark";
+  const [theme, saveTheme] = usePreference("clara-theme", "light");
+  const mode = "personal" as const;
+  const dark = theme === "dark";
   const setDark = (update: (value: boolean) => boolean) =>
     saveTheme(update(dark) ? "dark" : "light");
   const ready = useSyncExternalStore(
@@ -102,9 +120,28 @@ export function FinanceApp() {
   const [sidebar, setSidebar] = useState(false),
     [hidden, setHidden] = useState(false),
     [syncing, setSyncing] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(
+    () =>
+      Object.fromEntries(navigationSections.map((section) => [section.id, true])),
+  );
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k")
+        return;
+      event.preventDefault();
+      setView("transactions");
+      if (window.matchMedia("(max-width: 700px)").matches) setSidebar(true);
+      window.setTimeout(
+        () => document.getElementById("sidebar-search")?.focus(),
+        0,
+      );
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   useEffect(() => {
     if (!ready) return;
     const controller = new AbortController();
@@ -121,15 +158,19 @@ export function FinanceApp() {
       });
     return () => controller.abort();
   }, [mode, refresh, ready]);
+  const openSectionForView = (next: View) => {
+    const section = navigationSections.find((entry) =>
+      entry.items.some((item) => item.id === next),
+    );
+    if (!section) return;
+    setOpenSections((current) =>
+      current[section.id] ? current : { ...current, [section.id]: true },
+    );
+  };
   const navigate = (next: View) => {
+    openSectionForView(next);
     setView(next);
     setSidebar(false);
-  };
-  const switchMode = (next: Mode) => {
-    saveMode(next);
-    setGroup("all");
-    setData(null);
-    setForm(null);
   };
   const mutate: Mutate = useCallback(
     async (resource, body, method = "POST") => {
@@ -146,11 +187,6 @@ export function FinanceApp() {
     [mode],
   );
   async function sync() {
-    if (mode === "demo") {
-      toast.info("Ative o modo pessoal para sincronizar suas contas.");
-      navigate("accounts");
-      return;
-    }
     setSyncing(true);
     try {
       const response = await fetch("/api/pluggy/sync?mode=personal", {
@@ -209,59 +245,89 @@ export function FinanceApp() {
           />
         )}
         <aside className={`sidebar ${sidebar ? "is-open" : ""}`}>
-          <button
-            className="brand"
-            onClick={() => navigate("dashboard")}
-            aria-label="Clara, página inicial"
-          >
-            <span>
-              clara<span className="brand-dot">.</span>
-            </span>
-          </button>
-          <div className="workspace-chip">
-            <span className="avatar">E</span>
-            <div>
-              <strong>Pessoal</strong>
-            </div>
-            <ChevronDown size={15} />
-          </div>
-          <span className="nav-label">PRINCIPAL</span>
-          <nav aria-label="Navegação principal">
-            {navigation.map(({ id, label, icon: Icon }) => (
+          <div className="sidebar-top">
+            <div className="brand-row">
               <button
-                key={id}
-                onClick={() => navigate(id)}
-                className={`nav-item ${view === id ? "active" : ""}`}
-                aria-current={view === id ? "page" : undefined}
+                className="brand"
+                onClick={() => navigate("dashboard")}
+                aria-label="Clara, página inicial"
               >
-                {view === id && <NavigationIndicator />}
-                <Icon size={19} strokeWidth={1.8} />
-                <span>{label}</span>
-                {id === "goals" && !!data?.goals.length && (
-                  <small>{data.goals.length}</small>
-                )}
+                <span>
+                  clara<span className="brand-dot">.</span>
+                </span>
               </button>
-            ))}
-          </nav>
-          <span className="nav-label second">ORGANIZAÇÃO</span>
-          <nav aria-label="Organização">
-            <button
-              className={`nav-item ${view === "groups" ? "active" : ""}`}
-              onClick={() => navigate("groups")}
-            >
-              {view === "groups" && <NavigationIndicator />}
-              <Layers3 size={19} strokeWidth={1.8} />
-              <span>Grupos</span>
-            </button>
-            <button
-              className={`nav-item ${view === "accounts" ? "active" : ""}`}
-              onClick={() => navigate("accounts")}
-            >
-              {view === "accounts" && <NavigationIndicator />}
-              <Landmark size={19} strokeWidth={1.8} />
-              <span>Contas</span>
-            </button>
-          </nav>
+              <button
+                className="icon-button privacy-toggle"
+                aria-label={hidden ? "Mostrar valores" : "Ocultar valores"}
+                onClick={() => setHidden((v) => !v)}
+              >
+                <IconSwap
+                  active={hidden}
+                  first={<Eye size={18} />}
+                  second={<EyeSlash size={18} />}
+                />
+              </button>
+            </div>
+            <label className="sidebar-search">
+              <MagnifyingGlass size={15} aria-hidden="true" />
+              <input
+                id="sidebar-search"
+                aria-label="Buscar lançamentos"
+                placeholder="Buscar"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  if (view !== "transactions") {
+                    openSectionForView("transactions");
+                    setView("transactions");
+                  }
+                }}
+                onFocus={() => {
+                  if (view !== "transactions") {
+                    openSectionForView("transactions");
+                    setView("transactions");
+                  }
+                }}
+              />
+              <kbd aria-hidden="true">⌘K</kbd>
+            </label>
+          </div>
+          <div className="sidebar-nav">
+            {navigationSections.map((section) => {
+              const open = openSections[section.id] ?? true;
+              return (
+                <NavAccordion
+                  key={section.id}
+                  id={`nav-section-${section.id}`}
+                  label={section.label}
+                  open={open}
+                  onToggle={() =>
+                    setOpenSections((current) => ({
+                      ...current,
+                      [section.id]: !open,
+                    }))
+                  }
+                >
+                  {section.items.map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => navigate(id)}
+                      className={`nav-item ${view === id ? "active" : ""}`}
+                      aria-current={view === id ? "page" : undefined}
+                    >
+                      {view === id && <NavigationIndicator />}
+                      <Icon size={16} />
+                      <span>{label}</span>
+                      {id === "goals" && !!data?.goals.length && (
+                        <small>{data.goals.length}</small>
+                      )}
+                    </button>
+                  ))}
+                </NavAccordion>
+              );
+            })}
+          </div>
           <div className="sidebar-bottom">
             <button className="theme-toggle" onClick={() => setDark((v) => !v)}>
               <IconSwap
@@ -275,159 +341,40 @@ export function FinanceApp() {
                 <Moon size={12} />
               </span>
             </button>
-            <div className="sidebar-footer">
-              <span className="avatar">E</span>
-              <div>
-                <strong>Conta pessoal</strong>
-                <span>
-                  <i /> Armazenamento local
-                </span>
-              </div>
-              <Settings2 size={16} />
-            </div>
+            <a
+              className="sidebar-help"
+              href="https://meu.pluggy.ai/api-guide"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Ajuda com Meu Pluggy"
+            >
+              <Question size={16} />
+              <span>Ajuda</span>
+            </a>
           </div>
         </aside>
         <div className="app-main">
-          <header className="topbar">
-            <div className="topbar-start">
-              <button
-                className="icon-button mobile-menu"
-                aria-label="Abrir menu"
-                onClick={() => setSidebar(true)}
-              >
-                <Menu size={21} />
-              </button>
-              <span className="breadcrumb">
-                Pessoal <ChevronRight size={13} />{" "}
-                <strong>
-                  {view === "dashboard"
-                    ? "Visão geral"
-                    : view === "transactions"
-                      ? "Lançamentos"
-                      : view === "investments"
-                        ? "Investimentos"
-                        : view === "goals"
-                          ? "Metas"
-                          : view === "groups"
-                            ? "Grupos"
-                            : "Contas"}
-                </strong>
-              </span>
-            </div>
-            <div className="topbar-actions">
-              <span className="local-indicator">
-                <span /> Local
-              </span>
-              <button
-                className="icon-button"
-                aria-label="Buscar lançamentos"
-                onClick={() => {
-                  navigate("transactions");
-                  setTimeout(
-                    () =>
-                      document.getElementById("transaction-search")?.focus(),
-                    100,
-                  );
-                }}
-              >
-                <Search size={19} />
-              </button>
-              <button
-                className="icon-button"
-                aria-label={hidden ? "Mostrar valores" : "Ocultar valores"}
-                onClick={() => setHidden((v) => !v)}
-              >
-                <IconSwap
-                  active={hidden}
-                  first={<Eye size={19} />}
-                  second={<EyeOff size={19} />}
-                />
-              </button>
-              <a
-                className="icon-button help-button"
-                href="https://meu.pluggy.ai/api-guide"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Ajuda com Meu Pluggy"
-              >
-                <CircleHelp size={19} />
-              </a>
-              <span className="avatar top-avatar">E</span>
-            </div>
-          </header>
           <main className="main-content">
             <div className="page-heading">
-              <div>
-                <h1>
-                  {view === "dashboard"
-                    ? "Visão geral"
-                    : view === "transactions"
-                      ? "Lançamentos"
-                      : view === "investments"
-                        ? "Investimentos"
-                        : view === "goals"
-                          ? "Metas"
-                          : view === "groups"
-                            ? "Grupos"
-                            : "Contas"}
-                </h1>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button className="add-button" />}>
-                  <Plus size={17} /> Adicionar <ChevronDown size={15} />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setForm({ resource: "transactions", kind: "income" })
-                    }
-                  >
-                    <ArrowDownLeft />
-                    Nova entrada
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setForm({ resource: "transactions", kind: "expense" })
-                    }
-                  >
-                    <ArrowUpRight />
-                    Nova saída
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setForm({ resource: "investments" })}
-                  >
-                    <Sprout />
-                    Investimento
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setForm({ resource: "goals" })}
-                  >
-                    <Target />
-                    Meta
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setForm({ resource: "groups" })}
-                  >
-                    <Layers3 />
-                    Grupo
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <div className="toolbar">
-              <div className="period-picker">
+              <div className="page-heading-start">
+                <button
+                  className="icon-button mobile-menu"
+                  aria-label="Abrir menu"
+                  onClick={() => setSidebar(true)}
+                >
+                  <List size={21} />
+                </button>
                 {["dashboard", "transactions", "groups"].includes(view) ? (
-                  <>
+                  <div className="period-picker">
                     <button
                       className="icon-button"
                       aria-label="Mês anterior"
                       onClick={() => changeMonth(-1)}
                     >
-                      <ChevronLeft size={17} />
+                      <CaretLeft size={17} />
                     </button>
                     <label className="period-label">
                       <AnimatedLabel value={monthLabel(month)} />
-                      <ChevronDown size={14} />
                       <input
                         aria-label="Mês de referência"
                         type="month"
@@ -442,23 +389,13 @@ export function FinanceApp() {
                       aria-label="Próximo mês"
                       onClick={() => changeMonth(1)}
                     >
-                      <ChevronRight size={17} />
+                      <CaretRight size={17} />
                     </button>
-                  </>
-                ) : (
-                  <span className="period-label">
-                    {view === "investments"
-                      ? "Posições atuais"
-                      : view === "goals"
-                        ? "Metas"
-                        : "Leitura mais recente"}
-                  </span>
-                )}
-              </div>
-              <div className="toolbar-right">
+                  </div>
+                ) : null}
                 {view !== "accounts" && (
                   <div className="group-filter">
-                    <Layers3 size={15} />
+                    <Stack size={15} />
                     <select
                       aria-label="Filtrar por grupo"
                       value={group}
@@ -473,6 +410,8 @@ export function FinanceApp() {
                     </select>
                   </div>
                 )}
+              </div>
+              <div className="page-heading-actions">
                 <button
                   className="sync-button"
                   onClick={sync}
@@ -480,7 +419,7 @@ export function FinanceApp() {
                   aria-label={syncing ? "Sincronizando…" : "Sincronizar"}
                   aria-busy={syncing}
                 >
-                  <RefreshCw
+                  <ArrowsClockwise
                     size={14}
                     className={syncing ? "animate-spin" : ""}
                   />
@@ -488,30 +427,51 @@ export function FinanceApp() {
                     value={syncing ? "Sincronizando…" : "Sincronizar"}
                   />
                 </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button className="add-button" />}
+                  >
+                    <Plus size={17} /> Adicionar <CaretDown size={15} />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem
+                      onClick={() =>
+                        setForm({ resource: "transactions", kind: "income" })
+                      }
+                    >
+                      <ArrowDownLeft />
+                      Nova entrada
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        setForm({ resource: "transactions", kind: "expense" })
+                      }
+                    >
+                      <ArrowUpRight />
+                      Nova saída
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setForm({ resource: "investments" })}
+                    >
+                      <Plant />
+                      Investimento
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setForm({ resource: "goals" })}
+                    >
+                      <Target />
+                      Meta
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setForm({ resource: "groups" })}
+                    >
+                      <Stack />
+                      Grupo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
-            {mode === "demo" ? (
-              <div className="demo-banner">
-                <span>
-                  <i /> Dados de demonstração
-                </span>
-                <button
-                  onClick={() => {
-                    switchMode("personal");
-                    navigate("accounts");
-                  }}
-                >
-                  Usar meus dados <ArrowUpRight size={14} />
-                </button>
-              </div>
-            ) : (
-              <div className="personal-banner">
-                <span>
-                  <i /> Dados pessoais
-                </span>
-                <button onClick={() => switchMode("demo")}>Demonstração</button>
-              </div>
-            )}
             {error ? (
               <div className="error-state" role="alert">
                 <h2>Erro ao carregar</h2>
@@ -522,29 +482,30 @@ export function FinanceApp() {
               </div>
             ) : !props ? (
               <div className="loading-state">
-                <LoaderCircle className="animate-spin" size={24} />
+                <CircleNotch className="animate-spin" size={24} />
                 <p>Carregando…</p>
               </div>
             ) : (
               <div className="view-content" key={`${view}-${mode}`}>
-                {view === "dashboard" ? (
-                  <DashboardView {...props} />
-                ) : view === "transactions" ? (
-                  <TransactionsView {...props} />
-                ) : view === "investments" ? (
-                  <InvestmentsView {...props} />
-                ) : view === "goals" ? (
-                  <GoalsView {...props} />
-                ) : view === "groups" ? (
-                  <GroupsView {...props} />
-                ) : (
-                  <AccountsView
-                    {...props}
-                    syncing={syncing}
-                    sync={sync}
-                    switchMode={switchMode}
-                  />
-                )}
+                <PageEnter>
+                  {view === "dashboard" ? (
+                    <DashboardView {...props} />
+                  ) : view === "transactions" ? (
+                    <TransactionsView {...props} />
+                  ) : view === "investments" ? (
+                    <InvestmentsView {...props} />
+                  ) : view === "goals" ? (
+                    <GoalsView {...props} />
+                  ) : view === "groups" ? (
+                    <GroupsView {...props} />
+                  ) : (
+                    <AccountsView
+                      {...props}
+                      syncing={syncing}
+                      sync={sync}
+                    />
+                  )}
+                </PageEnter>
               </div>
             )}
           </main>

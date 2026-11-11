@@ -42,12 +42,9 @@ test("criar, filtrar, editar e excluir lançamento com persistência", async ({
   await page.getByRole("button", { name: "Confirmar exclusão" }).click();
   await expect(page.getByText("Nenhum lançamento encontrado")).toBeVisible();
 });
-test("metas e grupos gravam sem misturar demonstração com o modo pessoal", async ({
-  page,
-}) => {
+test("metas e grupos gravam no modo pessoal", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Usar meus dados" }).click();
-  await expect(page.getByText("Configuração")).toBeVisible();
+  await expect(page.getByText("Saldo previsto")).toBeVisible();
   await page.getByRole("button", { name: "Metas", exact: true }).click();
   await page.getByRole("button", { name: "Nova meta" }).click();
   await page.getByLabel("Nome da meta").fill("Reserva de verificação");
@@ -105,7 +102,6 @@ test("posição de investimento manual é criada, atualizada e removida", async 
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Usar meus dados" }).click();
   await page
     .getByRole("button", { name: "Investimentos", exact: true })
     .click();

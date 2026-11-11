@@ -3,7 +3,11 @@
 import * as React from "react";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { cn } from "@/lib/utils";
-import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react";
+import {
+  CaretDown as ChevronDownIcon,
+  CaretUp as ChevronUpIcon,
+  Check as CheckIcon,
+} from "@phosphor-icons/react";
 
 const Select = SelectPrimitive.Root;
 
@@ -145,7 +149,7 @@ function SelectSeparator({
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn("pointer-events-none -mx-1 my-1 h-px bg-border", className)}
+      className={cn("divider pointer-events-none my-1", className)}
       {...props}
     />
   );

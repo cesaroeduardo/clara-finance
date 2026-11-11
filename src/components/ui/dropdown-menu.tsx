@@ -3,7 +3,10 @@
 import * as React from "react";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "@/lib/utils";
-import { ChevronRightIcon, CheckIcon } from "lucide-react";
+import {
+  CaretRight as ChevronRightIcon,
+  Check as CheckIcon,
+} from "@phosphor-icons/react";
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
@@ -230,7 +233,7 @@ function DropdownMenuSeparator({
   return (
     <MenuPrimitive.Separator
       data-slot="dropdown-menu-separator"
-      className={cn("-mx-1 my-1 h-px bg-border", className)}
+      className={cn("divider my-1", className)}
       {...props}
     />
   );

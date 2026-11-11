@@ -73,6 +73,30 @@ export function db() {
       })();
     database.prepare("INSERT INTO schema_migrations(version) VALUES(2)").run();
   }
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=3").get()
+  )
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE pluggy_webhook_events (
+          event_id TEXT PRIMARY KEY, event TEXT NOT NULL, item_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','processed','failed')),
+          received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, processed_at TEXT, error TEXT);
+        INSERT INTO schema_migrations(version) VALUES(3);
+      `);
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=4").get()
+  )
+    database.transaction(() => {
+      database.exec(`
+        ALTER TABLE accounts ADD COLUMN available_credit_limit INTEGER;
+        ALTER TABLE accounts ADD COLUMN credit_limit INTEGER;
+        UPDATE accounts SET credit_limit=1500000, available_credit_limit=1285210 WHERE id='demo-credit';
+        UPDATE accounts SET credit_limit=500000, available_credit_limit=401350 WHERE id='demo-credit-sicredi';
+        INSERT INTO schema_migrations(version) VALUES(4);
+      `);
+    })();
   globalDb.financeDb = database;
   for (const mode of ["personal", "demo"] as const) {
     const insert = database.prepare(
@@ -106,7 +130,7 @@ function seedDemo(database: Database.Database) {
   const prev = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, "0")}`;
   database.transaction(() => {
     const account = database.prepare(
-      "INSERT INTO accounts(id,mode,name,institution,type,balance,color) VALUES(?,'demo',?,?,?,?,?)",
+      "INSERT INTO accounts(id,mode,name,institution,type,balance,color,available_credit_limit,credit_limit) VALUES(?,'demo',?,?,?,?,?,?,?)",
     );
     account.run(
       "demo-nubank",
@@ -115,6 +139,8 @@ function seedDemo(database: Database.Database) {
       "BANK",
       830428,
       "#820ad1",
+      null,
+      null,
     );
     account.run(
       "demo-itau",
@@ -123,6 +149,8 @@ function seedDemo(database: Database.Database) {
       "BANK",
       245000,
       "#f58220",
+      null,
+      null,
     );
     account.run(
       "demo-credit",
@@ -130,7 +158,19 @@ function seedDemo(database: Database.Database) {
       "Nubank",
       "CREDIT",
       -214790,
-      "#820ad1",
+      "#5a1a8f",
+      1285210,
+      1500000,
+    );
+    account.run(
+      "demo-credit-sicredi",
+      "Visa Internacional",
+      "Sicredi",
+      "CREDIT",
+      -98650,
+      "#3fb449",
+      401350,
+      500000,
     );
     const add = database.prepare(
       "INSERT INTO transactions(id,mode,description,amount,kind,date,status,group_id,category,account_id) VALUES(?,'demo',?,?,?,?,?,?,?,?)",
@@ -400,7 +440,7 @@ export function getData(mode: Mode): FinanceData {
       "SELECT id,name,color,icon,budget FROM groups WHERE mode=? ORDER BY rowid",
     ),
     accounts: query<Account>(
-      "SELECT id,name,institution,type,balance,color,currency,item_id AS itemId FROM accounts WHERE mode=? ORDER BY rowid",
+      "SELECT id,name,institution,type,balance,available_credit_limit AS availableCreditLimit,credit_limit AS creditLimit,color,currency,item_id AS itemId FROM accounts WHERE mode=? ORDER BY rowid",
     ),
     transactions: query<Transaction>(
       "SELECT id,description,amount,kind,date,status,group_id AS groupId,category,account_id AS accountId,source,currency FROM transactions WHERE mode=? ORDER BY date DESC,rowid DESC",

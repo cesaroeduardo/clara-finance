@@ -1,3 +1,4 @@
+import { categorizeTransaction, isBillPayment } from "./categorize";
 import { db } from "./db";
 import { AppError } from "./http";
 import type { TransactionKind } from "./types";
@@ -9,6 +10,10 @@ type RemoteAccount = {
   subtype?: string;
   balance: number;
   currencyCode: string;
+  creditData?: {
+    availableCreditLimit?: number | null;
+    creditLimit?: number | null;
+  } | null;
 };
 type RemoteTransaction = {
   id: string;
@@ -37,6 +42,7 @@ type RemoteItem = {
   error?: { code: string };
 };
 type Page<T> = { results: T[]; totalPages: number; page: number };
+type CursorPage<T> = { results: T[]; next: string | null };
 export type SyncResult = {
   itemId: string;
   ok: boolean;
@@ -47,11 +53,49 @@ export type SyncResult = {
   error?: string;
 };
 const endpoint = "https://api.pluggy.ai";
+const pageLimit = 1000;
 let cachedKey: { key: string; expires: number } | undefined;
+/** Movimentos entre conta e investimento/reserva — não entram no resultado do mês. */
+const transferOperations = new Set([
+  "PAGAMENTO_FATURA",
+  "APLICACAO_FINANCEIRA",
+  "RESGATE_APLIC_FINANCEIRA",
+  "TRANSFERENCIA_SALDO_RESERVADO",
+  "TRANSFERENCIA_SALDOS_RESERVADOS",
+]);
+function investmentMovement(description?: string) {
+  if (!description) return false;
+  const text = description
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLocaleLowerCase("pt-BR");
+  // Resgate de cashback é entrada real, não movimento de investimento.
+  if (/\bcashback\b/.test(text)) return false;
+  return (
+    /\baplicacao\b/.test(text) ||
+    /\bresgate\b/.test(text) ||
+    /\btesouro\b/.test(text) ||
+    /\bnu\s*invest/.test(text) ||
+    /\bcompra de renda variavel\b/.test(text) ||
+    /\bvenda de renda variavel\b/.test(text) ||
+    /\bcompra de criptomoedas?\b/.test(text) ||
+    /\bvenda de criptomoedas?\b/.test(text)
+  );
+}
 export function transactionKind(
-  transaction: Pick<RemoteTransaction, "type" | "operationType">,
+  transaction: Pick<
+    RemoteTransaction,
+    "type" | "operationType" | "description"
+  >,
 ): TransactionKind {
-  if (transaction.operationType === "PAGAMENTO_FATURA") return "transfer";
+  if (
+    transaction.operationType &&
+    transferOperations.has(transaction.operationType)
+  )
+    return "transfer";
+  // Bancos às vezes omitem PAGAMENTO_FATURA ou marcam aplicações como OUTROS.
+  if (isBillPayment(transaction.description)) return "transfer";
+  if (investmentMovement(transaction.description)) return "transfer";
   return transaction.type === "CREDIT" ? "income" : "expense";
 }
 export function cents(value: number) {
@@ -118,6 +162,11 @@ async function request<T>(path: string): Promise<T> {
         "Conexão não encontrada. Confira o itemId e a aplicação Pluggy.",
         404,
       );
+    if (response.status === 410)
+      throw new AppError(
+        "A Pluggy descontinuou este endpoint. Atualize o aplicativo e tente novamente.",
+        410,
+      );
     if (response.status === 429)
       throw new AppError(
         "Limite da Pluggy atingido. Aguarde alguns minutos.",
@@ -132,7 +181,7 @@ async function request<T>(path: string): Promise<T> {
 }
 async function pages<T>(path: string): Promise<T[]> {
   const all: T[] = [];
-  for (let page = 1; page <= 1000; page++) {
+  for (let page = 1; page <= pageLimit; page++) {
     const result = await request<Page<T>>(
       `${path}${path.includes("?") ? "&" : "?"}page=${page}&pageSize=500`,
     );
@@ -147,7 +196,40 @@ async function pages<T>(path: string): Promise<T[]> {
     502,
   );
 }
-export async function syncItem(itemId: string): Promise<SyncResult> {
+async function cursorPages<T>(path: string): Promise<T[]> {
+  const all: T[] = [];
+  let nextPath = path;
+  for (let page = 1; page <= pageLimit; page++) {
+    const result = await request<CursorPage<T>>(nextPath);
+    if (!Array.isArray(result.results))
+      throw new AppError("A Pluggy retornou uma lista inválida.", 502);
+    all.push(...result.results);
+    if (!result.next) return all;
+    if (!result.next.startsWith("?"))
+      throw new AppError("A Pluggy retornou uma paginação inválida.", 502);
+    const base = path.split("?")[0] || path;
+    nextPath = `${base}${result.next}`;
+  }
+  throw new AppError(
+    "A conexão excedeu o limite de páginas. A importação foi cancelada sem alterar os dados.",
+    502,
+  );
+}
+// Manual sync and webhook deliveries must not overwrite each other with older reads.
+const itemQueues = new Map<string, Promise<SyncResult>>();
+export function syncItem(itemId: string): Promise<SyncResult> {
+  const previous = itemQueues.get(itemId) ?? Promise.resolve();
+  const pending = previous
+    .catch(() => undefined)
+    .then(() => importItem(itemId));
+  itemQueues.set(itemId, pending);
+  const cleanup = () => {
+    if (itemQueues.get(itemId) === pending) itemQueues.delete(itemId);
+  };
+  void pending.then(cleanup, cleanup);
+  return pending;
+}
+async function importItem(itemId: string): Promise<SyncResult> {
   const database = db();
   try {
     const item = await request<RemoteItem>(
@@ -181,8 +263,8 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
     for (const account of accounts)
       transactions.push({
         account,
-        rows: await pages<RemoteTransaction>(
-          `/transactions?accountId=${encodeURIComponent(account.id)}`,
+        rows: await cursorPages<RemoteTransaction>(
+          `/v2/transactions?accountId=${encodeURIComponent(account.id)}`,
         ),
       });
     let investments: RemoteInvestment[] | null = null,
@@ -200,9 +282,17 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
     let count = 0;
     database.transaction(() => {
       const accUpsert = database.prepare(
-        `INSERT INTO accounts(id,mode,name,institution,type,balance,currency,item_id) VALUES(?,'personal',?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,institution=excluded.institution,type=excluded.type,balance=excluded.balance,currency=excluded.currency,item_id=excluded.item_id`,
+        `INSERT INTO accounts(id,mode,name,institution,type,balance,currency,item_id,available_credit_limit,credit_limit) VALUES(?,'personal',?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,institution=excluded.institution,type=excluded.type,balance=excluded.balance,currency=excluded.currency,item_id=excluded.item_id,available_credit_limit=excluded.available_credit_limit,credit_limit=excluded.credit_limit`,
       );
-      for (const account of accounts)
+      for (const account of accounts) {
+        const available =
+          account.creditData?.availableCreditLimit != null
+            ? cents(account.creditData.availableCreditLimit)
+            : null;
+        const limit =
+          account.creditData?.creditLimit != null
+            ? cents(account.creditData.creditLimit)
+            : null;
         accUpsert.run(
           account.id,
           account.name,
@@ -211,9 +301,12 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
           cents(account.balance),
           account.currencyCode || "BRL",
           itemId,
+          available,
+          limit,
         );
+      }
       const txnUpsert = database.prepare(
-        `INSERT INTO transactions(id,mode,description,amount,kind,date,status,group_id,category,account_id,source,currency) VALUES(?,'personal',?,?,?,?,?,'personal-other','Sem categoria',?,'pluggy',?) ON CONFLICT(id) DO UPDATE SET description=excluded.description,amount=excluded.amount,kind=CASE WHEN transactions.user_categorized=1 THEN transactions.kind ELSE excluded.kind END,date=excluded.date,status=excluded.status,account_id=excluded.account_id,currency=excluded.currency`,
+        `INSERT INTO transactions(id,mode,description,amount,kind,date,status,group_id,category,account_id,source,currency) VALUES(?,'personal',?,?,?,?,?,?,?,?,'pluggy',?) ON CONFLICT(id) DO UPDATE SET description=excluded.description,amount=excluded.amount,kind=CASE WHEN transactions.user_categorized=1 THEN transactions.kind ELSE excluded.kind END,date=excluded.date,status=excluded.status,account_id=excluded.account_id,currency=excluded.currency,group_id=CASE WHEN transactions.user_categorized=1 OR transactions.category!='Sem categoria' THEN transactions.group_id ELSE excluded.group_id END,category=CASE WHEN transactions.user_categorized=1 OR transactions.category!='Sem categoria' THEN transactions.category ELSE excluded.category END`,
       );
       for (const { account, rows } of transactions)
         for (const row of rows) {
@@ -221,13 +314,18 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
             Math.abs(row.amountInAccountCurrency ?? row.amount),
           );
           if (!amount) continue;
+          const description = row.description || "Transação importada";
+          const kind = transactionKind({ ...row, description });
+          const classified = categorizeTransaction({ description, kind });
           txnUpsert.run(
             row.id,
-            row.description || "Transação importada",
+            description,
             amount,
-            transactionKind(row),
+            kind,
             row.date.slice(0, 10),
             row.status === "POSTED" ? "paid" : "pending",
+            classified.groupId,
+            classified.category,
             account.id,
             account.currencyCode || row.currencyCode || "BRL",
           );

@@ -1,4 +1,58 @@
 import type { FinanceData, Transaction } from "./types";
+import { localDate } from "./format";
+
+function shiftMonth(month: string, delta: number) {
+  const date = new Date(`${month}-15T12:00:00`);
+  date.setMonth(date.getMonth() + delta);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthEnd(month: string, today = localDate()) {
+  if (month === today.slice(0, 7)) return today;
+  const lastDay = new Date(
+    Number(month.slice(0, 4)),
+    Number(month.slice(5, 7)),
+    0,
+  ).getDate();
+  return `${month}-${String(lastDay).padStart(2, "0")}`;
+}
+
+/** Contas + investimentos em BRL, com série reconstruída pelos lançamentos pagos. */
+export function netWorth(data: FinanceData, months = 6) {
+  const accounts = data.accounts.filter((row) => row.currency === "BRL");
+  const investments = data.investments.filter((row) => row.currency === "BRL");
+  const current =
+    accounts.reduce((total, row) => total + row.balance, 0) +
+    investments.reduce((total, row) => total + row.balance, 0);
+  const today = localDate();
+  const currentMonth = today.slice(0, 7);
+  const cashflows = data.transactions.filter(
+    (row) =>
+      row.currency === "BRL" &&
+      row.status === "paid" &&
+      (row.kind === "income" || row.kind === "expense"),
+  );
+  const series = Array.from({ length: months }, (_, index) => {
+    const month = shiftMonth(currentMonth, index - (months - 1));
+    const end = monthEnd(month, today);
+    const after = cashflows
+      .filter((row) => row.date > end)
+      .reduce(
+        (total, row) =>
+          total + (row.kind === "income" ? row.amount : -row.amount),
+        0,
+      );
+    return { month, value: current - after };
+  });
+  const previous = series.at(-2)?.value ?? current;
+  return {
+    current,
+    change: current - previous,
+    series,
+    empty: accounts.length === 0 && investments.length === 0,
+  };
+}
+
 export function summarize(data: FinanceData, month: string, groupId = "all") {
   const records = data.transactions.filter(
     (row) =>

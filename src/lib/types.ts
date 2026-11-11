@@ -26,6 +26,8 @@ export type Account = {
   institution: string;
   type: string;
   balance: number;
+  availableCreditLimit: number | null;
+  creditLimit: number | null;
   color: string;
   currency: string;
   itemId: string | null;

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { LoaderCircle, Trash2 } from "lucide-react";
+import { CircleNotch, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { taxonomyCategories } from "@/lib/categorize";
 import { localDate, parseMoney } from "@/lib/format";
 import { AnimatedLabel, MotionSegmentedControl } from "./finance-motion";
 import type { FinanceData } from "@/lib/types";
@@ -58,6 +59,12 @@ export function FinanceForm({
   const isImported = row?.source === "pluggy";
   const moneyValue = (value: unknown) =>
     typeof value === "number" ? (value / 100).toFixed(2).replace(".", ",") : "";
+  const categorySuggestions = [
+    ...new Set([
+      ...taxonomyCategories,
+      ...data.transactions.map((item) => item.category).filter(Boolean),
+    ]),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const groupField = (
     <Field title="Grupo" name="groupId">
       <select
@@ -223,11 +230,17 @@ export function FinanceForm({
                       <Input
                         id="category"
                         name="category"
+                        list="category-suggestions"
                         defaultValue={String(row?.category || "")}
                         placeholder="Ex.: Alimentação"
                         maxLength={80}
                         required
                       />
+                      <datalist id="category-suggestions">
+                        {categorySuggestions.map((name) => (
+                          <option key={name} value={name} />
+                        ))}
+                      </datalist>
                     </Field>
                   </div>
                   <div className="form-row">
@@ -578,7 +591,7 @@ export function FinanceForm({
                   aria-label="Excluir registro"
                   onClick={() => setConfirmDelete(true)}
                 >
-                  <Trash2 size={16} />
+                  <Trash size={16} />
                 </Button>
               )}
               <Button
@@ -590,7 +603,7 @@ export function FinanceForm({
                 Cancelar
               </Button>
               <Button type="submit" disabled={busy}>
-                {busy && <LoaderCircle className="animate-spin" size={16} />}{" "}
+                {busy && <CircleNotch className="animate-spin" size={16} />}{" "}
                 <AnimatedLabel
                   value={
                     busy

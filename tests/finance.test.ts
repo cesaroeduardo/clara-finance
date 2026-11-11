@@ -6,8 +6,9 @@ import { NextRequest } from "next/server";
 import { db, getData } from "../src/lib/db";
 import { POST, PATCH, DELETE } from "../src/app/api/manage/[resource]/route";
 import { GET } from "../src/app/api/data/route";
-import { summarize } from "../src/lib/analytics";
-import { parseMoney } from "../src/lib/format";
+import { netWorth, summarize } from "../src/lib/analytics";
+import { localDate, parseMoney } from "../src/lib/format";
+import { categorizeTransaction } from "../src/lib/categorize";
 import { syncAll, transactionKind } from "../src/lib/pluggy";
 
 fs.mkdirSync("work", { recursive: true });
@@ -196,6 +197,135 @@ test("resumo separa transferências, moedas e grupos", () => {
   assert.equal(summarize(data, "2026-11").expenses, 9900);
   assert.equal(summarize(data, "2026-11", "personal-life").expenses, 0);
 });
+test("patrimônio soma contas e investimentos e reconstrói a variação do mês", () => {
+  const today = localDate();
+  const month = today.slice(0, 7);
+  const previous = new Date(`${month}-15T12:00:00`);
+  previous.setMonth(previous.getMonth() - 1);
+  const prev = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, "0")}`;
+  const wealth = netWorth(
+    {
+      mode: "personal",
+      accounts: [
+        {
+          id: "a1",
+          name: "Conta",
+          institution: "Banco",
+          type: "BANK",
+          balance: 100000,
+          availableCreditLimit: null,
+          creditLimit: null,
+          color: "#000",
+          currency: "BRL",
+          itemId: null,
+        },
+        {
+          id: "a2",
+          name: "Cartão",
+          institution: "Banco",
+          type: "CREDIT",
+          balance: -20000,
+          availableCreditLimit: 80000,
+          creditLimit: 100000,
+          color: "#000",
+          currency: "BRL",
+          itemId: null,
+        },
+        {
+          id: "usd",
+          name: "Dólar",
+          institution: "Banco",
+          type: "BANK",
+          balance: 99999,
+          availableCreditLimit: null,
+          creditLimit: null,
+          color: "#000",
+          currency: "USD",
+          itemId: null,
+        },
+      ],
+      investments: [
+        {
+          id: "i1",
+          name: "CDB",
+          institution: "Banco",
+          type: "FIXED_INCOME",
+          balance: 50000,
+          invested: 45000,
+          groupId: "personal-future",
+          currency: "BRL",
+          source: "manual",
+        },
+      ],
+      transactions: [
+        {
+          id: "t1",
+          description: "Salário",
+          amount: 30000,
+          kind: "income",
+          date: `${month}-05`,
+          status: "paid",
+          groupId: "personal-work",
+          category: "Salário",
+          accountId: "a1",
+          source: "manual",
+          currency: "BRL",
+        },
+        {
+          id: "t2",
+          description: "Mercado",
+          amount: 5000,
+          kind: "expense",
+          date: `${month}-08`,
+          status: "paid",
+          groupId: "personal-home",
+          category: "Alimentação",
+          accountId: "a1",
+          source: "manual",
+          currency: "BRL",
+        },
+        {
+          id: "t3",
+          description: "Aplicação",
+          amount: 10000,
+          kind: "transfer",
+          date: `${month}-09`,
+          status: "paid",
+          groupId: "personal-future",
+          category: "Investimento",
+          accountId: "a1",
+          source: "manual",
+          currency: "BRL",
+        },
+        {
+          id: "t4",
+          description: "Renda antiga",
+          amount: 8000,
+          kind: "income",
+          date: `${prev}-20`,
+          status: "paid",
+          groupId: "personal-work",
+          category: "Salário",
+          accountId: "a1",
+          source: "manual",
+          currency: "BRL",
+        },
+      ],
+      groups: [],
+      goals: [],
+      connections: [],
+      pluggyConfigured: false,
+      updatedAt: today,
+    },
+    3,
+  );
+  assert.equal(wealth.current, 130000);
+  assert.equal(wealth.change, 25000);
+  assert.equal(wealth.series.length, 3);
+  assert.equal(wealth.series.at(-1)?.value, 130000);
+  assert.equal(wealth.series.at(-2)?.value, 105000);
+  assert.equal(wealth.empty, false);
+});
 test("progresso de metas é acumulado sem criar movimento bancário", async () => {
   const result = await POST(
     req("POST", "goals", {
@@ -235,14 +365,126 @@ test("progresso de metas é acumulado sem criar movimento bancário", async () =
     400,
   );
 });
-test("pagamentos de fatura usam tipo transferência", () => {
+test("taxonomia local classifica descrição em categoria e grupo", () => {
+  assert.deepEqual(categorizeTransaction({ description: "Uber* Trip" }), {
+    category: "Transporte",
+    groupId: "personal-life",
+  });
+  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
+    category: "Alimentação",
+    groupId: "personal-home",
+  });
+  assert.deepEqual(
+    categorizeTransaction({
+      description: "Pagamento efetuado|UNIFIQUE TELECOMUNICACOES S A",
+    }),
+    { category: "Contas da casa", groupId: "personal-home" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({ description: "IOF de compra internacional" }),
+    { category: "Taxas", groupId: "personal-other" },
+  );
+  assert.deepEqual(categorizeTransaction({ description: "Aplicação RDB" }), {
+    category: "Investimentos",
+    groupId: "personal-future",
+  });
+  assert.deepEqual(
+    categorizeTransaction({
+      description: "Pagamento de fatura",
+      kind: "transfer",
+    }),
+    { category: "Transferências", groupId: "personal-other" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({ description: "Lançamento sem regra" }),
+    { category: "Sem categoria", groupId: "personal-other" },
+  );
+});
+test("fatura, aplicação e resgate usam tipo transferência", () => {
   assert.equal(
-    transactionKind({ type: "CREDIT", operationType: "PAGAMENTO_FATURA" }),
+    transactionKind({
+      type: "CREDIT",
+      operationType: "PAGAMENTO_FATURA",
+      description: "",
+    }),
     "transfer",
   );
-  assert.equal(transactionKind({ type: "DEBIT" }), "expense");
   assert.equal(
-    transactionKind({ type: "CREDIT", operationType: "ESTORNO" }),
+    transactionKind({
+      type: "DEBIT",
+      description: "Pagamento de fatura",
+    }),
+    "transfer",
+  );
+  assert.equal(
+    transactionKind({
+      type: "DEBIT",
+      operationType: "APLICACAO_FINANCEIRA",
+      description: "Aplicação Tesouro Selic",
+    }),
+    "transfer",
+  );
+  assert.equal(
+    transactionKind({
+      type: "CREDIT",
+      operationType: "RESGATE_APLIC_FINANCEIRA",
+      description: "",
+    }),
+    "transfer",
+  );
+  assert.equal(
+    transactionKind({
+      type: "DEBIT",
+      operationType: "OUTROS",
+      description: "Aplicação Nu Investimentos",
+    }),
+    "transfer",
+  );
+  assert.equal(
+    transactionKind({ type: "DEBIT", description: "Aplicação RDB" }),
+    "transfer",
+  );
+  assert.equal(
+    transactionKind({ type: "CREDIT", description: "Resgate RDB" }),
+    "transfer",
+  );
+  assert.equal(
+    transactionKind({
+      type: "DEBIT",
+      description: "Compra de Renda Variável",
+    }),
+    "transfer",
+  );
+  assert.equal(
+    transactionKind({ type: "DEBIT", description: "Compra de criptomoedas" }),
+    "transfer",
+  );
+  assert.equal(
+    transactionKind({ type: "CREDIT", description: "Resgate de Cashback" }),
+    "income",
+  );
+  assert.equal(
+    transactionKind({
+      type: "DEBIT",
+      operationType: "",
+      description: "Mercado Extra",
+    }),
+    "expense",
+  );
+  assert.equal(
+    transactionKind({
+      type: "CREDIT",
+      operationType: "ESTORNO",
+      description: "",
+    }),
+    "income",
+  );
+  assert.equal(
+    transactionKind({
+      type: "CREDIT",
+      operationType: "RENDIMENTO_APLIC_FINANCEIRA",
+      description: "",
+    }),
     "income",
   );
 });
@@ -296,20 +538,34 @@ test("sincronização paginada é idempotente, preserva classificação e manté
           },
         ],
       });
-    if (url.pathname === "/transactions") {
-      const page = Number(url.searchParams.get("page"));
-      if (failSecondPage && page === 2)
+    if (url.pathname === "/v2/transactions") {
+      const after = url.searchParams.get("after");
+      if (failSecondPage && after)
         return Response.json({ error: "unavailable" }, { status: 500 });
+      if (!after)
+        return Response.json({
+          next: `?accountId=${url.searchParams.get("accountId")}&after=page-2`,
+          results: [
+            {
+              id: "remote-1",
+              description: "Movimento 1",
+              amount: 12.34,
+              date: "2026-11-10T12:00:00Z",
+              type: "CREDIT",
+              status: "POSTED",
+              currencyCode: "BRL",
+            },
+          ],
+        });
       return Response.json({
-        page,
-        totalPages: 2,
+        next: null,
         results: [
           {
-            id: `remote-${page}`,
-            description: `Movimento ${page}`,
-            amount: page === 1 ? 12.34 : -22.56,
+            id: "remote-2",
+            description: "Uber* Trip",
+            amount: -22.56,
             date: "2026-11-10T12:00:00Z",
-            type: page === 1 ? "CREDIT" : "DEBIT",
+            type: "DEBIT",
             status: "POSTED",
             currencyCode: "BRL",
           },
@@ -340,10 +596,10 @@ test("sincronização paginada é idempotente, preserva classificação e manté
     let data = getData("personal");
     assert.equal(data.transactions.length, 2);
     assert.equal(data.accounts[0].balance, 123456);
-    assert.equal(
-      data.transactions.find((t) => t.id === "remote-2")?.amount,
-      2256,
-    );
+    const uber = data.transactions.find((t) => t.id === "remote-2");
+    assert.equal(uber?.amount, 2256);
+    assert.equal(uber?.category, "Transporte");
+    assert.equal(uber?.groupId, "personal-life");
     assert.equal(data.investments[0].balance, 120025);
     assert.equal(data.investments[0].invested, null);
     database
@@ -375,7 +631,8 @@ test("sincronização paginada é idempotente, preserva classificação e manté
     assert.equal((await syncAll())[0].ok, false);
     assert.equal(getData("personal").accounts.length, 1);
     assert.equal(authCalls, 1);
-    assert.ok(calls.some((c) => c.includes("page=2")));
+    assert.ok(calls.some((c) => c.includes("/v2/transactions")));
+    assert.ok(calls.some((c) => c.includes("after=page-2")));
   } finally {
     global.fetch = originalFetch;
     delete process.env.PLUGGY_CLIENT_ID;
