@@ -1,4 +1,9 @@
 import {
+  cleanAccountName,
+  repairAccountInstitutions,
+  resolveInstitution,
+} from "./accounts";
+import {
   categorizeTransaction,
   cleanTransactionDescription,
   isBillPayment,
@@ -11,8 +16,10 @@ import type { TransactionKind } from "./types";
 type RemoteAccount = {
   id: string;
   name: string;
+  marketingName?: string | null;
   type: string;
   subtype?: string;
+  number?: string | null;
   balance: number;
   currencyCode: string;
   creditData?: {
@@ -306,6 +313,13 @@ async function importItem(itemId: string): Promise<SyncResult> {
           "Contas e transações importadas. Investimentos indisponíveis para esta conexão; posições locais preservadas.";
       else throw error;
     }
+    const connection = database
+      .prepare("SELECT name FROM connections WHERE id=?")
+      .get(itemId) as { name: string } | undefined;
+    const institution = resolveInstitution(
+      item.connector?.name,
+      connection?.name,
+    );
     let count = 0;
     database.transaction(() => {
       const accUpsert = database.prepare(
@@ -322,8 +336,8 @@ async function importItem(itemId: string): Promise<SyncResult> {
             : null;
         accUpsert.run(
           account.id,
-          account.name,
-          item.connector?.name || "Meu Pluggy",
+          cleanAccountName(account, institution),
+          institution,
           account.type,
           cents(account.balance),
           account.currencyCode || "BRL",
@@ -401,7 +415,7 @@ async function importItem(itemId: string): Promise<SyncResult> {
           invUpsert.run(
             row.id,
             row.name,
-            item.connector?.name || "Meu Pluggy",
+            institution,
             row.type,
             Math.max(0, cents(row.balance)),
             original,
@@ -449,7 +463,9 @@ export async function syncAll() {
   syncing = true;
   try {
     await apiKey();
-    const connections = db()
+    const database = db();
+    repairAccountInstitutions(database);
+    const connections = database
       .prepare("SELECT id FROM connections WHERE mode='personal'")
       .all() as { id: string }[];
     if (!connections.length)

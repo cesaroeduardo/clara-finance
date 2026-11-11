@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -15,6 +15,7 @@ const EMPTY = "__empty__";
 export type FieldSelectOption = {
   value: string;
   label: string;
+  leading?: ReactNode;
 };
 
 type FieldSelectProps = {
@@ -68,8 +69,8 @@ export function FieldSelect({
     onValueChange?.(external);
   };
 
-  const labels = Object.fromEntries(
-    options.map((option) => [toInternal(option.value), option.label]),
+  const byValue = Object.fromEntries(
+    options.map((option) => [toInternal(option.value), option]),
   );
 
   return (
@@ -97,11 +98,17 @@ export function FieldSelect({
         className={cn("field-select-trigger", triggerClassName, className)}
       >
         <SelectValue placeholder={placeholder}>
-          {(selected) =>
-            selected == null
-              ? placeholder
-              : (labels[String(selected)] ?? String(selected))
-          }
+          {(selected) => {
+            if (selected == null) return placeholder;
+            const option = byValue[String(selected)];
+            if (!option) return String(selected);
+            return (
+              <span className="field-select-option">
+                {option.leading}
+                <span className="field-select-option-label">{option.label}</span>
+              </span>
+            );
+          }}
         </SelectValue>
       </SelectTrigger>
       <SelectContent
@@ -110,8 +117,14 @@ export function FieldSelect({
         className={contentClassName}
       >
         {options.map((option) => (
-          <SelectItem key={option.value || EMPTY} value={toInternal(option.value)}>
-            {option.label}
+          <SelectItem
+            key={option.value || EMPTY}
+            value={toInternal(option.value)}
+          >
+            <span className="field-select-option">
+              {option.leading}
+              <span className="field-select-option-label">{option.label}</span>
+            </span>
           </SelectItem>
         ))}
       </SelectContent>

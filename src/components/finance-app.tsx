@@ -19,13 +19,12 @@ import {
   Plus,
   Question,
   SquaresFour,
-  Stack,
   Sun,
-  Tag,
   Target,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { categoryFieldOptions } from "@/components/category-mark";
 import { FieldSelect } from "@/components/ui/field-select";
 import {
   DropdownMenu,
@@ -48,7 +47,6 @@ import {
   TransactionsView,
   InvestmentsView,
   GoalsView,
-  GroupsView,
   AccountsView,
 } from "./finance-views";
 import { RecurringView } from "./finance-recurring";
@@ -61,7 +59,6 @@ export type View =
   | "recurring"
   | "investments"
   | "goals"
-  | "groups"
   | "accounts";
 const navigationSections = [
   {
@@ -78,10 +75,7 @@ const navigationSections = [
   {
     id: "organizacao",
     label: "Organização",
-    items: [
-      { id: "groups", label: "Grupos", icon: Stack },
-      { id: "accounts", label: "Contas", icon: Bank },
-    ],
+    items: [{ id: "accounts", label: "Contas", icon: Bank }],
   },
 ] as const;
 const subscribePreferences = (callback: () => void) => {
@@ -380,9 +374,7 @@ export function FinanceApp() {
                 >
                   <List size={21} />
                 </button>
-                {["dashboard", "transactions", "recurring", "groups"].includes(
-                  view,
-                ) ? (
+                {["dashboard", "transactions", "recurring"].includes(view) ? (
                   <div className="period-picker">
                     <button
                       className="icon-button"
@@ -419,19 +411,12 @@ export function FinanceApp() {
                 ) : null}
                 {view !== "accounts" && (
                   <div className="group-filter">
-                    <Tag size={15} />
                     <FieldSelect
                       aria-label="Filtrar por categoria"
                       value={category}
                       onValueChange={setCategory}
                       triggerClassName="group-filter-select"
-                      options={[
-                        { value: "all", label: "Todas as categorias" },
-                        ...categoryOptions.map((name) => ({
-                          value: name,
-                          label: name,
-                        })),
-                      ]}
+                      options={categoryFieldOptions(categoryOptions)}
                     />
                   </div>
                 )}
@@ -495,12 +480,6 @@ export function FinanceApp() {
                       <CalendarDots />
                       Recorrência
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setForm({ resource: "groups" })}
-                    >
-                      <Stack />
-                      Grupo
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -531,8 +510,6 @@ export function FinanceApp() {
                     <InvestmentsView {...props} />
                   ) : view === "goals" ? (
                     <GoalsView {...props} />
-                  ) : view === "groups" ? (
-                    <GroupsView {...props} />
                   ) : (
                     <AccountsView
                       {...props}

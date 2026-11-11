@@ -878,9 +878,11 @@
 }
 .home-wealth {
   padding: 17px 19px 0;
+  height: 275px;
   min-height: 275px;
   display: flex;
   flex-direction: column;
+  flex: 0 0 auto;
 }
 .home-wealth > .home-value-line {
   margin: 9px 0 0;
@@ -891,7 +893,7 @@
 .home-growth-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   width: fit-content;
   max-width: 100%;
   padding: 0;
@@ -910,16 +912,30 @@
   border: 0;
   color: var(--destructive);
 }
-.home-growth-badge svg {
+.home-growth-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
   flex-shrink: 0;
+  background: var(--success-soft);
+  color: var(--success);
+}
+.home-growth-badge.negative .home-growth-glyph {
+  background: var(--destructive-soft);
+  color: var(--destructive);
 }
 .home-wealth-chart {
-  height: 110px;
-  min-height: 88px;
+  flex: 1 1 auto;
+  min-height: 110px;
   min-width: 0;
-  flex: 1;
   margin: 10px -19px 4px;
   width: calc(100% + 38px);
+}
+.home-wealth-chart .recharts-responsive-container {
+  min-height: 110px;
 }
 .home-wealth .home-card-footer {
   margin-top: 0;
@@ -1713,6 +1729,7 @@
     min-height: 0;
   }
   .home-wealth {
+    height: 294px;
     min-height: 294px;
   }
 }
@@ -2073,9 +2090,19 @@
   padding: 3px;
   overflow: hidden;
 }
-.recurring-icon .category-image {
+.recurring-icon.has-merchant {
+  padding: 0;
+  background: transparent;
+}
+.recurring-icon .category-image,
+.recurring-icon .merchant-logo {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+.recurring-icon .category-image {
   object-fit: contain;
   filter: grayscale(1);
   transition: filter 150ms ease;

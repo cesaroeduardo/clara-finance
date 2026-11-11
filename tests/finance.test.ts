@@ -428,6 +428,90 @@ test("taxonomia local classifica descrição em categoria e grupo", () => {
     groupId: "personal-life",
   });
   assert.deepEqual(
+    categorizeTransaction({ description: "fornecedor local" }),
+    { category: "Restaurantes", groupId: "personal-life" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({ description: "fornecedor local" }),
+    { category: "Transporte", groupId: "personal-life" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({ description: "fornecedor local" }),
+    { category: "Transporte", groupId: "personal-life" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({ description: "fornecedor local" }),
+    { category: "Restaurantes", groupId: "personal-life" },
+  );
+  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
+    category: "Compras",
+    groupId: "personal-life",
+  });
+  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
+    category: "Saúde",
+    groupId: "personal-home",
+  });
+  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
+    category: "Restaurantes",
+    groupId: "personal-life",
+  });
+  assert.deepEqual(
+    categorizeTransaction({ description: "fornecedor local" }),
+    { category: "Compras", groupId: "personal-life" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({ description: "203 - fornecedor local-Rs Poa 1/2" }),
+    { category: "Compras", groupId: "personal-life" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({
+      description: "fornecedor local Sistemas de Processamento de Dados Ltda",
+    }),
+    { category: "Transporte", groupId: "personal-life" },
+  );
+  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
+    category: "Software",
+    groupId: "personal-work",
+  });
+  assert.deepEqual(
+    categorizeTransaction({ description: "IOF de volta de fornecedor local" }),
+    { category: "Taxas", groupId: "personal-other" },
+  );
+  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
+    category: "Software",
+    groupId: "personal-work",
+  });
+  assert.deepEqual(
+    categorizeTransaction({ description: "fornecedor local" }),
+    { category: "Transporte", groupId: "personal-life" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({ description: "fornecedor local" }),
+    { category: "Restaurantes", groupId: "personal-life" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({ description: "fornecedor local" }),
+    { category: "Restaurantes", groupId: "personal-life" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({
+      description: "Transferência enviada pelo Pix|fornecedor local 83806490015",
+    }),
+    { category: "Barbeiro", groupId: "personal-life" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({
+      description: "Pagamento efetuado|fornecedor local Ltda",
+    }),
+    { category: "Saúde", groupId: "personal-home" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({
+      description: "Transferência enviada pelo Pix|fornecedor local",
+    }),
+    { category: "Saúde", groupId: "personal-home" },
+  );
+  assert.deepEqual(
     categorizeTransaction({
       description: "Pagamento efetuado|UNIFIQUE TELECOMUNICACOES S A",
     }),
@@ -669,6 +753,8 @@ test("sincronização paginada é idempotente, preserva classificação e manté
     let data = getData("personal");
     assert.equal(data.transactions.length, 2);
     assert.equal(data.accounts[0].balance, 123456);
+    assert.equal(data.accounts[0].institution, "Banco teste");
+    assert.equal(data.investments[0].institution, "Banco teste");
     const credit = data.transactions.find((t) => t.id === "remote-1");
     assert.equal(credit?.description, "Movimento 1");
     const uber = data.transactions.find((t) => t.id === "remote-2");

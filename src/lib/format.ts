@@ -12,10 +12,11 @@ export const localDate = (date = new Date()) =>
     day: "2-digit",
   }).format(date);
 export const monthKey = (date = new Date()) => localDate(date).slice(0, 7);
-export function dateLabel(date: string) {
+export function dateLabel(date: string, options?: { year?: boolean }) {
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "short",
+    ...(options?.year ? { year: "numeric" as const } : {}),
   }).format(new Date(date.slice(0, 10) + "T12:00:00"));
 }
 export function monthLabel(month: string) {

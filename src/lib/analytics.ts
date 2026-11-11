@@ -1,5 +1,7 @@
 import type { FinanceData, PlanSettings, Transaction } from "./types";
-import { localDate } from "./format";
+import { localDate, money, parseMoney } from "./format";
+
+export type TransactionPeriod = "month" | "last3" | "all" | "custom";
 
 const emptyPlan = (): PlanSettings => ({
   monthlyLimit: 0,
@@ -253,6 +255,62 @@ export function investmentsOverview(
   };
 }
 
+export function periodBounds(
+  period: TransactionPeriod,
+  month: string,
+  customFrom = "",
+  customTo = "",
+  today = localDate(),
+): { from?: string; to?: string } | null {
+  if (period === "all") return null;
+  if (period === "month") {
+    return { from: `${month}-01`, to: monthEnd(month, today) };
+  }
+  if (period === "last3") {
+    const endMonth = today.slice(0, 7);
+    return { from: `${shiftMonth(endMonth, -2)}-01`, to: today };
+  }
+  return {
+    from: customFrom || undefined,
+    to: customTo || undefined,
+  };
+}
+
+export function inPeriod(
+  date: string,
+  bounds: { from?: string; to?: string } | null,
+) {
+  if (!bounds) return true;
+  if (bounds.from && date < bounds.from) return false;
+  if (bounds.to && date > bounds.to) return false;
+  return true;
+}
+
+function matchesTransactionQuery(row: Transaction, query: string) {
+  const text = query.trim().toLocaleLowerCase("pt-BR");
+  if (!text) return true;
+  if (
+    `${row.description} ${row.category}`
+      .toLocaleLowerCase("pt-BR")
+      .includes(text)
+  ) {
+    return true;
+  }
+  const amountFixed = (row.amount / 100).toFixed(2);
+  const amountBr = amountFixed.replace(".", ",");
+  const amountMoney = money(row.amount).toLocaleLowerCase("pt-BR");
+  const compactQuery = text.replace(/\s/g, "");
+  if (
+    amountFixed.includes(text) ||
+    amountBr.includes(text) ||
+    amountMoney.includes(compactQuery)
+  ) {
+    return true;
+  }
+  const parsed = parseMoney(text);
+  return !Number.isNaN(parsed) && row.amount === parsed;
+}
+
 export function filterTransactions(
   rows: Transaction[],
   query: string,
@@ -260,16 +318,13 @@ export function filterTransactions(
   status: string,
   category = "all",
 ) {
-  const text = query.toLocaleLowerCase("pt-BR");
   return rows.filter(
     (row) =>
       (type === "all" || row.kind === type) &&
       (status === "all" || row.status === status) &&
       (category === "all" ||
         (row.category || "Sem categoria") === category) &&
-      `${row.description} ${row.category}`
-        .toLocaleLowerCase("pt-BR")
-        .includes(text),
+      matchesTransactionQuery(row, query),
   );
 }
 
@@ -424,15 +479,19 @@ export function spendingPace(
     isPast,
   );
   const cashSpentToDate = cashExpenses
-    .filter((row) => row.date <= cutoff)
+    .filter((row) => row.date <= cutoff && row.status === "paid")
     .reduce((total, row) => total + row.amount, 0);
-  const houseSpent = sumCategoryUntil(cashExpenses, HOUSE_CATEGORY, cutoff);
-  const foodSpent = sumCategoryUntil(cashExpenses, FOOD_CATEGORY, cutoff);
+  const paidCashExpenses = cashExpenses.filter((row) => row.status === "paid");
+  const houseSpent = sumCategoryUntil(paidCashExpenses, HOUSE_CATEGORY, cutoff);
+  const foodSpent = sumCategoryUntil(paidCashExpenses, FOOD_CATEGORY, cutoff);
   const foodReserve = Math.max(0, data.plan.fixedCost);
-  const foodBlock = Math.max(foodReserve, foodSpent);
-  const rawSpent = cashSpentToDate + openInvoices;
-  const otherSpent = rawSpent - houseSpent - foodSpent;
-  const spentToDate = houseSpent + foodBlock + otherSpent;
+  // Reserva só “segura” o que ainda pode gastar; não entra como gasto no ritmo.
+  const foodHold = Math.max(0, foodReserve - foodSpent);
+  const foodBlock = foodSpent;
+  // Gasto no ritmo = o que já saiu do banco (pago) + fatura aberta do cartão.
+  const spentToDate = cashSpentToDate + openInvoices;
+  const otherSpent = spentToDate - houseSpent - foodSpent;
+  const rawSpent = spentToDate;
 
   const fixedCost = foodReserve;
   const monthlySavings = Math.max(0, data.plan.monthlySavings);
@@ -459,7 +518,7 @@ export function spendingPace(
     incomeBasedLimit > 0
       ? incomeBasedLimit
       : typedTeto;
-  const remaining = monthlyLimit - spentToDate;
+  const remaining = monthlyLimit - spentToDate - foodHold;
   const daysLeft =
     isCurrent
       ? Math.max(1, daysInMonth - todayDay + 1)
@@ -470,8 +529,7 @@ export function spendingPace(
   const avgDailyCash = cashSpentToDate / Math.max(1, todayDay);
   const projectedRaw =
     openInvoices + Math.round(avgDailyCash * daysInMonth);
-  const projectedEndSpend =
-    projectedRaw + Math.max(0, foodReserve - foodSpent);
+  const projectedEndSpend = projectedRaw + foodHold;
   const projectedSurplus = monthlyLimit - projectedEndSpend;
   const projectedSurplus3m =
     (projectedSurplus + monthlySavings) * 3;
@@ -484,24 +542,18 @@ export function spendingPace(
     const date = `${month}-${String(day).padStart(2, "0")}`;
     const ideal = (monthlyLimit * day) / daysInMonth / 100;
     const known = day <= todayDay;
-    const cashThrough = cashExpenses
+    const cashThrough = paidCashExpenses
       .filter((row) => row.date <= date)
       .reduce((total, row) => total + row.amount, 0);
-    const foodThrough = sumCategoryUntil(cashExpenses, FOOD_CATEGORY, date);
-    const paceThrough =
-      cashThrough + openInvoices + Math.max(0, foodReserve - foodThrough);
+    const paceThrough = cashThrough + openInvoices;
     const actualCents = known ? paceThrough : null;
     const forecastCents =
       isCurrent && day >= todayDay
-        ? openInvoices +
-          Math.round(avgDailyCash * day) +
-          Math.max(0, foodReserve - foodSpent)
+        ? openInvoices + Math.round(avgDailyCash * day)
         : isPast
           ? null
           : day >= todayDay
-            ? openInvoices +
-              Math.round(avgDailyCash * day) +
-              Math.max(0, foodReserve - foodSpent)
+            ? openInvoices + Math.round(avgDailyCash * day)
             : null;
     const actual = actualCents == null ? null : actualCents / 100;
     const forecast = forecastCents == null ? null : forecastCents / 100;
@@ -556,6 +608,7 @@ export function spendingPace(
     monthlyLimit,
     fixedCost,
     foodReserve,
+    foodHold,
     monthlySavings,
     expectedSalary,
     expectedFreelance,

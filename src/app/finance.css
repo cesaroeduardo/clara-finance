@@ -451,6 +451,67 @@ button {
 .dark .app-main {
   border-color: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
+
+/* Scrollbars finas — estilo Linear, dentro dos containers */
+.app-main,
+.sidebar-nav,
+.finance-dialog,
+.command-bar-list,
+.clara-select-content,
+[data-slot="select-content"],
+[data-slot="dropdown-menu-content"] {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 20%, transparent) transparent;
+}
+.app-main::-webkit-scrollbar,
+.sidebar-nav::-webkit-scrollbar,
+.finance-dialog::-webkit-scrollbar,
+.command-bar-list::-webkit-scrollbar,
+.clara-select-content::-webkit-scrollbar,
+[data-slot="select-content"]::-webkit-scrollbar,
+[data-slot="dropdown-menu-content"]::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.app-main::-webkit-scrollbar-track,
+.sidebar-nav::-webkit-scrollbar-track,
+.finance-dialog::-webkit-scrollbar-track,
+.command-bar-list::-webkit-scrollbar-track,
+.clara-select-content::-webkit-scrollbar-track,
+[data-slot="select-content"]::-webkit-scrollbar-track,
+[data-slot="dropdown-menu-content"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+.app-main::-webkit-scrollbar-thumb,
+.sidebar-nav::-webkit-scrollbar-thumb,
+.finance-dialog::-webkit-scrollbar-thumb,
+.command-bar-list::-webkit-scrollbar-thumb,
+.clara-select-content::-webkit-scrollbar-thumb,
+[data-slot="select-content"]::-webkit-scrollbar-thumb,
+[data-slot="dropdown-menu-content"]::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--foreground) 18%, transparent);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+.app-main::-webkit-scrollbar-thumb:hover,
+.sidebar-nav::-webkit-scrollbar-thumb:hover,
+.finance-dialog::-webkit-scrollbar-thumb:hover,
+.command-bar-list::-webkit-scrollbar-thumb:hover,
+.clara-select-content::-webkit-scrollbar-thumb:hover,
+[data-slot="select-content"]::-webkit-scrollbar-thumb:hover,
+[data-slot="dropdown-menu-content"]::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--foreground) 32%, transparent);
+}
+.app-main::-webkit-scrollbar-corner,
+.sidebar-nav::-webkit-scrollbar-corner,
+.finance-dialog::-webkit-scrollbar-corner,
+.command-bar-list::-webkit-scrollbar-corner,
+.clara-select-content::-webkit-scrollbar-corner,
+[data-slot="select-content"]::-webkit-scrollbar-corner,
+[data-slot="dropdown-menu-content"]::-webkit-scrollbar-corner {
+  background: transparent;
+}
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -585,7 +646,7 @@ h1 {
   color: var(--foreground);
 }
 .group-filter .group-filter-select {
-  max-width: 170px;
+  max-width: 210px;
 }
 .sync-button {
   font-size: 10px;
@@ -1243,6 +1304,7 @@ h1 {
 }
 .transactions-table {
   border-collapse: collapse;
+  table-layout: fixed;
   width: 100%;
   text-align: left;
   white-space: nowrap;
@@ -1257,7 +1319,10 @@ h1 {
   padding: 11px 14px;
 }
 .transactions-table th:first-child,
-.transactions-table td:first-child {
+.transactions-table td:first-child,
+.transactions-table .transaction-desc {
+  width: 34%;
+  max-width: 34%;
   padding-left: 22px;
 }
 .transactions-table td {
@@ -1265,6 +1330,8 @@ h1 {
   border-bottom: 1px solid var(--divider-top);
   box-shadow: 0 1px 0 var(--divider-bottom);
   font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .transactions-table tr:last-child td {
   border-bottom: 0;
@@ -1277,7 +1344,16 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   text-align: left;
+}
+.transaction-name-text {
+  display: block;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 .transaction-symbol {
   position: relative;
@@ -1318,12 +1394,18 @@ h1 {
   display: block;
   font-size: 10px;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .transaction-name small {
   display: block;
   font-size: 8px;
   color: var(--muted-foreground);
   margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .group-pill {
   display: inline-flex;
@@ -1342,9 +1424,85 @@ h1 {
   border-radius: 50%;
   display: block;
 }
+.transactions-table th:nth-child(2),
+.transactions-table td:nth-child(2) {
+  width: 16%;
+}
+.transactions-table th.right,
+.transactions-table td.right {
+  width: 12%;
+}
+.transactions-table th:last-child,
+.transactions-table td:last-child {
+  width: 44px;
+  padding-left: 8px;
+  padding-right: 14px;
+}
+.transaction-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.transaction-category-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 7px;
+  flex-shrink: 0;
+  background: var(--muted);
+}
+.transaction-category-icon.has-image {
+  width: 32px;
+  height: 32px;
+  padding: 2px;
+  overflow: hidden;
+}
+.transaction-category-icon .category-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  filter: grayscale(1);
+  transition: filter 150ms ease;
+}
+.transactions-table tr:hover .transaction-category-icon .category-image {
+  filter: grayscale(0);
+}
+.transaction-category > strong {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--foreground);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .table-date {
   color: var(--muted-foreground);
   font-size: 9px !important;
+}
+.table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.table-sort:hover {
+  color: var(--foreground);
+}
+.table-sort:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 .status-pill {
   display: inline-flex;
@@ -1470,8 +1628,28 @@ h1 {
 .search-field input {
   outline: none;
   width: 100%;
+  min-width: 0;
   font-size: 11px;
   background: transparent;
+  color: var(--foreground);
+}
+.search-field-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.search-field-clear:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
   color: var(--foreground);
 }
 .field-select-trigger,
@@ -1498,6 +1676,36 @@ h1 {
   width: 160px;
   flex: 0 0 auto;
 }
+.table-filters .period-filter-select {
+  max-width: 168px;
+  width: 168px;
+}
+.table-date-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 24px 21px;
+}
+.date-range-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  border: 1px solid var(--input);
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.date-range-field input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 11px;
+  font-family: inherit;
+  min-width: 0;
+}
 .clara-select-content {
   border: 1px solid var(--border);
   box-shadow:
@@ -1517,11 +1725,51 @@ h1 {
     0 0 0 1px #ffffff08;
 }
 .clara-select-item {
-  min-height: 30px;
+  min-height: 34px;
+}
+.field-select-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.field-select-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.category-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.category-mark.has-image {
+  padding: 1px;
+}
+.category-mark.is-all {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.category-mark .category-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.category-mark-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
 }
 .group-filter-select.field-select-trigger {
   width: auto;
-  max-width: 170px;
+  max-width: 210px;
   height: 28px;
   min-height: 28px;
   padding: 0 2px 0 0;
@@ -1531,6 +1779,11 @@ h1 {
   box-shadow: none;
   color: inherit;
   font-size: 11px;
+}
+.group-filter-select .category-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
 }
 .group-filter-select.field-select-trigger:focus-visible,
 .group-filter-select.field-select-trigger[data-popup-open] {
@@ -2466,11 +2719,8 @@ h1 {
     padding: 0 8px;
     gap: 4px;
   }
-  .group-filter > svg {
-    display: none;
-  }
   .group-filter .group-filter-select {
-    max-width: 110px;
+    max-width: 150px;
     font-size: 10px;
   }
   .sync-button {
@@ -2676,6 +2926,18 @@ h1 {
   .table-filters .field-select {
     max-width: calc(50% - 4px);
     width: calc(50% - 4px);
+  }
+  .table-filters .period-filter-select {
+    max-width: calc(50% - 4px);
+    width: calc(50% - 4px);
+  }
+  .table-date-range {
+    padding: 0 17px 18px;
+    gap: 8px;
+  }
+  .date-range-field {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
   }
   .full-table .card-heading {
     padding: 20px 17px;

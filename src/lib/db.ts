@@ -14,6 +14,7 @@ import type {
   Transaction,
 } from "./types";
 import { planForMonth } from "./analytics";
+import { repairAccountInstitutions } from "./accounts";
 import { cleanTransactionDescription } from "./categorize";
 import {
   listRecurrings,
@@ -302,6 +303,15 @@ export function db() {
       }
       database
         .prepare("INSERT INTO schema_migrations(version) VALUES(9)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=10").get()
+  )
+    database.transaction(() => {
+      repairAccountInstitutions(database);
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(10)")
         .run();
     })();
   globalDb.financeDb = database;

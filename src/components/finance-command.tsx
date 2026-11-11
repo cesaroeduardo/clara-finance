@@ -26,7 +26,6 @@ import {
   Plugs,
   Question,
   SquaresFour,
-  Stack,
   Sun,
   Target,
 } from "@phosphor-icons/react";
@@ -44,7 +43,6 @@ type AppView =
   | "recurring"
   | "investments"
   | "goals"
-  | "groups"
   | "accounts";
 
 export type ShortcutPart = { type: "key"; value: string } | { type: "text"; value: string };
@@ -208,15 +206,6 @@ export function FinanceCommandBar({
         run: () => go("goals"),
       },
       {
-        id: "nav-groups",
-        section: "Páginas",
-        label: "Grupos",
-        keywords: "categorias organizacao",
-        icon: <Stack size={16} />,
-        shortcut: key("G", "G"),
-        run: () => go("groups"),
-      },
-      {
         id: "nav-accounts",
         section: "Páginas",
         label: "Contas",
@@ -269,15 +258,6 @@ export function FinanceCommandBar({
         icon: <CalendarDots size={16} />,
         shortcut: key("C", "R"),
         run: () => create({ resource: "recurrings", kind: "expense" }),
-      },
-      {
-        id: "create-group",
-        section: "Criar",
-        label: "Novo grupo…",
-        keywords: "categoria criar",
-        icon: <Stack size={16} />,
-        shortcut: key("C", "G"),
-        run: () => create({ resource: "groups" }),
       },
       {
         id: "create-connection",

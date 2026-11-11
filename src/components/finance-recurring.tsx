@@ -12,6 +12,7 @@ import {
 import { Amount } from "./finance-views";
 import { CategoryImage, FinanceIcon } from "./finance-icons";
 import { MotionSegmentedControl } from "./finance-motion";
+import { MerchantLogo } from "./merchant-logo";
 import type { FormState } from "./finance-form";
 import {
   recurringCycle,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/recurring";
 import { colorForCategory, imageForCategory } from "@/lib/categorize";
 import { compactMoney } from "@/lib/format";
+import { merchantLogoUrl } from "@/lib/merchants";
 import type { FinanceData, RecurringKind } from "@/lib/types";
 
 function weekdayDateLabel(date: string) {
@@ -69,6 +71,7 @@ function RecurringList({
               {rows.map((row) => {
                 const image = imageForCategory(row.category);
                 const color = colorForCategory(row.category);
+                const hasMerchantLogo = Boolean(merchantLogoUrl(row.description));
                 return (
                 <button
                   key={`${row.recurringId}-${row.date}`}
@@ -77,13 +80,15 @@ function RecurringList({
                   onClick={() => onEdit(row.recurringId)}
                 >
                   <span
-                    className={`recurring-icon${image ? " has-image" : ""}`}
+                    className={`recurring-icon${hasMerchantLogo || image ? " has-image" : ""}${hasMerchantLogo ? " has-merchant" : ""}`}
                     style={{
                       background: `color-mix(in srgb, ${color} 16%, transparent)`,
                       color,
                     }}
                   >
-                    {image ? (
+                    {hasMerchantLogo ? (
+                      <MerchantLogo description={row.description} size={28} />
+                    ) : image ? (
                       <CategoryImage name={image} size={28} />
                     ) : (
                       <FinanceIcon name="layers" size={16} />

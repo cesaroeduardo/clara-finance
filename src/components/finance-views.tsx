@@ -30,6 +30,7 @@ import {
   Plus,
   ShieldCheck,
   Wallet,
+  X,
 } from "@phosphor-icons/react";
 import {
   Area,
@@ -44,6 +45,14 @@ import {
   YAxis,
 } from "recharts";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { categoryFieldOptions } from "@/components/category-mark";
 import { FieldSelect } from "@/components/ui/field-select";
 import { CategoryImage, FinanceIcon, Illustration } from "./finance-icons";
 import { MerchantLogo } from "./merchant-logo";
@@ -60,16 +69,24 @@ import type { Account, FinanceData, Goal, Transaction } from "@/lib/types";
 import type { View } from "./finance-app";
 import {
   filterTransactions,
+  inPeriod,
   investmentBucket,
   investmentsOverview,
   matchesCategoryFilter,
   netWorth,
+  periodBounds,
   planForMonth,
   spendingPace,
   summarize,
+  type TransactionPeriod,
 } from "@/lib/analytics";
 import type { MarketQuote } from "@/lib/market";
 import { extractEquityTickers } from "@/lib/market";
+import {
+  accountChannelLabel,
+  displayInstitution,
+  formatAccountLabel,
+} from "@/lib/accounts";
 import { colorForCategory, imageForCategory } from "@/lib/categorize";
 import {
   compactMoney,
@@ -311,11 +328,13 @@ function GrowthTag({
   const down = value < 0;
   return (
     <span className={`home-growth-badge${down ? " negative" : ""}`}>
-      {down ? (
-        <ArrowDown size={12} weight="bold" />
-      ) : (
-        <ArrowUp size={12} weight="bold" />
-      )}
+      <i className="home-growth-glyph" aria-hidden="true">
+        {down ? (
+          <ArrowDown size={10} weight="bold" />
+        ) : (
+          <ArrowUp size={10} weight="bold" />
+        )}
+      </i>
       {children}
     </span>
   );
@@ -353,8 +372,10 @@ export function DashboardView(props: Props) {
   } = props;
   const plan = planForMonth(data, month);
   const scoped = { ...data, plan };
-  const stats = summarize(scoped, month, category);
-  const pace = spendingPace(scoped, month, category);
+  // Visor, resultado e contas a pagar: sempre o mês inteiro.
+  // Categoria só filtra a distribuição de gastos abaixo.
+  const stats = summarize(scoped, month, "all");
+  const pace = spendingPace(scoped, month, "all");
   const hidden = useContext(PrivacyContext);
   const reducedMotion = useReducedMotion();
   const [insightIndex, setInsightIndex] = useState(0);
@@ -365,7 +386,7 @@ export function DashboardView(props: Props) {
   const confirmedExpenses = stats.paid;
   const confirmedResult = confirmedIncome - confirmedExpenses;
   const previousMonthKey = shiftMonthKey(month, -1);
-  const previousStats = summarize(scoped, previousMonthKey, category);
+  const previousStats = summarize(scoped, previousMonthKey, "all");
   const previousIncome = previousStats.records
     .filter((row) => row.status === "paid" && row.kind === "income")
     .reduce((sum, row) => sum + row.amount, 0);
@@ -377,7 +398,7 @@ export function DashboardView(props: Props) {
         ? 0
         : null
       : (resultDelta / Math.abs(previousResult)) * 100;
-  const bills = pendingBills(scoped, month, category);
+  const bills = pendingBills(scoped, month, "all");
   const wealth = netWorth(scoped);
   const wealthFlow = wealth.series.map((point) => ({
     month: point.month,
@@ -393,8 +414,8 @@ export function DashboardView(props: Props) {
   const isPastMonth = month < currentMonth;
   const monthResult = stats.balance;
   const monthPositive = monthResult >= 0;
-  const underPace = pace.paceDelta >= 0;
-  const paceStroke = underPace ? "var(--success)" : "var(--destructive)";
+  const canStillSpend = pace.remaining >= 0;
+  const paceStroke = canStillSpend ? "var(--success)" : "var(--destructive)";
   const paceFill = paceStroke;
   const resultStroke = monthPositive
     ? "var(--success)"
@@ -568,7 +589,7 @@ export function DashboardView(props: Props) {
                   title={
                     isPastMonth
                       ? "Entradas menos saídas do mês selecionado."
-                      : "Limite = renda do CNPJ (o maior entre previsto e já entrada) − quanto guardar. Gastos incluem fatura aberta e reserva de alimentação ainda não usada."
+                      : "Limite = renda do CNPJ (previsto ou já entrada) − guardar. Ritmo = despesas pagas no banco + fatura aberta do cartão. Reserva de alimentação só reduz o que ainda pode gastar, sem contar como gasto."
                   }
                 >
                   <Info
@@ -728,10 +749,10 @@ export function DashboardView(props: Props) {
                 >
                   {!hidden && (
                     <span
-                      className={`home-pace-pill ${underPace ? "" : "over"}`.trim()}
+                      className={`home-pace-pill ${canStillSpend ? "" : "over"}`.trim()}
                     >
-                      <Amount value={Math.abs(pace.paceDelta)} motion="reel" />{" "}
-                      {underPace ? "abaixo" : "acima"}
+                      <Amount value={pace.dailyAllowance} motion="reel" />
+                      /dia
                     </span>
                   )}
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -972,7 +993,6 @@ export function DashboardView(props: Props) {
         month={month}
         category={category}
         setCategory={setCategory}
-        navigate={navigate}
       />
 
       <div className="home-left-stack">
@@ -994,7 +1014,7 @@ export function DashboardView(props: Props) {
               <GrowthTag value={resultDelta}>
                 {hidden
                   ? "••••"
-                  : `${resultDeltaPercent > 0 ? "+" : ""}${resultDeltaPercent.toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`}
+                  : `${Math.abs(resultDeltaPercent).toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`}
               </GrowthTag>
             )}
           </div>
@@ -1065,7 +1085,7 @@ export function DashboardView(props: Props) {
                   <GrowthTag value={wealth.change}>
                     {hidden
                       ? "••••"
-                      : `${wealth.change > 0 ? "+" : ""}${compactMoney(wealth.change)}`}
+                      : compactMoney(Math.abs(wealth.change))}
                   </GrowthTag>
                 )}
               </div>
@@ -1207,8 +1227,7 @@ function SpendingDistribution({
   month,
   category,
   setCategory,
-  navigate,
-}: Pick<Props, "data" | "month" | "category" | "setCategory" | "navigate">) {
+}: Pick<Props, "data" | "month" | "category" | "setCategory">) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const stats = summarize(data, month, "all");
   const categories = new Map<
@@ -1298,12 +1317,6 @@ function SpendingDistribution({
     <section className="finance-card home-distribution">
       <div className="home-card-heading">
         <h2>Distribuição dos gastos</h2>
-        <div className="home-distribution-actions">
-          <DashboardLink
-            label="Gerenciar grupos"
-            onClick={() => navigate("groups")}
-          />
-        </div>
       </div>
       <div
         className="home-distribution-body"
@@ -1406,11 +1419,14 @@ function CreditCardsCard({
   const reduced = useReducedMotion();
   const trackRef = useRef<HTMLDivElement>(null);
   const scrollTimerRef = useRef(0);
+  const programmaticScrollRef = useRef<number | null>(null);
   const dragRef = useRef({
     id: null as number | null,
     startX: 0,
     startScroll: 0,
-    moved: false,
+    dragging: false,
+    suppressClick: false,
+    cardIndex: -1,
   });
   const activeIndex = Math.min(index, Math.max(0, cards.length - 1));
   const active = cards[activeIndex];
@@ -1470,7 +1486,7 @@ function CreditCardsCard({
       .sort(
         (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id),
       )
-      .slice(0, 8);
+      .slice(0, 4);
   }, [active, category, data.transactions, selected.key]);
 
   function nearestCardIndex() {
@@ -1507,6 +1523,7 @@ function CreditCardsCard({
       track.getBoundingClientRect().left +
       track.scrollLeft -
       paddingLeft;
+    programmaticScrollRef.current = next;
     track.scrollTo({
       left,
       behavior: behavior ?? (reduced ? "auto" : "smooth"),
@@ -1526,10 +1543,18 @@ function CreditCardsCard({
 
     const sync = () => {
       const next = nearestCardIndex();
+      const target = programmaticScrollRef.current;
+      if (target !== null) {
+        if (next === target) programmaticScrollRef.current = null;
+        else return;
+      }
       setIndex((current) => (current === next ? current : next));
     };
 
-    const onScrollEnd = () => sync();
+    const onScrollEnd = () => {
+      programmaticScrollRef.current = null;
+      sync();
+    };
     const onScroll = () => {
       window.clearTimeout(scrollTimerRef.current);
       scrollTimerRef.current = window.setTimeout(sync, 80);
@@ -1547,6 +1572,17 @@ function CreditCardsCard({
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
+    const dragThreshold = 12;
+
+    const cardIndexFromEvent = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return -1;
+      const slot = target.closest(".home-credit-card-slot");
+      if (!(slot instanceof HTMLElement)) return -1;
+      return [
+        ...track.querySelectorAll<HTMLElement>(".home-credit-card-slot"),
+      ].indexOf(slot);
+    };
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0 || event.pointerType === "touch") return;
@@ -1554,7 +1590,9 @@ function CreditCardsCard({
         id: event.pointerId,
         startX: event.clientX,
         startScroll: track.scrollLeft,
-        moved: false,
+        dragging: false,
+        suppressClick: false,
+        cardIndex: cardIndexFromEvent(event),
       };
     };
 
@@ -1562,28 +1600,36 @@ function CreditCardsCard({
       const drag = dragRef.current;
       if (drag.id !== event.pointerId) return;
       const delta = event.clientX - drag.startX;
-      if (!drag.moved && Math.abs(delta) > 4) {
-        drag.moved = true;
+      if (!drag.dragging && Math.abs(delta) > dragThreshold) {
+        drag.dragging = true;
         track.classList.add("dragging");
         track.setPointerCapture(event.pointerId);
       }
-      if (!drag.moved) return;
+      if (!drag.dragging) return;
       track.scrollLeft = drag.startScroll - delta;
     };
 
     const finishDrag = (event: PointerEvent) => {
       const drag = dragRef.current;
       if (drag.id !== event.pointerId) return;
-      const moved = drag.moved;
-      dragRef.current = { ...drag, id: null };
+      const { dragging, cardIndex } = drag;
+      dragRef.current = {
+        ...drag,
+        id: null,
+        dragging: false,
+        suppressClick: dragging,
+      };
       track.classList.remove("dragging");
       if (track.hasPointerCapture(event.pointerId))
         track.releasePointerCapture(event.pointerId);
-      if (!moved) return;
-      const next = nearestCardIndex();
-      setIndex(next);
-      setForecastIndex(1);
-      scrollToCard(next, reduced ? "auto" : "smooth");
+      if (dragging) {
+        const next = nearestCardIndex();
+        setIndex(next);
+        setForecastIndex(1);
+        scrollToCard(next, reduced ? "auto" : "smooth");
+        return;
+      }
+      if (cardIndex >= 0) goTo(cardIndex);
     };
 
     track.addEventListener("pointerdown", onPointerDown);
@@ -1659,8 +1705,8 @@ function CreditCardsCard({
                   card={card}
                   active={card.id === active?.id}
                   onSelect={() => {
-                    if (dragRef.current.moved) {
-                      dragRef.current.moved = false;
+                    if (dragRef.current.suppressClick) {
+                      dragRef.current.suppressClick = false;
                       return;
                     }
                     goTo(cards.findIndex((row) => row.id === card.id));
@@ -2347,7 +2393,7 @@ function HomeInvestmentsCard({
                         )}
                         {hidden
                           ? "••••"
-                          : `${row.gain > 0 ? "+ " : row.gain < 0 ? "− " : ""}${compactMoney(Math.abs(row.gain))}`}
+                          : compactMoney(Math.abs(row.gain))}
                       </span>
                     )}
                   </span>
@@ -2456,11 +2502,17 @@ function TransactionTable({
   data,
   rows,
   openForm,
+  onSearchSame,
+  dateSort = "desc",
+  onDateSort,
   compact = false,
 }: {
   data: FinanceData;
   rows: Transaction[];
   openForm: (form: FormState) => void;
+  onSearchSame?: (description: string) => void;
+  dateSort?: "asc" | "desc";
+  onDateSort?: () => void;
   compact?: boolean;
 }) {
   return (
@@ -2469,9 +2521,31 @@ function TransactionTable({
         <thead>
           <tr>
             <th>Descrição</th>
-            <th>Grupo</th>
+            <th>Categoria</th>
             {!compact && <th>Conta</th>}
-            <th>Data</th>
+            <th>
+              {onDateSort ? (
+                <button
+                  type="button"
+                  className="table-sort"
+                  onClick={onDateSort}
+                  aria-label={
+                    dateSort === "desc"
+                      ? "Ordenar por data: mais antigos primeiro"
+                      : "Ordenar por data: mais recentes primeiro"
+                  }
+                >
+                  Data
+                  {dateSort === "desc" ? (
+                    <ArrowDown size={11} weight="bold" />
+                  ) : (
+                    <ArrowUp size={11} weight="bold" />
+                  )}
+                </button>
+              ) : (
+                "Data"
+              )}
+            </th>
             <th>Situação</th>
             <th className="right">Valor</th>
             <th>
@@ -2482,95 +2556,140 @@ function TransactionTable({
         <tbody>
           {rows.map((row) => {
             const g = data.groups.find((g) => g.id === row.groupId),
-              account = data.accounts.find((a) => a.id === row.accountId);
+              account = data.accounts.find((a) => a.id === row.accountId),
+              categoryName = row.category || "Sem categoria",
+              categoryImage = imageForCategory(categoryName),
+              categoryColor = colorForCategory(categoryName);
             return (
-              <tr key={row.id}>
-                <td>
-                  <button
-                    className="transaction-name"
+              <ContextMenu key={row.id}>
+                <ContextMenuTrigger render={<tr />}>
+                  <td className="transaction-desc">
+                    <button
+                      className="transaction-name"
+                      onClick={() =>
+                        openForm({
+                          resource: "transactions",
+                          record: record(row),
+                        })
+                      }
+                      title={row.description}
+                    >
+                      <span className={`transaction-symbol ${row.kind}`}>
+                        <MerchantLogo description={row.description} size={31} />
+                        {row.kind === "income" ? (
+                          <ArrowDownLeft
+                            size={17}
+                            className="transaction-symbol-fallback"
+                          />
+                        ) : row.kind === "transfer" ? (
+                          <ArrowsLeftRight
+                            size={17}
+                            className="transaction-symbol-fallback"
+                          />
+                        ) : (
+                          <FinanceIcon
+                            name={g?.icon || "layers"}
+                            size={17}
+                            className="transaction-symbol-fallback"
+                          />
+                        )}
+                      </span>
+                      <span className="transaction-name-text">
+                        <strong>{row.description}</strong>
+                        {compact && account ? (
+                          <small>{accountChannelLabel(account)}</small>
+                        ) : null}
+                      </span>
+                    </button>
+                  </td>
+                  <td>
+                    <span className="transaction-category">
+                      <span
+                        className={`transaction-category-icon${categoryImage ? " has-image" : ""}`}
+                        style={{
+                          color: categoryColor,
+                          background: `color-mix(in srgb, ${categoryColor} 16%, transparent)`,
+                        }}
+                      >
+                        {categoryImage ? (
+                          <CategoryImage name={categoryImage} size={28} />
+                        ) : (
+                          <FinanceIcon name="layers" size={15} />
+                        )}
+                      </span>
+                      <strong>{categoryName}</strong>
+                    </span>
+                  </td>
+                  {!compact && (
+                    <td className="muted">
+                      {account
+                        ? formatAccountLabel(account, data.connections)
+                        : "Manual"}
+                    </td>
+                  )}
+                  <td className="table-date">
+                    {dateLabel(row.date, { year: true })}
+                  </td>
+                  <td>
+                    <StatusTag
+                      tone={row.status === "paid" ? "success" : "warning"}
+                    >
+                      {row.status === "paid" ? "Confirmado" : "Pendente"}
+                    </StatusTag>
+                  </td>
+                  <td
+                    className={`right transaction-amount ${row.kind === "income" ? "positive" : ""}`}
+                  >
+                    <Amount
+                      value={row.amount}
+                      currency={row.currency}
+                      prefix={
+                        row.kind === "income"
+                          ? "+ "
+                          : row.kind === "expense"
+                            ? "− "
+                            : ""
+                      }
+                    />
+                  </td>
+                  <td>
+                    <button
+                      className="icon-button row-edit"
+                      onClick={() =>
+                        openForm({
+                          resource: "transactions",
+                          record: record(row),
+                        })
+                      }
+                      aria-label={`Editar ${row.description}`}
+                    >
+                      <PencilSimple size={14} />
+                    </button>
+                  </td>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  {onSearchSame ? (
+                    <ContextMenuItem
+                      onClick={() => onSearchSame(row.description)}
+                    >
+                      <MagnifyingGlass size={14} />
+                      Buscar iguais
+                    </ContextMenuItem>
+                  ) : null}
+                  {onSearchSame ? <ContextMenuSeparator /> : null}
+                  <ContextMenuItem
                     onClick={() =>
                       openForm({
                         resource: "transactions",
                         record: record(row),
                       })
                     }
-                  >
-                    <span className={`transaction-symbol ${row.kind}`}>
-                      <MerchantLogo description={row.description} size={31} />
-                      {row.kind === "income" ? (
-                        <ArrowDownLeft
-                          size={17}
-                          className="transaction-symbol-fallback"
-                        />
-                      ) : row.kind === "transfer" ? (
-                        <ArrowsLeftRight
-                          size={17}
-                          className="transaction-symbol-fallback"
-                        />
-                      ) : (
-                        <FinanceIcon
-                          name={g?.icon || "layers"}
-                          size={17}
-                          className="transaction-symbol-fallback"
-                        />
-                      )}
-                    </span>
-                    <span>
-                      <strong>{row.description}</strong>
-                      <small>
-                        {row.category}
-                        {row.source === "pluggy" ? " · Pluggy" : ""}
-                      </small>
-                    </span>
-                  </button>
-                </td>
-                <td>
-                  <span className="group-pill">
-                    <i style={{ background: g?.color || "#8a8f98" }} />
-                    {g?.name || "Sem grupo"}
-                  </span>
-                </td>
-                {!compact && (
-                  <td className="muted">{account?.institution || "Manual"}</td>
-                )}
-                <td className="table-date">{dateLabel(row.date)}</td>
-                <td>
-                  <StatusTag
-                    tone={row.status === "paid" ? "success" : "warning"}
-                  >
-                    {row.status === "paid" ? "Confirmado" : "Pendente"}
-                  </StatusTag>
-                </td>
-                <td
-                  className={`right transaction-amount ${row.kind === "income" ? "positive" : ""}`}
-                >
-                  <Amount
-                    value={row.amount}
-                    currency={row.currency}
-                    prefix={
-                      row.kind === "income"
-                        ? "+ "
-                        : row.kind === "expense"
-                          ? "− "
-                          : ""
-                    }
-                  />
-                </td>
-                <td>
-                  <button
-                    className="icon-button row-edit"
-                    onClick={() =>
-                      openForm({
-                        resource: "transactions",
-                        record: record(row),
-                      })
-                    }
-                    aria-label={`Editar ${row.description}`}
                   >
                     <PencilSimple size={14} />
-                  </button>
-                </td>
-              </tr>
+                    Editar
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             );
           })}
         </tbody>
@@ -2591,10 +2710,14 @@ export function TransactionsView(props: Props) {
     openForm,
   } = props;
   const [status, setStatus] = useState("all"),
-    [page, setPage] = useState(1);
-  const stats = summarize(data, month, category);
+    [page, setPage] = useState(1),
+    [period, setPeriod] = useState<TransactionPeriod>("month"),
+    [customFrom, setCustomFrom] = useState(""),
+    [customTo, setCustomTo] = useState(""),
+    [dateSort, setDateSort] = useState<"asc" | "desc">("desc");
+  const bounds = periodBounds(period, month, customFrom, customTo);
   const baseRows = data.transactions.filter((row) =>
-    row.date.startsWith(month),
+    inPeriod(row.date, bounds),
   );
   const categories = [
     ...new Set(
@@ -2604,15 +2727,44 @@ export function TransactionsView(props: Props) {
       ].filter(Boolean),
     ),
   ].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const filtered = filterTransactions(
+  const filtered = [...filterTransactions(
     baseRows,
     query,
     txType,
     status,
     category,
-  );
+  )].sort((a, b) => {
+    const byDate =
+      dateSort === "desc"
+        ? b.date.localeCompare(a.date)
+        : a.date.localeCompare(b.date);
+    return byDate || a.id.localeCompare(b.id);
+  });
+  const sumFiltered = (kind: Transaction["kind"], statusFilter?: string) =>
+    filtered
+      .filter(
+        (row) =>
+          row.currency === "BRL" &&
+          row.kind === kind &&
+          (!statusFilter || row.status === statusFilter),
+      )
+      .reduce((total, row) => total + row.amount, 0);
+  const stats = {
+    income: sumFiltered("income"),
+    expenses: sumFiltered("expense"),
+    pending: sumFiltered("expense", "pending"),
+  };
+  const periodLabel = period === "month" ? "no mês" : "no período";
   const pages = Math.max(1, Math.ceil(filtered.length / 10)),
     currentPage = Math.min(page, pages);
+  const exportStamp =
+    period === "month"
+      ? month
+      : period === "last3"
+        ? "ultimos-3-meses"
+        : period === "all"
+          ? "todo-periodo"
+          : `${customFrom || "inicio"}_${customTo || "hoje"}`;
   function exportCsv() {
     const safe = (value: string) =>
       `"${(/^[\s]*[=+\-@]|^[\t\r\n]/.test(value) ? "'" : "") + value.replace(/"/g, '""')}"`;
@@ -2640,7 +2792,7 @@ export function TransactionsView(props: Props) {
     );
     const a = document.createElement("a");
     a.href = url;
-    a.download = `clara-lancamentos-${month}.csv`;
+    a.download = `clara-lancamentos-${exportStamp}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -2648,13 +2800,13 @@ export function TransactionsView(props: Props) {
     <>
       <div className="summary-grid">
         <MiniStat
-          label="Entradas no mês"
+          label={`Entradas ${periodLabel}`}
           value={stats.income}
           icon={<ArrowDownLeft />}
           color="green"
         />
         <MiniStat
-          label="Saídas no mês"
+          label={`Saídas ${periodLabel}`}
           value={stats.expenses}
           icon={<ArrowUpRight />}
           color="neutral"
@@ -2683,14 +2835,46 @@ export function TransactionsView(props: Props) {
             <input
               id="transaction-search"
               aria-label="Buscar lançamento"
-              placeholder="Buscar por descrição ou categoria"
+              placeholder="Buscar descrição, valor ou categoria"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
                 setPage(1);
               }}
             />
+            {query ? (
+              <button
+                type="button"
+                className="search-field-clear"
+                aria-label="Limpar busca"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setQuery("");
+                  setPage(1);
+                  requestAnimationFrame(() => {
+                    document.getElementById("transaction-search")?.focus();
+                  });
+                }}
+              >
+                <X size={14} />
+              </button>
+            ) : null}
           </label>
+          <FieldSelect
+            aria-label="Filtrar por período"
+            className="period-filter-select"
+            value={period}
+            onValueChange={(next) => {
+              setPeriod(next as TransactionPeriod);
+              setPage(1);
+            }}
+            options={[
+              { value: "month", label: "Mês selecionado" },
+              { value: "last3", label: "Últimos 3 meses" },
+              { value: "all", label: "Todo o período" },
+              { value: "custom", label: "Personalizado" },
+            ]}
+          />
           <FieldSelect
             aria-label="Filtrar por tipo"
             value={txType}
@@ -2712,10 +2896,7 @@ export function TransactionsView(props: Props) {
               setCategory(next);
               setPage(1);
             }}
-            options={[
-              { value: "all", label: "Todas as categorias" },
-              ...categories.map((name) => ({ value: name, label: name })),
-            ]}
+            options={categoryFieldOptions(categories)}
           />
           <FieldSelect
             aria-label="Filtrar por situação"
@@ -2731,12 +2912,60 @@ export function TransactionsView(props: Props) {
             ]}
           />
         </div>
+        {period === "custom" && (
+          <div className="table-date-range">
+            <label className="date-range-field">
+              <span>De</span>
+              <input
+                type="date"
+                aria-label="Data inicial"
+                value={customFrom}
+                max={customTo || undefined}
+                onChange={(e) => {
+                  setCustomFrom(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </label>
+            <label className="date-range-field">
+              <span>Até</span>
+              <input
+                type="date"
+                aria-label="Data final"
+                value={customTo}
+                min={customFrom || undefined}
+                onChange={(e) => {
+                  setCustomTo(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </label>
+          </div>
+        )}
         {filtered.length ? (
           <>
             <TransactionTable
               data={data}
               rows={filtered.slice((currentPage - 1) * 10, currentPage * 10)}
               openForm={openForm}
+              dateSort={dateSort}
+              onDateSort={() => {
+                setDateSort((current) =>
+                  current === "desc" ? "asc" : "desc",
+                );
+                setPage(1);
+              }}
+              onSearchSame={(description) => {
+                setQuery(description);
+                setPeriod("all");
+                setCategory("all");
+                setTxType("all");
+                setStatus("all");
+                setPage(1);
+                requestAnimationFrame(() => {
+                  document.getElementById("transaction-search")?.focus();
+                });
+              }}
             />
             <div className="pagination">
               <span>
@@ -2768,7 +2997,6 @@ export function TransactionsView(props: Props) {
         ) : (
           <Empty
             title="Nenhum lançamento encontrado"
-
             action={
               <Button onClick={() => openForm({ resource: "transactions" })}>
                 <Plus size={15} />
@@ -2779,7 +3007,7 @@ export function TransactionsView(props: Props) {
         )}
       </section>
       <p className="view-footnote">
-        Totais em BRL. Transferências não compõem o resultado mensal.
+        Totais em BRL. Transferências não compõem o resultado do período.
       </p>
     </>
   );
@@ -2976,89 +3204,6 @@ export function GoalsView({ data, openForm }: Props) {
     </>
   );
 }
-export function GroupsView({ data, month, category, openForm }: Props) {
-  const stats = summarize(data, month, category);
-  return (
-    <>
-      <div className="section-top">
-        <span>{stats.groups.length} grupos</span>
-        <Button onClick={() => openForm({ resource: "groups" })}>
-          <Plus size={16} />
-          Criar grupo
-        </Button>
-      </div>
-      <div className="groups-page-grid">
-        {stats.groups.map((g) => {
-          const percent = g.budget ? Math.round((g.spent / g.budget) * 100) : 0;
-          return (
-            <section className="finance-card group-card" key={g.id}>
-              <div className="group-card-head">
-                <span
-                  className="group-large-icon"
-                  style={{ background: `${g.color}15`, color: g.color }}
-                >
-                  <FinanceIcon name={g.icon} size={25} />
-                </span>
-                <button
-                  className="icon-button"
-                  aria-label={`Editar grupo ${g.name}`}
-                  onClick={() =>
-                    openForm({ resource: "groups", record: record(g) })
-                  }
-                >
-                  <DotsThree size={20} />
-                </button>
-              </div>
-              <h2>{g.name}</h2>
-              <p>
-                {
-                  data.transactions.filter(
-                    (t) => t.groupId === g.id && t.date.startsWith(month),
-                  ).length
-                }{" "}
-                lançamentos neste mês
-              </p>
-              <div className="group-spent">
-                <Amount value={g.spent} motion="reel" />
-                <span>em saídas</span>
-              </div>
-              <div className="progress-track">
-                <span
-                  style={{
-                    width: `${Math.min(100, percent)}%`,
-                    background: g.color,
-                  }}
-                />
-              </div>
-              <div className="group-budget-caption">
-                <span>
-                  {g.budget ? (
-                    <>
-                      de <Amount value={g.budget} /> planejados
-                    </>
-                  ) : (
-                    "Sem orçamento definido"
-                  )}
-                </span>
-                <strong>{g.budget ? `${percent}%` : "—"}</strong>
-              </div>
-              <button
-                className="text-link"
-                onClick={() =>
-                  openForm({ resource: "groups", record: record(g) })
-                }
-              >
-                Editar grupo
-                <CaretRight size={14} />
-              </button>
-            </section>
-          );
-        })}
-      </div>
-      <p className="view-footnote">Orçamentos e saídas do mês selecionado.</p>
-    </>
-  );
-}
 export function AccountsView({
   data,
   openForm,
@@ -3153,15 +3298,21 @@ export function AccountsView({
                     className="bank-logo"
                     style={{ background: account.color }}
                   >
-                    {account.institution.slice(0, 2).toLowerCase()}
+                    {displayInstitution(account, data.connections)
+                      .slice(0, 2)
+                      .toLowerCase()}
                   </span>
                   <div>
-                    <h3>{account.institution}</h3>
+                    <h3>
+                      {displayInstitution(account, data.connections)}
+                    </h3>
                     <p>
                       {account.name} ·{" "}
                       {account.type === "CREDIT"
                         ? "Cartão de crédito"
-                        : "Conta bancária"}
+                        : /poupan/i.test(account.name)
+                          ? "Poupança"
+                          : "Conta"}
                     </p>
                   </div>
                   <strong>

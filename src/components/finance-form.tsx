@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { CircleNotch, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { categoryFieldOptions } from "@/components/category-mark";
 import { FieldSelect } from "@/components/ui/field-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatAccountLabel } from "@/lib/accounts";
 import { taxonomyCategories } from "@/lib/categorize";
 import { localDate, monthLabel, parseMoney } from "@/lib/format";
 import { AnimatedLabel, MotionSegmentedControl } from "./finance-motion";
@@ -81,8 +83,24 @@ export function FinanceForm({
     ...new Set([
       ...taxonomyCategories,
       ...data.transactions.map((item) => item.category).filter(Boolean),
+      String(row?.category || ""),
     ]),
-  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  ]
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const categoryField = (
+    <Field title="Categoria" name="category">
+      <FieldSelect
+        id="category"
+        name="category"
+        defaultValue={String(row?.category || "Sem categoria")}
+        required
+        options={categoryFieldOptions(categorySuggestions, {
+          includeAll: false,
+        })}
+      />
+    </Field>
+  );
   const groupField = (
     <Field title="Grupo" name="groupId">
       <FieldSelect
@@ -275,22 +293,7 @@ export function FinanceForm({
                   </div>
                   <div className="form-row">
                     {groupField}
-                    <Field title="Categoria" name="category">
-                      <Input
-                        id="category"
-                        name="category"
-                        list="category-suggestions"
-                        defaultValue={String(row?.category || "")}
-                        placeholder="Ex.: Alimentação"
-                        maxLength={80}
-                        required
-                      />
-                      <datalist id="category-suggestions">
-                        {categorySuggestions.map((name) => (
-                          <option key={name} value={name} />
-                        ))}
-                      </datalist>
-                    </Field>
+                    {categoryField}
                   </div>
                   <div className="form-row">
                     <Field title="Situação" name="status">
@@ -324,7 +327,10 @@ export function FinanceForm({
                             .filter((a) => a.currency === "BRL")
                             .map((account) => ({
                               value: account.id,
-                              label: `${account.institution} · ${account.name}`,
+                              label: formatAccountLabel(
+                                account,
+                                data.connections,
+                              ),
                             })),
                         ]}
                       />
@@ -658,22 +664,7 @@ export function FinanceForm({
                   </div>
                   <div className="form-row">
                     {groupField}
-                    <Field title="Categoria" name="category">
-                      <Input
-                        id="category"
-                        name="category"
-                        list="recurring-category-suggestions"
-                        defaultValue={String(row?.category || "")}
-                        placeholder="Ex.: Moradia"
-                        maxLength={80}
-                        required
-                      />
-                      <datalist id="recurring-category-suggestions">
-                        {categorySuggestions.map((name) => (
-                          <option key={name} value={name} />
-                        ))}
-                      </datalist>
-                    </Field>
+                    {categoryField}
                   </div>
                   <Field title="Conta" name="accountId">
                     <FieldSelect
@@ -686,7 +677,10 @@ export function FinanceForm({
                           .filter((account) => account.currency === "BRL")
                           .map((account) => ({
                             value: account.id,
-                            label: `${account.institution} · ${account.name}`,
+                            label: formatAccountLabel(
+                              account,
+                              data.connections,
+                            ),
                           })),
                       ]}
                     />
