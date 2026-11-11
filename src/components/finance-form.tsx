@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { CircleNotch, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { FieldSelect } from "@/components/ui/field-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,15 +13,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { taxonomyCategories } from "@/lib/categorize";
-import { localDate, parseMoney } from "@/lib/format";
+import { localDate, monthLabel, parseMoney } from "@/lib/format";
 import { AnimatedLabel, MotionSegmentedControl } from "./finance-motion";
 import type { FinanceData } from "@/lib/types";
 
 export type FormState = {
-  resource: "transactions" | "groups" | "goals" | "investments" | "connections";
+  resource:
+    | "transactions"
+    | "groups"
+    | "goals"
+    | "investments"
+    | "connections"
+    | "plan"
+    | "recurrings";
   record?: Record<string, unknown>;
   contribute?: boolean;
   kind?: string;
+  month?: string;
 };
 export type Mutate = (
   resource: string,
@@ -39,12 +48,19 @@ export function FinanceForm({
   mutate: Mutate;
 }) {
   const row = form.record;
+  const planMonth =
+    form.month ||
+    (typeof row?.month === "string" ? row.month : "") ||
+    localDate().slice(0, 7);
   const [open, setOpen] = useState(true);
   const close = () => setOpen(false);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [confirmDelete, setConfirmDelete] = useState(false);
   const [kind, setKind] = useState(String(row?.kind || form.kind || "expense"));
+  const [recurringType, setRecurringType] = useState(
+    String(row?.type || "fixed"),
+  );
   const titles = {
     transactions: row ? "Editar lançamento" : "Novo lançamento",
     groups: row ? "Editar grupo" : "Novo grupo",
@@ -55,6 +71,8 @@ export function FinanceForm({
         : "Nova meta",
     investments: row ? "Editar investimento" : "Novo investimento",
     connections: "Conectar Meu Pluggy",
+    plan: `Planejamento · ${monthLabel(planMonth)}`,
+    recurrings: row ? "Editar recorrência" : "Nova recorrência",
   };
   const isImported = row?.source === "pluggy";
   const moneyValue = (value: unknown) =>
@@ -67,18 +85,15 @@ export function FinanceForm({
   ].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const groupField = (
     <Field title="Grupo" name="groupId">
-      <select
+      <FieldSelect
         id="groupId"
         name="groupId"
-        className="field-select"
         defaultValue={String(row?.groupId || data.groups[0]?.id)}
-      >
-        {data.groups.map((group) => (
-          <option key={group.id} value={group.id}>
-            {group.name}
-          </option>
-        ))}
-      </select>
+        options={data.groups.map((group) => ({
+          value: group.id,
+          label: group.name,
+        }))}
+      />
     </Field>
   );
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -92,7 +107,7 @@ export function FinanceForm({
     };
     const moneyFields = form.contribute
       ? ["contribution"]
-      : form.resource === "transactions"
+      : form.resource === "transactions" || form.resource === "recurrings"
         ? ["amount"]
         : form.resource === "groups"
           ? ["budget"]
@@ -100,9 +115,22 @@ export function FinanceForm({
             ? ["target", "current"]
             : form.resource === "investments"
               ? ["balance", "invested"]
-              : [];
+              : form.resource === "plan"
+                ? [
+                    "monthlyLimit",
+                    "fixedCost",
+                    "monthlySavings",
+                    "expectedSalary",
+                    "expectedFreelance",
+                  ]
+                : [];
     for (const key of moneyFields) {
-      body[key] = parseMoney(String(fields[key] || "0"));
+      const raw = String(fields[key] ?? "").trim();
+      if (key === "invested" && !raw) {
+        body[key] = null;
+        continue;
+      }
+      body[key] = parseMoney(raw || "0");
       if (!Number.isSafeInteger(body[key])) {
         setError("Use valores como 1500,00, sem separador de milhar.");
         setBusy(false);
@@ -113,9 +141,28 @@ export function FinanceForm({
       body.kind = kind;
       body.accountId = fields.accountId || null;
     }
+    if (form.resource === "recurrings") {
+      body.kind = kind;
+      body.type = recurringType;
+      body.accountId = fields.accountId || null;
+      body.dayOfMonth = Number(fields.dayOfMonth);
+      body.installmentCurrent = fields.installmentCurrent
+        ? Number(fields.installmentCurrent)
+        : null;
+      body.installmentTotal = fields.installmentTotal
+        ? Number(fields.installmentTotal)
+        : null;
+      body.startDate = fields.startDate || null;
+      body.endDate = fields.endDate || null;
+    }
     if (form.resource === "groups" && !body.icon) body.icon = "layers";
+    if (form.resource === "plan") body.month = planMonth;
     try {
-      await mutate(form.resource, body, row ? "PATCH" : "POST");
+      await mutate(
+        form.resource,
+        body,
+        form.resource === "plan" || row ? "PATCH" : "POST",
+      );
       close();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar.");
@@ -151,11 +198,13 @@ export function FinanceForm({
           <DialogTitle className="text-[24px] font-semibold tracking-tight">
             {titles[form.resource]}
           </DialogTitle>
-          {(form.contribute || isImported) && (
+          {(form.contribute || isImported || form.resource === "plan") && (
             <DialogDescription>
               {form.contribute
                 ? "O valor será somado ao progresso. Não movimenta contas."
-                : "Valores importados. Edite o grupo, a categoria ou o tipo."}
+                : form.resource === "plan"
+                  ? `Válido para ${monthLabel(planMonth)}. Limite do card = renda (previsto ou já entrada) − guardar. Teto digitado só vale se não houver renda.`
+                  : "Valores importados. Edite o grupo, a categoria ou o tipo."}
             </DialogDescription>
           )}
         </DialogHeader>
@@ -245,16 +294,16 @@ export function FinanceForm({
                   </div>
                   <div className="form-row">
                     <Field title="Situação" name="status">
-                      <select
+                      <FieldSelect
                         id="status"
-                        name="status"
-                        className="field-select"
+                        name={isImported ? undefined : "status"}
                         defaultValue={String(row?.status || "paid")}
                         disabled={isImported}
-                      >
-                        <option value="paid">Confirmado</option>
-                        <option value="pending">Pendente</option>
-                      </select>
+                        options={[
+                          { value: "paid", label: "Confirmado" },
+                          { value: "pending", label: "Pendente" },
+                        ]}
+                      />
                       {isImported && (
                         <input
                           type="hidden"
@@ -264,22 +313,21 @@ export function FinanceForm({
                       )}
                     </Field>
                     <Field title="Conta" name="accountId">
-                      <select
+                      <FieldSelect
                         id="accountId"
-                        name="accountId"
-                        className="field-select"
+                        name={isImported ? undefined : "accountId"}
                         defaultValue={String(row?.accountId || "")}
                         disabled={isImported}
-                      >
-                        <option value="">Registro manual</option>
-                        {data.accounts
-                          .filter((a) => a.currency === "BRL")
-                          .map((account) => (
-                            <option key={account.id} value={account.id}>
-                              {account.institution} · {account.name}
-                            </option>
-                          ))}
-                      </select>
+                        options={[
+                          { value: "", label: "Registro manual" },
+                          ...data.accounts
+                            .filter((a) => a.currency === "BRL")
+                            .map((account) => ({
+                              value: account.id,
+                              label: `${account.institution} · ${account.name}`,
+                            })),
+                        ]}
+                      />
                       {isImported && (
                         <input
                           type="hidden"
@@ -314,27 +362,21 @@ export function FinanceForm({
                   </Field>
                   <div className="form-row">
                     <Field title="Ícone" name="icon">
-                      <select
+                      <FieldSelect
                         id="icon"
                         name="icon"
-                        className="field-select"
                         defaultValue={String(row?.icon || "layers")}
-                      >
-                        {[
-                          ["house", "Casa"],
-                          ["coffee", "Estilo de vida"],
-                          ["sprout", "Futuro"],
-                          ["briefcase", "Trabalho"],
-                          ["plane", "Viagem"],
-                          ["heart", "Saúde"],
-                          ["car", "Transporte"],
-                          ["layers", "Outros"],
-                        ].map(([v, l]) => (
-                          <option value={v} key={v}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "house", label: "Casa" },
+                          { value: "coffee", label: "Estilo de vida" },
+                          { value: "sprout", label: "Futuro" },
+                          { value: "briefcase", label: "Trabalho" },
+                          { value: "plane", label: "Viagem" },
+                          { value: "heart", label: "Saúde" },
+                          { value: "car", label: "Transporte" },
+                          { value: "layers", label: "Outros" },
+                        ]}
+                      />
                     </Field>
                     <Field title="Cor" name="color">
                       <Input
@@ -394,24 +436,18 @@ export function FinanceForm({
                   </div>
                   <div className="form-row">
                     <Field title="Ilustração" name="icon">
-                      <select
+                      <FieldSelect
                         id="icon"
                         name="icon"
-                        className="field-select"
                         defaultValue={String(row?.icon || "target")}
-                      >
-                        {[
-                          ["target", "Objetivo"],
-                          ["shield", "Reserva"],
-                          ["plane", "Viagem"],
-                          ["house", "Casa"],
-                          ["car", "Carro"],
-                        ].map(([v, l]) => (
-                          <option value={v} key={v}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "target", label: "Objetivo" },
+                          { value: "shield", label: "Reserva" },
+                          { value: "plane", label: "Viagem" },
+                          { value: "house", label: "Casa" },
+                          { value: "car", label: "Carro" },
+                        ]}
+                      />
                     </Field>
                     <Field title="Cor" name="color">
                       <Input
@@ -450,27 +486,21 @@ export function FinanceForm({
                       />
                     </Field>
                     <Field title="Tipo" name="type">
-                      <select
+                      <FieldSelect
                         id="type"
-                        name="type"
-                        className="field-select"
+                        name={isImported ? undefined : "type"}
                         defaultValue={String(row?.type || "FIXED_INCOME")}
                         disabled={isImported}
-                      >
-                        {[
-                          ["FIXED_INCOME", "Renda fixa"],
-                          ["EQUITY", "Ações"],
-                          ["ETF", "ETFs"],
-                          ["MUTUAL_FUND", "Fundos"],
-                          ["SECURITY", "Previdência"],
-                          ["COE", "COE"],
-                          ["OTHER", "Outros"],
-                        ].map(([v, l]) => (
-                          <option value={v} key={v}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "FIXED_INCOME", label: "Renda fixa" },
+                          { value: "EQUITY", label: "Ações" },
+                          { value: "ETF", label: "ETFs" },
+                          { value: "MUTUAL_FUND", label: "Fundos" },
+                          { value: "SECURITY", label: "Previdência" },
+                          { value: "COE", label: "COE" },
+                          { value: "OTHER", label: "Outros" },
+                        ]}
+                      />
                       {isImported && (
                         <input
                           type="hidden"
@@ -494,26 +524,199 @@ export function FinanceForm({
                         required
                       />
                     </Field>
-                    {isImported ? (
-                      <div className="form-field">
-                        <span className="muted text-xs">
-                          O custo de aquisição não é informado pela integração.
-                        </span>
-                        <input type="hidden" name="invested" value="0" />
-                      </div>
-                    ) : (
-                      <Field title="Valor aplicado (R$)" name="invested">
+                    <Field title="Custo de aquisição (R$)" name="invested">
+                      <Input
+                        id="invested"
+                        name="invested"
+                        inputMode="decimal"
+                        defaultValue={
+                          row?.invested == null
+                            ? ""
+                            : moneyValue(row.invested)
+                        }
+                        placeholder="Ex.: 450,00"
+                        autoFocus={isImported}
+                      />
+                      <span className="muted text-xs">
+                        {isImported
+                          ? "A Pluggy não envia o preço de compra. Informe aqui para ver a valorização. A sync não apaga esse valor."
+                          : "Quanto você pagou no total. Vazio = sem valorização."}
+                      </span>
+                    </Field>
+                  </div>
+                  {groupField}
+                </>
+              )}
+              {form.resource === "plan" && (
+                <>
+                  <Field title="Salário CNPJ (R$)" name="expectedSalary">
+                    <Input
+                      id="expectedSalary"
+                      name="expectedSalary"
+                      inputMode="decimal"
+                      defaultValue={moneyValue(row?.expectedSalary) || "0,00"}
+                      required
+                      autoFocus
+                    />
+                  </Field>
+                  <Field title="Freelas previstos (R$)" name="expectedFreelance">
+                    <Input
+                      id="expectedFreelance"
+                      name="expectedFreelance"
+                      inputMode="decimal"
+                      defaultValue={
+                        moneyValue(row?.expectedFreelance) || "0,00"
+                      }
+                      required
+                    />
+                  </Field>
+                  <Field
+                    title="Teto fallback (R$)"
+                    name="monthlyLimit"
+                  >
+                    <Input
+                      id="monthlyLimit"
+                      name="monthlyLimit"
+                      inputMode="decimal"
+                      defaultValue={moneyValue(row?.monthlyLimit) || "0,00"}
+                      required
+                    />
+                  </Field>
+                  <Field title="Reserva alimentação (R$)" name="fixedCost">
+                    <Input
+                      id="fixedCost"
+                      name="fixedCost"
+                      inputMode="decimal"
+                      defaultValue={moneyValue(row?.fixedCost) || "0,00"}
+                      required
+                    />
+                  </Field>
+                  <Field title="Quanto guardar por mês (R$)" name="monthlySavings">
+                    <Input
+                      id="monthlySavings"
+                      name="monthlySavings"
+                      inputMode="decimal"
+                      defaultValue={moneyValue(row?.monthlySavings) || "0,00"}
+                      required
+                    />
+                  </Field>
+                </>
+              )}
+              {form.resource === "recurrings" && (
+                <>
+                  <MotionSegmentedControl
+                    label="Tipo"
+                    value={kind}
+                    onChange={setKind}
+                    options={[
+                      ["expense", "Despesa"],
+                      ["income", "Receita"],
+                    ]}
+                  />
+                  <MotionSegmentedControl
+                    label="Forma"
+                    value={recurringType}
+                    onChange={setRecurringType}
+                    options={[
+                      ["fixed", "Conta fixa"],
+                      ["installment", "Parcela"],
+                    ]}
+                  />
+                  <Field title="Descrição" name="description">
+                    <Input
+                      id="description"
+                      name="description"
+                      defaultValue={String(row?.description || "")}
+                      required
+                      maxLength={160}
+                      placeholder="Ex.: Aluguel"
+                      autoFocus
+                    />
+                  </Field>
+                  <div className="form-row">
+                    <Field title="Valor (R$)" name="amount">
+                      <Input
+                        id="amount"
+                        name="amount"
+                        inputMode="decimal"
+                        defaultValue={moneyValue(row?.amount)}
+                        required
+                        placeholder="0,00"
+                      />
+                    </Field>
+                    <Field title="Dia do mês" name="dayOfMonth">
+                      <Input
+                        id="dayOfMonth"
+                        name="dayOfMonth"
+                        type="number"
+                        min={1}
+                        max={31}
+                        defaultValue={String(row?.dayOfMonth || 1)}
+                        required
+                      />
+                    </Field>
+                  </div>
+                  <div className="form-row">
+                    {groupField}
+                    <Field title="Categoria" name="category">
+                      <Input
+                        id="category"
+                        name="category"
+                        list="recurring-category-suggestions"
+                        defaultValue={String(row?.category || "")}
+                        placeholder="Ex.: Moradia"
+                        maxLength={80}
+                        required
+                      />
+                      <datalist id="recurring-category-suggestions">
+                        {categorySuggestions.map((name) => (
+                          <option key={name} value={name} />
+                        ))}
+                      </datalist>
+                    </Field>
+                  </div>
+                  <Field title="Conta" name="accountId">
+                    <FieldSelect
+                      id="accountId"
+                      name="accountId"
+                      defaultValue={String(row?.accountId || "")}
+                      options={[
+                        { value: "", label: "Sem conta" },
+                        ...data.accounts
+                          .filter((account) => account.currency === "BRL")
+                          .map((account) => ({
+                            value: account.id,
+                            label: `${account.institution} · ${account.name}`,
+                          })),
+                      ]}
+                    />
+                  </Field>
+                  {recurringType === "installment" && (
+                    <div className="form-row">
+                      <Field title="Parcela atual" name="installmentCurrent">
                         <Input
-                          id="invested"
-                          name="invested"
-                          inputMode="decimal"
-                          defaultValue={moneyValue(row?.invested) || "0,00"}
+                          id="installmentCurrent"
+                          name="installmentCurrent"
+                          type="number"
+                          min={1}
+                          max={360}
+                          defaultValue={String(row?.installmentCurrent || 1)}
                           required
                         />
                       </Field>
-                    )}
-                  </div>
-                  {groupField}
+                      <Field title="Total de parcelas" name="installmentTotal">
+                        <Input
+                          id="installmentTotal"
+                          name="installmentTotal"
+                          type="number"
+                          min={2}
+                          max={360}
+                          defaultValue={String(row?.installmentTotal || 2)}
+                          required
+                        />
+                      </Field>
+                    </div>
+                  )}
                 </>
               )}
               {form.resource === "connections" && (
@@ -583,7 +786,10 @@ export function FinanceForm({
             </div>
           ) : (
             <div className="form-actions">
-              {row && !isImported && !form.contribute && (
+              {row &&
+                !isImported &&
+                !form.contribute &&
+                form.resource !== "plan" && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -610,11 +816,13 @@ export function FinanceForm({
                       ? "Salvando…"
                       : form.contribute
                         ? "Registrar progresso"
-                        : row
-                          ? "Salvar alterações"
-                          : form.resource === "connections"
-                            ? "Adicionar conexão"
-                            : "Salvar"
+                        : form.resource === "plan"
+                          ? "Salvar planejamento"
+                          : row
+                            ? "Salvar alterações"
+                            : form.resource === "connections"
+                              ? "Adicionar conexão"
+                              : "Salvar"
                   }
                 />
               </Button>

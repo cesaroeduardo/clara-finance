@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
-import { Toaster } from "sonner";
 import { FinanceMotion } from "@/components/finance-motion";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,7 +20,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <FinanceMotion>
           {children}
-          <Toaster richColors position="bottom-right" closeButton />
+          <Toaster />
         </FinanceMotion>
       </body>
     </html>

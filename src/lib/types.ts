@@ -12,6 +12,32 @@ export type Transaction = {
   accountId: string | null;
   source: "manual" | "pluggy";
   currency: string;
+  installmentNumber: number | null;
+  installmentTotal: number | null;
+};
+export type RecurringKind = "income" | "expense";
+export type RecurringType = "fixed" | "installment";
+export type Recurring = {
+  id: string;
+  kind: RecurringKind;
+  type: RecurringType;
+  description: string;
+  amount: number;
+  dayOfMonth: number;
+  frequency: "monthly";
+  category: string;
+  groupId: string;
+  accountId: string | null;
+  installmentCurrent: number | null;
+  installmentTotal: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  source: "detected" | "manual";
+  matchKey: string;
+  ignored: boolean;
+  active: boolean;
+  userEdited: boolean;
+  currency: string;
 };
 export type Group = {
   id: string;
@@ -61,6 +87,13 @@ export type Connection = {
   error: string | null;
   consentExpiresAt: string | null;
 };
+export type PlanSettings = {
+  monthlyLimit: number;
+  fixedCost: number;
+  monthlySavings: number;
+  expectedSalary: number;
+  expectedFreelance: number;
+};
 export type FinanceData = {
   mode: Mode;
   transactions: Transaction[];
@@ -69,6 +102,11 @@ export type FinanceData = {
   investments: Investment[];
   goals: Goal[];
   connections: Connection[];
+  recurrings: Recurring[];
+  /** Plano resolvido do mês civil atual (legado / fallback). */
+  plan: PlanSettings;
+  /** Planejamentos salvos por mês `YYYY-MM`. */
+  plans: Record<string, PlanSettings>;
   pluggyConfigured: boolean;
   updatedAt: string;
 };

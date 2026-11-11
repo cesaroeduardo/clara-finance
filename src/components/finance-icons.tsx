@@ -87,3 +87,26 @@ export function Illustration({
     />
   );
 }
+
+export function CategoryImage({
+  name,
+  size = 28,
+  className = "",
+}: {
+  name: string;
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <Image
+      src={`/illustrations/categories/${name}.webp`}
+      width={size}
+      height={size}
+      unoptimized
+      className={`category-image ${className}`}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+    />
+  );
+}

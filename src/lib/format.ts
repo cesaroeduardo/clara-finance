@@ -19,10 +19,13 @@ export function dateLabel(date: string) {
   }).format(new Date(date.slice(0, 10) + "T12:00:00"));
 }
 export function monthLabel(month: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date(month + "-15T12:00:00"));
+  const date = new Date(`${month}-15T12:00:00`);
+  const short = new Intl.DateTimeFormat("pt-BR", { month: "short" })
+    .format(date)
+    .replace(/\.$/, "")
+    .trim();
+  const abbr = short.charAt(0).toLocaleUpperCase("pt-BR") + short.slice(1);
+  return `${abbr}. ${date.getFullYear()}`;
 }
 export function parseMoney(value: string) {
   const normalized = value

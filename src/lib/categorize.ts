@@ -43,23 +43,26 @@ export const categoryColors: Record<string, string> = {
   Outros: "var(--chart-4)",
 };
 
-/** Ícones por categoria (chaves de `FinanceIcon`). */
-export const categoryIcons: Record<string, string> = {
-  "Contas da casa": "house",
-  Compras: "shopping-bag",
-  Alimentação: "coffee",
-  Restaurantes: "fork-knife",
-  Saúde: "first-aid",
-  Transporte: "car",
-  Assinaturas: "tv",
-  Software: "code",
-  Pets: "paw",
-  Jogos: "game",
-  Taxas: "percent",
-  Investimentos: "sprout",
-  Transferências: "transfer",
-  "Sem categoria": "question",
-  Outros: "dots",
+/**
+ * Imagens 3D por categoria (`/illustrations/categories/*.webp`).
+ * Fonte: thiings.co — uso pessoal com atribuição.
+ */
+export const categoryImages: Record<string, string> = {
+  "Contas da casa": "contas-da-casa",
+  Compras: "compras",
+  Alimentação: "compras-mercado",
+  Restaurantes: "alimentacao",
+  Saúde: "saude",
+  Transporte: "transporte",
+  Assinaturas: "assinaturas",
+  Software: "software",
+  Pets: "pets",
+  Jogos: "jogos",
+  Taxas: "taxas",
+  Investimentos: "investimentos",
+  Transferências: "transferencias",
+  "Sem categoria": "sem-categoria",
+  Outros: "outros",
 };
 
 const categoryFallbackPalette = [
@@ -82,8 +85,8 @@ export function colorForCategory(name: string, index = 0) {
   );
 }
 
-export function iconForCategory(name: string, fallback = "layers") {
-  return categoryIcons[name] || fallback;
+export function imageForCategory(name: string) {
+  return categoryImages[name] || null;
 }
 
 const groups = {
@@ -107,11 +110,32 @@ export function normalizeText(value: string) {
     .toLocaleLowerCase("pt-BR");
 }
 
+/**
+ * Open Finance (Nu etc.) manda `operação|favorecido`.
+ * Mantém só o nome útil e decodifica entidades HTML comuns.
+ */
+export function cleanTransactionDescription(description: string) {
+  let text = description.trim();
+  if (!text) return text;
+  text = text
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'");
+  const pipe = text.indexOf("|");
+  if (pipe === -1) return text;
+  const merchant = text.slice(pipe + 1).trim();
+  return merchant || text;
+}
+
 export function categorizeTransaction(input: {
   description: string;
   kind?: TransactionKind;
 }): { category: string; groupId: string } {
-  const text = normalizeText(input.description || "");
+  const text = normalizeText(
+    cleanTransactionDescription(input.description || ""),
+  );
   for (const rule of categoryRules) {
     if (text.includes(normalizeText(rule.match)))
       return { category: rule.category, groupId: rule.groupId };

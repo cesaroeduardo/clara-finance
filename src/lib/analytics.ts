@@ -1,5 +1,28 @@
-import type { FinanceData, Transaction } from "./types";
+import type { FinanceData, PlanSettings, Transaction } from "./types";
 import { localDate } from "./format";
+
+const emptyPlan = (): PlanSettings => ({
+  monthlyLimit: 0,
+  fixedCost: 0,
+  monthlySavings: 0,
+  expectedSalary: 0,
+  expectedFreelance: 0,
+});
+
+/** Plano do mês; se não houver, herda o último mês anterior salvo. */
+export function planForMonth(
+  data: Pick<FinanceData, "plan" | "plans">,
+  month: string,
+): PlanSettings {
+  const plans = data.plans || {};
+  if (plans[month]) return plans[month];
+  const previous = Object.keys(plans)
+    .filter((key) => key < month)
+    .sort()
+    .at(-1);
+  if (previous) return plans[previous]!;
+  return data.plan || emptyPlan();
+}
 
 function shiftMonth(month: string, delta: number) {
   const date = new Date(`${month}-15T12:00:00`);
@@ -59,12 +82,20 @@ export function matchesGroupFilter(groupId: string, filter: string) {
   return groupId === filter;
 }
 
-export function summarize(data: FinanceData, month: string, groupId = "all") {
+export function matchesCategoryFilter(
+  category: string | null | undefined,
+  filter: string,
+) {
+  if (filter === "all") return true;
+  return (category || "Sem categoria") === filter;
+}
+
+export function summarize(data: FinanceData, month: string, category = "all") {
   const records = data.transactions.filter(
     (row) =>
       row.currency === "BRL" &&
       row.date.startsWith(month) &&
-      matchesGroupFilter(row.groupId, groupId),
+      matchesCategoryFilter(row.category, category),
   );
   const sum = (kind: string, status?: string) =>
     records
@@ -73,14 +104,12 @@ export function summarize(data: FinanceData, month: string, groupId = "all") {
   const income = sum("income"),
     expenses = sum("expense"),
     transfers = sum("transfer");
-  const groups = data.groups
-    .map((group) => ({
-      ...group,
-      spent: records
-        .filter((row) => row.groupId === group.id && row.kind === "expense")
-        .reduce((total, row) => total + row.amount, 0),
-    }))
-    .filter((group) => matchesGroupFilter(group.id, groupId));
+  const groups = data.groups.map((group) => ({
+    ...group,
+    spent: records
+      .filter((row) => row.groupId === group.id && row.kind === "expense")
+      .reduce((total, row) => total + row.amount, 0),
+  }));
   const daysInMonth = new Date(
     Number(month.slice(0, 4)),
     Number(month.slice(5, 7)),
@@ -101,10 +130,7 @@ export function summarize(data: FinanceData, month: string, groupId = "all") {
           .reduce((n, row) => n + row.amount, 0) / 100,
     };
   });
-  const investments = data.investments.filter(
-    (row) =>
-      row.currency === "BRL" && matchesGroupFilter(row.groupId, groupId),
-  );
+  const investments = data.investments.filter((row) => row.currency === "BRL");
   return {
     records,
     income,
@@ -117,9 +143,113 @@ export function summarize(data: FinanceData, month: string, groupId = "all") {
     flow,
     investments,
     invested: investments.reduce((n, row) => n + row.balance, 0),
-    goals: data.goals.filter((row) =>
-      matchesGroupFilter(row.groupId, groupId),
-    ),
+    goals: data.goals,
+  };
+}
+
+export type InvestmentBucket =
+  | "caixinhas"
+  | "tesouro"
+  | "cripto"
+  | "bolsa"
+  | "fundos";
+
+export const investmentBucketMeta: Record<
+  InvestmentBucket,
+  { label: string; color: string }
+> = {
+  caixinhas: { label: "Caixinhas", color: "#8b5cf6" },
+  tesouro: { label: "Tesouro Direto", color: "#38bdf8" },
+  cripto: { label: "Criptomoedas", color: "#ec4899" },
+  bolsa: { label: "Bolsa de valores", color: "#a3e635" },
+  fundos: { label: "Fundos", color: "#f59e0b" },
+};
+
+export function investmentBucket(
+  row: FinanceData["investments"][number],
+): InvestmentBucket {
+  const name = row.name.toUpperCase();
+  if (row.type === "EQUITY" || row.type === "ETF") return "bolsa";
+  if (/BTC|BITCOIN|CRIPTO/.test(name)) return "cripto";
+  if (/TESOURO/.test(name)) return "tesouro";
+  if (row.type === "MUTUAL_FUND") return "fundos";
+  return "caixinhas";
+}
+
+export function investmentsOverview(
+  investments: FinanceData["investments"],
+  options?: {
+    period?: "month" | "all";
+    monthGainById?: Record<string, number>;
+  },
+) {
+  const period = options?.period || "all";
+  const monthGainById = options?.monthGainById || {};
+  const rows = investments.filter(
+    (row) => row.currency === "BRL" && row.balance > 0,
+  );
+  const total = rows.reduce((sum, row) => sum + row.balance, 0);
+  const order: InvestmentBucket[] = [
+    "caixinhas",
+    "tesouro",
+    "fundos",
+    "cripto",
+    "bolsa",
+  ];
+  const categories = order
+    .map((id) => {
+      const items = rows.filter((row) => investmentBucket(row) === id);
+      if (!items.length) return null;
+      const balance = items.reduce((sum, row) => sum + row.balance, 0);
+      let gain: number | null = null;
+      if (period === "month") {
+        let monthGain = 0;
+        let known = false;
+        for (const item of items) {
+          if (monthGainById[item.id] == null) continue;
+          monthGain += monthGainById[item.id];
+          known = true;
+        }
+        gain = known ? monthGain : null;
+      } else {
+        const measured = items.filter(
+          (row) => row.invested != null && row.invested > 0,
+        );
+        if (measured.length) {
+          const cost = measured.reduce(
+            (sum, row) => sum + (row.invested as number),
+            0,
+          );
+          const measuredBalance = measured.reduce(
+            (sum, row) => sum + row.balance,
+            0,
+          );
+          gain = measuredBalance - cost;
+        }
+      }
+      return {
+        id,
+        ...investmentBucketMeta[id],
+        balance,
+        gain,
+        share: total > 0 ? (balance / total) * 100 : 0,
+        count: items.length,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row != null)
+    .sort((a, b) => b.balance - a.balance);
+
+  const gains = categories
+    .map((row) => row.gain)
+    .filter((value): value is number => value != null);
+  const gain = gains.length ? gains.reduce((sum, value) => sum + value, 0) : null;
+
+  return {
+    total,
+    gain,
+    categories,
+    count: rows.length,
+    empty: rows.length === 0,
   };
 }
 
@@ -143,18 +273,11 @@ export function filterTransactions(
   );
 }
 
-function monthsUntilDeadline(deadline: string, from: string) {
-  const months =
-    (Number(deadline.slice(0, 4)) - Number(from.slice(0, 4))) * 12 +
-    (Number(deadline.slice(5, 7)) - Number(from.slice(5, 7)));
-  return Math.max(1, months);
-}
-
 function expenseByCategoryUntil(
   data: FinanceData,
   month: string,
   throughDay: number,
-  groupId: string,
+  category: string,
 ) {
   const cutoff = `${month}-${String(throughDay).padStart(2, "0")}`;
   const totals = new Map<string, number>();
@@ -164,7 +287,7 @@ function expenseByCategoryUntil(
       row.kind !== "expense" ||
       !row.date.startsWith(month) ||
       row.date > cutoff ||
-      !matchesGroupFilter(row.groupId, groupId)
+      !matchesCategoryFilter(row.category, category)
     ) {
       continue;
     }
@@ -174,11 +297,87 @@ function expenseByCategoryUntil(
   return totals;
 }
 
-/** Ritmo ideal vs real: limite = renda do mês − aporte estimado das metas. */
+function creditAccountIds(data: FinanceData) {
+  return new Set(
+    data.accounts
+      .filter((row) => row.type === "CREDIT" && row.currency === "BRL")
+      .map((row) => row.id),
+  );
+}
+
+function cardMonthExpenses(
+  data: FinanceData,
+  accountId: string,
+  month: string,
+  category: string,
+  pendingOnly = false,
+) {
+  return data.transactions
+    .filter(
+      (row) =>
+        row.accountId === accountId &&
+        row.currency === "BRL" &&
+        row.kind === "expense" &&
+        row.date.startsWith(month) &&
+        matchesCategoryFilter(row.category, category) &&
+        (!pendingOnly || row.status === "pending"),
+    )
+    .reduce((total, row) => total + row.amount, 0);
+}
+
+/**
+ * Fatura aberta conta no mês corrente (vence no início do próximo).
+ * Mês atual: saldo do cartão (ou pendências). Passado: lançamentos do mês.
+ */
+function openCreditInvoices(
+  data: FinanceData,
+  month: string,
+  category: string,
+  isCurrent: boolean,
+  isPast: boolean,
+) {
+  return data.accounts
+    .filter((row) => row.type === "CREDIT" && row.currency === "BRL")
+    .reduce((total, card) => {
+      const pending = cardMonthExpenses(data, card.id, month, category, true);
+      const closed = cardMonthExpenses(data, card.id, month, category, false);
+      if (category !== "all") {
+        return total + (isCurrent ? pending || closed : closed);
+      }
+      if (isCurrent) return total + (Math.abs(card.balance) || pending);
+      if (isPast) return total + closed;
+      return total + pending;
+    }, 0);
+}
+
+const HOUSE_CATEGORY = "Contas da casa";
+const FOOD_CATEGORY = "Alimentação";
+const CNPJ_INCOME_PATTERN =
+  /45\.?\s*548\.?\s*809|eduardo\s+de\s+cesaro\s+amarante/i;
+
+export function isCnpjIncome(description: string) {
+  return CNPJ_INCOME_PATTERN.test(description);
+}
+
+export function cnpjSalaryThreshold(expectedSalary: number) {
+  return Math.max(700_000, Math.round(Math.max(0, expectedSalary) * 0.8));
+}
+
+function sumCategoryUntil(
+  rows: { category: string; date: string; amount: number }[],
+  category: string,
+  until: string,
+) {
+  return rows
+    .filter((row) => row.category === category && row.date <= until)
+    .reduce((total, row) => total + row.amount, 0);
+}
+
+/** Ritmo ideal vs real: teto − Contas da casa − max(reserva comida, Alimentação) − demais. */
 export function spendingPace(
   data: FinanceData,
   month: string,
-  groupId = "all",
+  category = "all",
 ) {
   const today = localDate();
   const currentMonth = today.slice(0, 7);
@@ -206,31 +405,60 @@ export function spendingPace(
     (row) =>
       row.currency === "BRL" &&
       row.date.startsWith(month) &&
-      matchesGroupFilter(row.groupId, groupId),
+      matchesCategoryFilter(row.category, category),
   );
   const incomeMonth = records
     .filter((row) => row.kind === "income")
     .reduce((total, row) => total + row.amount, 0);
-  const expenses = records.filter((row) => row.kind === "expense");
-  const spentToDate = expenses
+  const creditIds = creditAccountIds(data);
+  const cashExpenses = records.filter(
+    (row) =>
+      row.kind === "expense" &&
+      (!row.accountId || !creditIds.has(row.accountId)),
+  );
+  const openInvoices = openCreditInvoices(
+    data,
+    month,
+    category,
+    isCurrent,
+    isPast,
+  );
+  const cashSpentToDate = cashExpenses
     .filter((row) => row.date <= cutoff)
     .reduce((total, row) => total + row.amount, 0);
+  const houseSpent = sumCategoryUntil(cashExpenses, HOUSE_CATEGORY, cutoff);
+  const foodSpent = sumCategoryUntil(cashExpenses, FOOD_CATEGORY, cutoff);
+  const foodReserve = Math.max(0, data.plan.fixedCost);
+  const foodBlock = Math.max(foodReserve, foodSpent);
+  const rawSpent = cashSpentToDate + openInvoices;
+  const otherSpent = rawSpent - houseSpent - foodSpent;
+  const spentToDate = houseSpent + foodBlock + otherSpent;
 
-  const savingsNeed = data.goals
-    .filter(
-      (goal) =>
-        matchesGroupFilter(goal.groupId, groupId) &&
-        goal.current < goal.target,
-    )
-    .reduce((total, goal) => {
-      const remaining = Math.max(0, goal.target - goal.current);
-      return (
-        total +
-        Math.round(remaining / monthsUntilDeadline(goal.deadline, today))
-      );
-    }, 0);
+  const fixedCost = foodReserve;
+  const monthlySavings = Math.max(0, data.plan.monthlySavings);
+  const typedTeto = Math.max(0, data.plan.monthlyLimit);
 
-  const monthlyLimit = Math.max(0, incomeMonth - savingsNeed);
+  const expectedSalary = Math.max(0, data.plan.expectedSalary || 0);
+  const expectedFreelance = Math.max(0, data.plan.expectedFreelance || 0);
+  const salaryFloor = cnpjSalaryThreshold(expectedSalary);
+  let salaryReceived = 0;
+  let freelanceReceived = 0;
+  for (const row of records) {
+    if (row.kind !== "income" || row.currency !== "BRL") continue;
+    if (!isCnpjIncome(row.description)) continue;
+    if (row.amount >= salaryFloor) salaryReceived += row.amount;
+    else freelanceReceived += row.amount;
+  }
+  const forecastSalary = Math.max(expectedSalary, salaryReceived);
+  const forecastFreelance = Math.max(expectedFreelance, freelanceReceived);
+  const forecastIncome = forecastSalary + forecastFreelance;
+  // Visor original: limite = renda (já entrada / prevista) − guardar.
+  const incomeSignal = forecastIncome > 0 ? forecastIncome : incomeMonth;
+  const incomeBasedLimit = Math.max(0, incomeSignal - monthlySavings);
+  const monthlyLimit =
+    incomeBasedLimit > 0
+      ? incomeBasedLimit
+      : typedTeto;
   const remaining = monthlyLimit - spentToDate;
   const daysLeft =
     isCurrent
@@ -239,9 +467,14 @@ export function spendingPace(
         ? 1
         : daysInMonth;
   const dailyAllowance = Math.round(remaining / daysLeft);
-  const avgDailySpend = spentToDate / Math.max(1, todayDay);
-  const projectedEndSpend = Math.round(avgDailySpend * daysInMonth);
+  const avgDailyCash = cashSpentToDate / Math.max(1, todayDay);
+  const projectedRaw =
+    openInvoices + Math.round(avgDailyCash * daysInMonth);
+  const projectedEndSpend =
+    projectedRaw + Math.max(0, foodReserve - foodSpent);
   const projectedSurplus = monthlyLimit - projectedEndSpend;
+  const projectedSurplus3m =
+    (projectedSurplus + monthlySavings) * 3;
   const paceDelta = Math.round(
     (monthlyLimit * todayDay) / daysInMonth - spentToDate,
   );
@@ -251,18 +484,24 @@ export function spendingPace(
     const date = `${month}-${String(day).padStart(2, "0")}`;
     const ideal = (monthlyLimit * day) / daysInMonth / 100;
     const known = day <= todayDay;
-    const actualCents = known
-      ? expenses
-          .filter((row) => row.date <= date)
-          .reduce((total, row) => total + row.amount, 0)
-      : null;
+    const cashThrough = cashExpenses
+      .filter((row) => row.date <= date)
+      .reduce((total, row) => total + row.amount, 0);
+    const foodThrough = sumCategoryUntil(cashExpenses, FOOD_CATEGORY, date);
+    const paceThrough =
+      cashThrough + openInvoices + Math.max(0, foodReserve - foodThrough);
+    const actualCents = known ? paceThrough : null;
     const forecastCents =
       isCurrent && day >= todayDay
-        ? Math.round(avgDailySpend * day)
+        ? openInvoices +
+          Math.round(avgDailyCash * day) +
+          Math.max(0, foodReserve - foodSpent)
         : isPast
           ? null
           : day >= todayDay
-            ? Math.round(avgDailySpend * day)
+            ? openInvoices +
+              Math.round(avgDailyCash * day) +
+              Math.max(0, foodReserve - foodSpent)
             : null;
     const actual = actualCents == null ? null : actualCents / 100;
     const forecast = forecastCents == null ? null : forecastCents / 100;
@@ -281,24 +520,25 @@ export function spendingPace(
     data,
     month,
     compareDay,
-    groupId,
+    category,
   );
   const previousCats = expenseByCategoryUntil(
     data,
     previousMonth,
     compareDay,
-    groupId,
+    category,
   );
   let categoryShift: { category: string; delta: number } | null = null;
   const categories = new Set([...currentCats.keys(), ...previousCats.keys()]);
-  for (const category of categories) {
+  for (const categoryName of categories) {
     const delta =
-      (currentCats.get(category) || 0) - (previousCats.get(category) || 0);
+      (currentCats.get(categoryName) || 0) -
+      (previousCats.get(categoryName) || 0);
     if (
       !categoryShift ||
       Math.abs(delta) > Math.abs(categoryShift.delta)
     ) {
-      categoryShift = { category, delta };
+      categoryShift = { category: categoryName, delta };
     }
   }
   const notableShift =
@@ -309,11 +549,29 @@ export function spendingPace(
       ? Math.min(999, Math.round((spentToDate / monthlyLimit) * 100))
       : 0;
 
+  const forecastResult = forecastIncome - spentToDate - monthlySavings;
+
   return {
     incomeMonth,
-    savingsNeed,
     monthlyLimit,
+    fixedCost,
+    foodReserve,
+    monthlySavings,
+    expectedSalary,
+    expectedFreelance,
+    salaryReceived,
+    freelanceReceived,
+    forecastSalary,
+    forecastFreelance,
+    forecastIncome,
+    forecastResult,
     spentToDate,
+    cashSpentToDate,
+    openInvoices,
+    houseSpent,
+    foodSpent,
+    foodBlock,
+    otherSpent,
     remaining,
     daysLeft,
     dailyAllowance,
@@ -323,12 +581,14 @@ export function spendingPace(
     series,
     projectedEndSpend,
     projectedSurplus,
-    projectedSurplus3m: projectedSurplus * 3,
+    projectedSurplus3m,
     limitUsedPercent,
     categoryShift: notableShift as {
       category: string;
       delta: number;
     } | null,
-    empty: incomeMonth <= 0,
+    typedTeto,
+    incomeBasedLimit,
+    empty: monthlyLimit <= 0,
   };
 }

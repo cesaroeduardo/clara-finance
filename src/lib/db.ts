@@ -10,8 +10,58 @@ import type {
   Group,
   Investment,
   Mode,
+  PlanSettings,
   Transaction,
 } from "./types";
+import { planForMonth } from "./analytics";
+import { cleanTransactionDescription } from "./categorize";
+import {
+  listRecurrings,
+  normalizeMatchKey,
+  reconcileRecurrings,
+} from "./recurring";
+
+const emptyPlan = (): PlanSettings => ({
+  monthlyLimit: 0,
+  fixedCost: 0,
+  monthlySavings: 0,
+  expectedSalary: 0,
+  expectedFreelance: 0,
+});
+
+function mapPlanRow(row: Record<string, unknown> | undefined): PlanSettings {
+  if (!row) return emptyPlan();
+  return {
+    monthlyLimit: Number(row.monthlyLimit ?? row.monthly_limit ?? 0),
+    fixedCost: Number(row.fixedCost ?? row.fixed_cost ?? 0),
+    monthlySavings: Number(row.monthlySavings ?? row.monthly_savings ?? 0),
+    expectedSalary: Number(row.expectedSalary ?? row.expected_salary ?? 0),
+    expectedFreelance: Number(
+      row.expectedFreelance ?? row.expected_freelance ?? 0,
+    ),
+  };
+}
+
+export function listPlanMonths(
+  database: Database.Database,
+  mode: Mode,
+): Record<string, PlanSettings> {
+  const rows = database
+    .prepare(
+      `SELECT month,
+              monthly_limit AS monthlyLimit,
+              fixed_cost AS fixedCost,
+              monthly_savings AS monthlySavings,
+              expected_salary AS expectedSalary,
+              expected_freelance AS expectedFreelance
+       FROM plan_months WHERE mode=? ORDER BY month`,
+    )
+    .all(mode) as Array<Record<string, unknown> & { month: string }>;
+  const plans: Record<string, PlanSettings> = {};
+  for (const row of rows) plans[row.month] = mapPlanRow(row);
+  return plans;
+}
+
 
 const globalDb = globalThis as unknown as { financeDb?: Database.Database };
 export function db() {
@@ -97,6 +147,163 @@ export function db() {
         INSERT INTO schema_migrations(version) VALUES(4);
       `);
     })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=5").get()
+  )
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE plan_settings (
+          mode TEXT PRIMARY KEY,
+          monthly_limit INTEGER NOT NULL DEFAULT 0 CHECK(monthly_limit >= 0),
+          fixed_cost INTEGER NOT NULL DEFAULT 0 CHECK(fixed_cost >= 0),
+          monthly_savings INTEGER NOT NULL DEFAULT 0 CHECK(monthly_savings >= 0)
+        );
+        INSERT OR IGNORE INTO plan_settings(mode, monthly_limit, fixed_cost, monthly_savings)
+          VALUES ('personal', 0, 0, 0);
+        INSERT OR IGNORE INTO plan_settings(mode, monthly_limit, fixed_cost, monthly_savings)
+          VALUES ('demo', 700000, 250000, 150000);
+        INSERT INTO schema_migrations(version) VALUES(5);
+      `);
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=6").get()
+  )
+    database.transaction(() => {
+      database.exec(`
+        ALTER TABLE transactions ADD COLUMN installment_number INTEGER;
+        ALTER TABLE transactions ADD COLUMN installment_total INTEGER;
+        CREATE TABLE recurrings (
+          id TEXT PRIMARY KEY,
+          mode TEXT NOT NULL,
+          kind TEXT NOT NULL CHECK(kind IN ('income','expense')),
+          type TEXT NOT NULL CHECK(type IN ('fixed','installment')),
+          description TEXT NOT NULL,
+          amount INTEGER NOT NULL CHECK(amount > 0),
+          day_of_month INTEGER NOT NULL CHECK(day_of_month BETWEEN 1 AND 31),
+          frequency TEXT NOT NULL DEFAULT 'monthly' CHECK(frequency='monthly'),
+          category TEXT NOT NULL,
+          group_id TEXT NOT NULL REFERENCES groups(id),
+          account_id TEXT REFERENCES accounts(id),
+          installment_current INTEGER CHECK(installment_current IS NULL OR installment_current >= 1),
+          installment_total INTEGER CHECK(installment_total IS NULL OR installment_total >= 2),
+          start_date TEXT,
+          end_date TEXT,
+          source TEXT NOT NULL CHECK(source IN ('detected','manual')),
+          match_key TEXT NOT NULL,
+          ignored INTEGER NOT NULL DEFAULT 0 CHECK(ignored IN (0,1)),
+          active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+          user_edited INTEGER NOT NULL DEFAULT 0 CHECK(user_edited IN (0,1)),
+          currency TEXT NOT NULL DEFAULT 'BRL'
+        );
+        CREATE INDEX IF NOT EXISTS recurrings_mode_active ON recurrings(mode, active, ignored);
+        CREATE UNIQUE INDEX IF NOT EXISTS recurrings_mode_identity
+          ON recurrings(mode, kind, type, match_key, ifnull(installment_total, 0));
+        INSERT INTO schema_migrations(version) VALUES(6);
+      `);
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=7").get()
+  )
+    database.transaction(() => {
+      database.exec(`
+        ALTER TABLE plan_settings ADD COLUMN expected_salary INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE plan_settings ADD COLUMN expected_freelance INTEGER NOT NULL DEFAULT 0;
+        UPDATE plan_settings
+          SET expected_salary=880000, expected_freelance=200000
+          WHERE mode='personal';
+        UPDATE plan_settings
+          SET expected_salary=900000, expected_freelance=100000
+          WHERE mode='demo';
+        INSERT INTO schema_migrations(version) VALUES(7);
+      `);
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=8").get()
+  )
+    database.transaction(() => {
+      database.exec(`
+        CREATE TABLE plan_months (
+          mode TEXT NOT NULL,
+          month TEXT NOT NULL,
+          monthly_limit INTEGER NOT NULL DEFAULT 0,
+          fixed_cost INTEGER NOT NULL DEFAULT 0,
+          monthly_savings INTEGER NOT NULL DEFAULT 0,
+          expected_salary INTEGER NOT NULL DEFAULT 0,
+          expected_freelance INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (mode, month)
+        );
+      `);
+      const current = monthKey();
+      const legacy = database
+        .prepare(
+          `SELECT mode, monthly_limit, fixed_cost, monthly_savings,
+                  expected_salary, expected_freelance
+           FROM plan_settings`,
+        )
+        .all() as Array<{
+        mode: string;
+        monthly_limit: number;
+        fixed_cost: number;
+        monthly_savings: number;
+        expected_salary: number;
+        expected_freelance: number;
+      }>;
+      const insert = database.prepare(
+        `INSERT OR IGNORE INTO plan_months(
+           mode, month, monthly_limit, fixed_cost, monthly_savings,
+           expected_salary, expected_freelance
+         ) VALUES(?,?,?,?,?,?,?)`,
+      );
+      for (const row of legacy) {
+        insert.run(
+          row.mode,
+          current,
+          row.monthly_limit,
+          row.fixed_cost,
+          row.monthly_savings,
+          row.expected_salary,
+          row.expected_freelance,
+        );
+      }
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(8)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=9").get()
+  )
+    database.transaction(() => {
+      const txns = database
+        .prepare("SELECT id, description FROM transactions WHERE description LIKE '%|%'")
+        .all() as Array<{ id: string; description: string }>;
+      const updateTxn = database.prepare(
+        "UPDATE transactions SET description=? WHERE id=?",
+      );
+      for (const row of txns) {
+        const cleaned = cleanTransactionDescription(row.description);
+        if (cleaned !== row.description) updateTxn.run(cleaned, row.id);
+      }
+      const recurrings = database
+        .prepare("SELECT id, description, match_key FROM recurrings")
+        .all() as Array<{
+        id: string;
+        description: string;
+        match_key: string;
+      }>;
+      const updateRecurring = database.prepare(
+        "UPDATE recurrings SET description=?, match_key=? WHERE id=?",
+      );
+      for (const row of recurrings) {
+        const cleaned = cleanTransactionDescription(row.description);
+        const matchKey = normalizeMatchKey(cleaned);
+        if (!matchKey) continue;
+        if (cleaned === row.description && matchKey === row.match_key) continue;
+        updateRecurring.run(cleaned, matchKey, row.id);
+      }
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(9)")
+        .run();
+    })();
   globalDb.financeDb = database;
   for (const mode of ["personal", "demo"] as const) {
     const insert = database.prepare(
@@ -173,7 +380,7 @@ function seedDemo(database: Database.Database) {
       500000,
     );
     const add = database.prepare(
-      "INSERT INTO transactions(id,mode,description,amount,kind,date,status,group_id,category,account_id) VALUES(?,'demo',?,?,?,?,?,?,?,?)",
+      "INSERT INTO transactions(id,mode,description,amount,kind,date,status,group_id,category,account_id,installment_number,installment_total) VALUES(?,'demo',?,?,?,?,?,?,?,?,?,?)",
     );
     const rows = [
       [
@@ -186,6 +393,8 @@ function seedDemo(database: Database.Database) {
         "work",
         "Salário",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "freelance",
@@ -197,17 +406,47 @@ function seedDemo(database: Database.Database) {
         "work",
         "Freelance",
         "demo-itau",
+        null,
+        null,
       ],
       [
         "rent",
         "Aluguel",
-        240000,
+        180000,
         "expense",
-        "05",
+        "02",
         "paid",
         "home",
         "Moradia",
         "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "smartfit",
+        "Smart Fit",
+        10990,
+        "expense",
+        "02",
+        "paid",
+        "life",
+        "Saúde",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "amil",
+        "AMIL Saúde",
+        45000,
+        "expense",
+        "04",
+        "paid",
+        "home",
+        "Saúde",
+        "demo-nubank",
+        null,
+        null,
       ],
       [
         "market",
@@ -219,6 +458,8 @@ function seedDemo(database: Database.Database) {
         "home",
         "Alimentação",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "coffee",
@@ -230,6 +471,8 @@ function seedDemo(database: Database.Database) {
         "life",
         "Restaurantes",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "uber",
@@ -241,6 +484,8 @@ function seedDemo(database: Database.Database) {
         "life",
         "Transporte",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "netflix",
@@ -252,6 +497,8 @@ function seedDemo(database: Database.Database) {
         "life",
         "Assinaturas",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "electric",
@@ -263,6 +510,8 @@ function seedDemo(database: Database.Database) {
         "home",
         "Contas da casa",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "internet",
@@ -274,6 +523,8 @@ function seedDemo(database: Database.Database) {
         "home",
         "Contas da casa",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "gym",
@@ -285,6 +536,8 @@ function seedDemo(database: Database.Database) {
         "life",
         "Saúde",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "condo",
@@ -296,6 +549,34 @@ function seedDemo(database: Database.Database) {
         "home",
         "Moradia",
         "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "iphone",
+        "iPhone 14 11/12",
+        40000,
+        "expense",
+        "06",
+        "paid",
+        "life",
+        "Compras",
+        "demo-credit",
+        11,
+        12,
+      ],
+      [
+        "sofa",
+        "TokStok Sofá 1/10",
+        25000,
+        "expense",
+        "10",
+        "pending",
+        "home",
+        "Moradia",
+        "demo-credit",
+        1,
+        10,
       ],
       [
         "dinner",
@@ -307,6 +588,8 @@ function seedDemo(database: Database.Database) {
         "life",
         "Restaurantes",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "pharmacy",
@@ -318,6 +601,8 @@ function seedDemo(database: Database.Database) {
         "home",
         "Saúde",
         "demo-nubank",
+        null,
+        null,
       ],
       [
         "investment",
@@ -329,6 +614,8 @@ function seedDemo(database: Database.Database) {
         "future",
         "Investimentos",
         "demo-nubank",
+        null,
+        null,
       ],
     ] as const;
     for (const [
@@ -341,6 +628,8 @@ function seedDemo(database: Database.Database) {
       group,
       category,
       acc,
+      installmentNumber,
+      installmentTotal,
     ] of rows)
       add.run(
         `demo-${id}`,
@@ -352,7 +641,23 @@ function seedDemo(database: Database.Database) {
         `demo-${group}`,
         category,
         acc,
+        installmentNumber,
+        installmentTotal,
       );
+    const previousRows = rows.filter((row) =>
+      [
+        "salary",
+        "rent",
+        "smartfit",
+        "amil",
+        "netflix",
+        "electric",
+        "internet",
+        "gym",
+        "condo",
+        "iphone",
+      ].includes(String(row[0])),
+    );
     for (const [
       id,
       desc,
@@ -363,18 +668,31 @@ function seedDemo(database: Database.Database) {
       group,
       category,
       acc,
-    ] of rows.slice(0, 10))
+      installmentNumber,
+      installmentTotal,
+    ] of previousRows) {
+      const prevInstallment =
+        installmentNumber != null ? Number(installmentNumber) - 1 : null;
+      const prevDesc =
+        id === "iphone" && prevInstallment
+          ? `iPhone 14 ${prevInstallment}/12`
+          : desc;
       add.run(
         `demo-prev-${id}`,
-        desc,
-        Math.round(amount * 0.94),
+        prevDesc,
+        id === "salary" || id === "rent" || id === "smartfit" || id === "amil"
+          ? amount
+          : Math.round(amount * 0.94),
         kind,
         `${prev}-${day}`,
-        status,
+        status === "pending" ? "paid" : status,
         `demo-${group}`,
         category,
         acc,
+        prevInstallment,
+        installmentTotal,
       );
+    }
     const inv = database.prepare(
       "INSERT INTO investments(id,mode,name,institution,type,balance,invested,group_id) VALUES(?,'demo',?,?,?,?,?,'demo-future')",
     );
@@ -428,12 +746,55 @@ function seedDemo(database: Database.Database) {
       "house",
       "#8b5cf6",
     );
+    database
+      .prepare(
+        `INSERT INTO plan_settings(
+           mode, monthly_limit, fixed_cost, monthly_savings, expected_salary, expected_freelance
+         )
+         VALUES('demo', 700000, 250000, 150000, 900000, 100000)
+         ON CONFLICT(mode) DO UPDATE SET
+           monthly_limit=excluded.monthly_limit,
+           fixed_cost=excluded.fixed_cost,
+           monthly_savings=excluded.monthly_savings,
+           expected_salary=excluded.expected_salary,
+           expected_freelance=excluded.expected_freelance`,
+      )
+      .run();
+    const current = monthKey();
+    database
+      .prepare(
+        `INSERT INTO plan_months(
+           mode, month, monthly_limit, fixed_cost, monthly_savings,
+           expected_salary, expected_freelance
+         ) VALUES('demo', ?, 700000, 250000, 150000, 900000, 100000)
+         ON CONFLICT(mode, month) DO UPDATE SET
+           monthly_limit=excluded.monthly_limit,
+           fixed_cost=excluded.fixed_cost,
+           monthly_savings=excluded.monthly_savings,
+           expected_salary=excluded.expected_salary,
+           expected_freelance=excluded.expected_freelance`,
+      )
+      .run(current);
   })();
 }
 
 export function getData(mode: Mode): FinanceData {
   const database = db();
+  reconcileRecurrings(database, mode);
   const query = <T>(sql: string) => database.prepare(sql).all(mode) as T[];
+  const legacy = mapPlanRow(
+    database
+      .prepare(
+        `SELECT monthly_limit AS monthlyLimit, fixed_cost AS fixedCost,
+                monthly_savings AS monthlySavings,
+                expected_salary AS expectedSalary,
+                expected_freelance AS expectedFreelance
+         FROM plan_settings WHERE mode=?`,
+      )
+      .get(mode) as Record<string, unknown> | undefined,
+  );
+  const plans = listPlanMonths(database, mode);
+  const plan = planForMonth({ plan: legacy, plans }, monthKey());
   return {
     mode,
     groups: query<Group>(
@@ -443,7 +804,9 @@ export function getData(mode: Mode): FinanceData {
       "SELECT id,name,institution,type,balance,available_credit_limit AS availableCreditLimit,credit_limit AS creditLimit,color,currency,item_id AS itemId FROM accounts WHERE mode=? ORDER BY rowid",
     ),
     transactions: query<Transaction>(
-      "SELECT id,description,amount,kind,date,status,group_id AS groupId,category,account_id AS accountId,source,currency FROM transactions WHERE mode=? ORDER BY date DESC,rowid DESC",
+      `SELECT id,description,amount,kind,date,status,group_id AS groupId,category,account_id AS accountId,source,currency,
+              installment_number AS installmentNumber, installment_total AS installmentTotal
+       FROM transactions WHERE mode=? ORDER BY date DESC,rowid DESC`,
     ),
     investments: query<Investment>(
       "SELECT id,name,institution,type,balance,invested,group_id AS groupId,currency,source FROM investments WHERE mode=? ORDER BY balance DESC",
@@ -454,6 +817,9 @@ export function getData(mode: Mode): FinanceData {
     connections: query<Connection>(
       "SELECT id,name,status,last_sync AS lastSync,error,consent_expires_at AS consentExpiresAt FROM connections WHERE mode=? ORDER BY rowid",
     ),
+    recurrings: listRecurrings(database, mode),
+    plan,
+    plans,
     pluggyConfigured: !!(
       process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET
     ),

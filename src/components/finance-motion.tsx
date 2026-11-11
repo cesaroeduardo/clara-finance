@@ -167,28 +167,41 @@ export function IconSwap({
     </span>
   );
 }
-export function AnimatedLabel({ value }: { value: string }) {
+export function AnimatedLabel({
+  value,
+  direction = 1,
+}: {
+  value: string;
+  /** 1 = entra de baixo (avançar); -1 = entra de cima (voltar) */
+  direction?: 1 | -1;
+}) {
   const reduced = useReducedMotion();
   return (
     <span className="animated-label">
       <span className="sr-only">{value}</span>
-      <AnimatePresence initial={false} mode="wait">
+      <AnimatePresence initial={false} mode="wait" custom={direction}>
         <m.span
           key={value}
           className="animated-label-value"
           aria-hidden="true"
-          initial={{
-            opacity: 0,
-            y: reduced ? 0 : 4,
-            filter: reduced ? "blur(0px)" : "blur(2px)",
+          custom={direction}
+          variants={{
+            initial: (dir: 1 | -1) => ({
+              opacity: 0,
+              y: reduced ? 0 : 8 * dir,
+              filter: reduced ? "blur(0px)" : "blur(2px)",
+            }),
+            animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+            exit: (dir: 1 | -1) => ({
+              opacity: 0,
+              y: reduced ? 0 : -8 * dir,
+              filter: reduced ? "blur(0px)" : "blur(2px)",
+            }),
           }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          exit={{
-            opacity: 0,
-            y: reduced ? 0 : -4,
-            filter: reduced ? "blur(0px)" : "blur(2px)",
-          }}
-          transition={{ duration: reduced ? 0 : 0.15, ease: easeInOut }}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={{ duration: reduced ? 0 : 0.18, ease: easeInOut }}
         >
           {value}
         </m.span>

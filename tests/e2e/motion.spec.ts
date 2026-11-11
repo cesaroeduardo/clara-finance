@@ -7,7 +7,7 @@ test("marca textual, menu com transição e fechamento animado do formulário", 
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(page.locator(".brand")).toHaveText("clara.");
-  await expect(page.locator(".brand-icon, .brand small")).toHaveCount(0);
+  await expect(page.locator(".brand-mark")).toHaveCount(1);
   await page.getByRole("button", { name: "Adicionar", exact: true }).click();
   const menu = page.locator('[data-slot="dropdown-menu-content"]');
   await expect(menu).toBeVisible();

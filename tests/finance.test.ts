@@ -6,9 +6,17 @@ import { NextRequest } from "next/server";
 import { db, getData } from "../src/lib/db";
 import { POST, PATCH, DELETE } from "../src/app/api/manage/[resource]/route";
 import { GET } from "../src/app/api/data/route";
-import { netWorth, summarize } from "../src/lib/analytics";
+import {
+  isCnpjIncome,
+  netWorth,
+  spendingPace,
+  summarize,
+} from "../src/lib/analytics";
 import { localDate, parseMoney } from "../src/lib/format";
-import { categorizeTransaction } from "../src/lib/categorize";
+import {
+  categorizeTransaction,
+  cleanTransactionDescription,
+} from "../src/lib/categorize";
 import { syncAll, transactionKind } from "../src/lib/pluggy";
 
 fs.mkdirSync("work", { recursive: true });
@@ -53,7 +61,10 @@ const transaction = {
 };
 
 test("banco cria demonstração isolada dos dados pessoais", () => {
-  assert.ok(getData("demo").transactions.length > 0);
+  const demo = getData("demo");
+  assert.ok(demo.transactions.length > 0);
+  assert.ok(demo.recurrings.some((row) => row.type === "fixed"));
+  assert.ok(demo.recurrings.some((row) => row.type === "installment"));
   assert.equal(getData("personal").transactions.length, 0);
   assert.equal(getData("personal").groups.length, 5);
   assert.equal(database.pragma("journal_mode", { simple: true }), "wal");
@@ -195,7 +206,8 @@ test("resumo separa transferências, moedas e grupos", () => {
   ] as typeof data.transactions;
   assert.equal(summarize(data, "2026-11").balance, 90100);
   assert.equal(summarize(data, "2026-11").expenses, 9900);
-  assert.equal(summarize(data, "2026-11", "personal-life").expenses, 0);
+  assert.equal(summarize(data, "2026-11", "Transporte").expenses, 0);
+  assert.equal(summarize(data, "2026-11", "Alimentação").expenses, 9900);
 });
 test("patrimônio soma contas e investimentos e reconstrói a variação do mês", () => {
   const today = localDate();
@@ -270,6 +282,8 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           accountId: "a1",
           source: "manual",
           currency: "BRL",
+          installmentNumber: null,
+          installmentTotal: null,
         },
         {
           id: "t2",
@@ -283,6 +297,8 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           accountId: "a1",
           source: "manual",
           currency: "BRL",
+          installmentNumber: null,
+          installmentTotal: null,
         },
         {
           id: "t3",
@@ -296,6 +312,8 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           accountId: "a1",
           source: "manual",
           currency: "BRL",
+          installmentNumber: null,
+          installmentTotal: null,
         },
         {
           id: "t4",
@@ -309,11 +327,22 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           accountId: "a1",
           source: "manual",
           currency: "BRL",
+          installmentNumber: null,
+          installmentTotal: null,
         },
       ],
       groups: [],
       goals: [],
       connections: [],
+      recurrings: [],
+      plan: {
+        monthlyLimit: 0,
+        fixedCost: 0,
+        monthlySavings: 0,
+        expectedSalary: 0,
+        expectedFreelance: 0,
+      },
+      plans: {},
       pluggyConfigured: false,
       updatedAt: today,
     },
@@ -365,18 +394,61 @@ test("progresso de metas é acumulado sem criar movimento bancário", async () =
     400,
   );
 });
+test("remove prefixo de operação Open Finance da descrição", () => {
+  assert.equal(
+    cleanTransactionDescription(
+      "Pagamento efetuado|fornecedor local E SERVICOS",
+    ),
+    "fornecedor local E SERVICOS",
+  );
+  assert.equal(
+    cleanTransactionDescription(
+      "Transferência enviada pelo Pix|RGE SUL DISTRIBUIDORA DE ENERGIA S.A",
+    ),
+    "RGE SUL DISTRIBUIDORA DE ENERGIA S.A",
+  );
+  assert.equal(
+    cleanTransactionDescription("Transferência Recebida|Eduardo De Cesaro"),
+    "Eduardo De Cesaro",
+  );
+  assert.equal(
+    cleanTransactionDescription("NOLL &amp; CIA LTDA"),
+    "NOLL & CIA LTDA",
+  );
+  assert.equal(cleanTransactionDescription("Uber* Trip"), "Uber* Trip");
+});
+
 test("taxonomia local classifica descrição em categoria e grupo", () => {
   assert.deepEqual(categorizeTransaction({ description: "Uber* Trip" }), {
     category: "Transporte",
     groupId: "personal-life",
   });
   assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
-    category: "Alimentação",
-    groupId: "personal-home",
+    category: "Restaurantes",
+    groupId: "personal-life",
   });
   assert.deepEqual(
     categorizeTransaction({
       description: "Pagamento efetuado|UNIFIQUE TELECOMUNICACOES S A",
+    }),
+    { category: "Contas da casa", groupId: "personal-home" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({
+      description: "Pagamento efetuado|fornecedor local & CIA LTDA",
+    }),
+    { category: "Contas da casa", groupId: "personal-home" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({
+      description: "Pagamento efetuado|fornecedor local E SERVICOS",
+    }),
+    { category: "Contas da casa", groupId: "personal-home" },
+  );
+  assert.deepEqual(
+    categorizeTransaction({
+      description:
+        "Transferência enviada pelo Pix|RGE SUL DISTRIBUIDORA DE ENERGIA S.A",
     }),
     { category: "Contas da casa", groupId: "personal-home" },
   );
@@ -548,7 +620,7 @@ test("sincronização paginada é idempotente, preserva classificação e manté
           results: [
             {
               id: "remote-1",
-              description: "Movimento 1",
+              description: "Transferência Recebida|Movimento 1",
               amount: 12.34,
               date: "2026-11-10T12:00:00Z",
               type: "CREDIT",
@@ -562,7 +634,7 @@ test("sincronização paginada é idempotente, preserva classificação e manté
         results: [
           {
             id: "remote-2",
-            description: "Uber* Trip",
+            description: "Pagamento efetuado|Uber* Trip",
             amount: -22.56,
             date: "2026-11-10T12:00:00Z",
             type: "DEBIT",
@@ -585,6 +657,7 @@ test("sincronização paginada é idempotente, preserva classificação e manté
                 type: "FIXED_INCOME",
                 balance: 1200.25,
                 amount: 1300,
+                amountOriginal: 1100.5,
                 currencyCode: "BRL",
               },
             ],
@@ -596,18 +669,26 @@ test("sincronização paginada é idempotente, preserva classificação e manté
     let data = getData("personal");
     assert.equal(data.transactions.length, 2);
     assert.equal(data.accounts[0].balance, 123456);
+    const credit = data.transactions.find((t) => t.id === "remote-1");
+    assert.equal(credit?.description, "Movimento 1");
     const uber = data.transactions.find((t) => t.id === "remote-2");
+    assert.equal(uber?.description, "Uber* Trip");
     assert.equal(uber?.amount, 2256);
     assert.equal(uber?.category, "Transporte");
     assert.equal(uber?.groupId, "personal-life");
     assert.equal(data.investments[0].balance, 120025);
-    assert.equal(data.investments[0].invested, null);
+    assert.equal(data.investments[0].invested, 110050);
     database
       .prepare(
         "UPDATE transactions SET group_id='personal-life',category='Minha categoria',kind='transfer',user_categorized=1 WHERE id='remote-2'",
       )
       .run();
     assert.equal((await syncAll())[0].ok, true);
+    assert.equal(
+      getData("personal").investments.find((row) => row.id === "investment-test")
+        ?.invested,
+      110050,
+    );
     data = getData("personal");
     assert.equal(data.transactions.length, 2);
     assert.equal(
@@ -638,4 +719,109 @@ test("sincronização paginada é idempotente, preserva classificação e manté
     delete process.env.PLUGGY_CLIENT_ID;
     delete process.env.PLUGGY_CLIENT_SECRET;
   }
+});
+
+test("previsão CNPJ separa salário e freela e usa max(previsto, recebido)", () => {
+  assert.equal(
+    isCnpjIncome("Transferência Recebida|45.548.809 EDUARDO DE CESARO AMARANTE"),
+    true,
+  );
+  const month = localDate().slice(0, 7);
+  const pace = spendingPace(
+    {
+      mode: "personal",
+      accounts: [],
+      investments: [],
+      transactions: [
+        {
+          id: "s1",
+          description:
+            "Transferência Recebida|45.548.809 EDUARDO DE CESARO AMARANTE",
+          amount: 920_000,
+          kind: "income",
+          date: `${month}-06`,
+          status: "paid",
+          groupId: "personal-work",
+          category: "Salário",
+          accountId: null,
+          source: "manual",
+          currency: "BRL",
+          installmentNumber: null,
+          installmentTotal: null,
+        },
+        {
+          id: "f1",
+          description:
+            "Transferência Recebida|45.548.809 EDUARDO DE CESARO AMARANTE",
+          amount: 160_000,
+          kind: "income",
+          date: `${month}-10`,
+          status: "paid",
+          groupId: "personal-work",
+          category: "Freela",
+          accountId: null,
+          source: "manual",
+          currency: "BRL",
+          installmentNumber: null,
+          installmentTotal: null,
+        },
+      ],
+      groups: [],
+      goals: [],
+      connections: [],
+      recurrings: [],
+      plan: {
+        monthlyLimit: 500_000,
+        fixedCost: 200_000,
+        monthlySavings: 500_000,
+        expectedSalary: 880_000,
+        expectedFreelance: 200_000,
+      },
+      plans: {},
+      pluggyConfigured: false,
+      updatedAt: localDate(),
+    },
+    month,
+  );
+  assert.equal(pace.salaryReceived, 920_000);
+  assert.equal(pace.freelanceReceived, 160_000);
+  assert.equal(pace.forecastSalary, 920_000);
+  assert.equal(pace.forecastFreelance, 200_000);
+  assert.equal(pace.forecastIncome, 1_120_000);
+  // Limite Visor = renda − guardar (não o teto digitado 5000).
+  assert.equal(pace.monthlyLimit, 1_120_000 - 500_000);
+  assert.equal(pace.typedTeto, 500_000);
+});
+
+test("planejamento é salvo por mês e herda o mês anterior", async () => {
+  await PATCH(
+    req("PATCH", "plan", {
+      month: "2026-10",
+      monthlyLimit: 400_000,
+      fixedCost: 150_000,
+      monthlySavings: 300_000,
+      expectedSalary: 850_000,
+      expectedFreelance: 100_000,
+    }),
+    ctx("plan"),
+  );
+  await PATCH(
+    req("PATCH", "plan", {
+      month: "2026-11",
+      monthlyLimit: 500_000,
+      fixedCost: 200_000,
+      monthlySavings: 500_000,
+      expectedSalary: 880_000,
+      expectedFreelance: 250_000,
+    }),
+    ctx("plan"),
+  );
+  const data = getData("personal");
+  assert.equal(data.plans["2026-10"]?.expectedFreelance, 100_000);
+  assert.equal(data.plans["2026-11"]?.expectedFreelance, 250_000);
+  assert.equal(data.plans["2026-10"]?.monthlyLimit, 400_000);
+  assert.equal(data.plans["2026-11"]?.monthlyLimit, 500_000);
+  const { planForMonth } = await import("../src/lib/analytics");
+  assert.equal(planForMonth(data, "2026-12").expectedFreelance, 250_000);
+  assert.equal(planForMonth(data, "2026-09").expectedFreelance, data.plan.expectedFreelance);
 });

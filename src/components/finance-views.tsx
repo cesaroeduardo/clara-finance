@@ -1,8 +1,17 @@
 "use client";
-import { useContext, useEffect, useId, useRef, useState } from "react";
 import {
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  ArrowDown,
   ArrowDownLeft,
   ArrowSquareOut,
+  ArrowUp,
   ArrowUpRight,
   ArrowsClockwise,
   ArrowsLeftRight,
@@ -11,18 +20,15 @@ import {
   CaretLeft,
   CaretRight,
   Check,
-  Circle,
   CreditCard,
   DownloadSimple,
   DotsThree,
-  Eye,
   Info,
   MagnifyingGlass,
   PencilSimple,
   Plant,
   Plus,
   ShieldCheck,
-  Target,
   Wallet,
 } from "@phosphor-icons/react";
 import {
@@ -31,14 +37,17 @@ import {
   ComposedChart,
   Line,
   ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { FinanceIcon, Illustration } from "./finance-icons";
+import { FieldSelect } from "@/components/ui/field-select";
+import { CategoryImage, FinanceIcon, Illustration } from "./finance-icons";
+import { MerchantLogo } from "./merchant-logo";
+import { MarketTickers } from "./market-tickers";
 import { PrivacyContext } from "./finance-privacy";
 import {
   AnimatedLabel,
@@ -51,12 +60,17 @@ import type { Account, FinanceData, Goal, Transaction } from "@/lib/types";
 import type { View } from "./finance-app";
 import {
   filterTransactions,
-  matchesGroupFilter,
+  investmentBucket,
+  investmentsOverview,
+  matchesCategoryFilter,
   netWorth,
+  planForMonth,
   spendingPace,
   summarize,
 } from "@/lib/analytics";
-import { colorForCategory, iconForCategory } from "@/lib/categorize";
+import type { MarketQuote } from "@/lib/market";
+import { extractEquityTickers } from "@/lib/market";
+import { colorForCategory, imageForCategory } from "@/lib/categorize";
 import {
   compactMoney,
   dateLabel,
@@ -115,6 +129,7 @@ function cardInvoiceTotal(
   accountId: string,
   month: string,
   pendingOnly = false,
+  category = "all",
 ) {
   return data.transactions
     .filter(
@@ -123,13 +138,13 @@ function cardInvoiceTotal(
         row.currency === "BRL" &&
         row.kind === "expense" &&
         row.date.startsWith(month) &&
+        matchesCategoryFilter(row.category, category) &&
         (!pendingOnly || row.status === "pending"),
     )
     .reduce((total, row) => total + row.amount, 0);
 }
 
 type TransactionFilters = {
-  groupId?: string;
   category?: string;
   type?: string;
 };
@@ -137,13 +152,12 @@ type TransactionFilters = {
 type Props = {
   data: FinanceData;
   month: string;
-  group: string;
+  category: string;
+  setCategory: (value: string) => void;
   query: string;
   setQuery: (value: string) => void;
   txType: string;
   setTxType: (value: string) => void;
-  txCategory: string;
-  setTxCategory: (value: string) => void;
   openForm: (form: FormState) => void;
   mutate: Mutate;
   navigate: (view: View) => void;
@@ -287,6 +301,26 @@ function StatusTag({
   );
 }
 
+function GrowthTag({
+  value,
+  children,
+}: {
+  value: number;
+  children: React.ReactNode;
+}) {
+  const down = value < 0;
+  return (
+    <span className={`home-growth-badge${down ? " negative" : ""}`}>
+      {down ? (
+        <ArrowDown size={12} weight="bold" />
+      ) : (
+        <ArrowUp size={12} weight="bold" />
+      )}
+      {children}
+    </span>
+  );
+}
+
 function Empty({
   title,
   description,
@@ -308,9 +342,19 @@ function Empty({
   );
 }
 export function DashboardView(props: Props) {
-  const { data, month, group, openForm, navigate, openTransactions } = props;
-  const stats = summarize(data, month, group);
-  const pace = spendingPace(data, month, group);
+  const {
+    data,
+    month,
+    category,
+    setCategory,
+    openForm,
+    navigate,
+    openTransactions,
+  } = props;
+  const plan = planForMonth(data, month);
+  const scoped = { ...data, plan };
+  const stats = summarize(scoped, month, category);
+  const pace = spendingPace(scoped, month, category);
   const hidden = useContext(PrivacyContext);
   const reducedMotion = useReducedMotion();
   const [insightIndex, setInsightIndex] = useState(0);
@@ -320,22 +364,46 @@ export function DashboardView(props: Props) {
     .reduce((sum, row) => sum + row.amount, 0);
   const confirmedExpenses = stats.paid;
   const confirmedResult = confirmedIncome - confirmedExpenses;
-  const bills = pendingBills(data, month, group);
-  const featuredGoal =
-    stats.goals.find((goal) => goal.icon === "shield") || stats.goals[0];
-  const wealth = netWorth(data);
+  const previousMonthKey = shiftMonthKey(month, -1);
+  const previousStats = summarize(scoped, previousMonthKey, category);
+  const previousIncome = previousStats.records
+    .filter((row) => row.status === "paid" && row.kind === "income")
+    .reduce((sum, row) => sum + row.amount, 0);
+  const previousResult = previousIncome - previousStats.paid;
+  const resultDelta = confirmedResult - previousResult;
+  const resultDeltaPercent =
+    previousResult === 0
+      ? confirmedResult === 0
+        ? 0
+        : null
+      : (resultDelta / Math.abs(previousResult)) * 100;
+  const bills = pendingBills(scoped, month, category);
+  const wealth = netWorth(scoped);
   const wealthFlow = wealth.series.map((point) => ({
     month: point.month,
     value: point.value / 100,
   }));
-  const updateGoal = (goal: Goal) =>
-    openForm({ resource: "goals", record: record(goal), contribute: true });
+  const openPlan = () =>
+    openForm({
+      resource: "plan",
+      month,
+      record: record({ ...plan, month }),
+    });
+  const currentMonth = localDate().slice(0, 7);
+  const isPastMonth = month < currentMonth;
+  const monthResult = stats.balance;
+  const monthPositive = monthResult >= 0;
   const underPace = pace.paceDelta >= 0;
   const paceStroke = underPace ? "var(--success)" : "var(--destructive)";
-  const paceFill = underPace
+  const paceFill = paceStroke;
+  const resultStroke = monthPositive
     ? "var(--success)"
     : "var(--destructive)";
   const todayPoint = pace.series.find((point) => point.day === pace.todayDay);
+  const resultFlow = stats.flow.map((point) => ({
+    day: point.day,
+    result: point.income - point.expenses,
+  }));
   const shiftDelta = pace.categoryShift?.delta;
   const shiftCategory = pace.categoryShift?.category;
   const shiftInsight =
@@ -359,45 +427,94 @@ export function DashboardView(props: Props) {
             </>
           ),
         };
-  const insights = [
-    {
-      id: "pace",
-      title: "Ritmo de gastos",
-      body: (
-        <>
-          Você usou{" "}
-          <strong>
-            <AnimatedLabel value={`${pace.limitUsedPercent}%`} />
-          </strong>{" "}
-          do limite. No ritmo atual, pode gastar até{" "}
-          <strong>
-            <Amount value={pace.dailyAllowance} motion="reel" />
-          </strong>{" "}
-          por dia até o fim do mês.
-        </>
-      ),
-    },
-    shiftInsight,
-    {
-      id: "projection",
-      title: "Projeção de saldo",
-      body: (
-        <>
-          Mantendo seu ritmo atual, em 3 meses você terá{" "}
-          <strong>
-            <Amount
-              value={Math.abs(pace.projectedSurplus3m)}
-              motion="reel"
-            />{" "}
-            {pace.projectedSurplus3m >= 0 ? "sobrando" : "a menos"}
-          </strong>{" "}
-          {pace.projectedSurplus3m >= 0
-            ? "para usar como quiser."
-            : "no limite planejado."}
-        </>
-      ),
-    },
-  ];
+  const insights = isPastMonth
+    ? [
+        {
+          id: "result",
+          title: "Resultado do mês",
+          body: (
+            <>
+              O mês fechou{" "}
+              <strong>
+                {monthPositive ? "positivo" : "negativo"} em{" "}
+                <Amount value={Math.abs(monthResult)} motion="reel" />
+              </strong>
+              . Entradas{" "}
+              <Amount value={stats.income} /> · saídas{" "}
+              <Amount value={stats.expenses} />.
+            </>
+          ),
+        },
+        shiftInsight,
+        {
+          id: "limit",
+          title: "Uso do teto",
+          body:
+            pace.monthlyLimit > 0 ? (
+              <>
+                Você usou{" "}
+                <strong>
+                  <AnimatedLabel value={`${pace.limitUsedPercent}%`} />
+                </strong>{" "}
+                do teto de <Amount value={pace.monthlyLimit} />.
+              </>
+            ) : (
+              <>Sem teto definido para esse mês.</>
+            ),
+        },
+      ]
+    : [
+        {
+          id: "pace",
+          title: "Ritmo de gastos",
+          body: (
+            <>
+              Você usou{" "}
+              <strong>
+                <AnimatedLabel value={`${pace.limitUsedPercent}%`} />
+              </strong>{" "}
+              do limite. No ritmo atual, pode gastar até{" "}
+              <strong>
+                <Amount value={pace.dailyAllowance} motion="reel" />
+              </strong>{" "}
+              por dia até o fim do mês.
+            </>
+          ),
+        },
+        shiftInsight,
+        {
+          id: "projection",
+          title: "Renda e sobra",
+          body:
+            pace.forecastIncome > 0 ? (
+              <>
+                Renda prevista do CNPJ{" "}
+                <Amount value={pace.forecastIncome} />
+                {pace.salaryReceived + pace.freelanceReceived > 0 ? (
+                  <>
+                    {" "}
+                    (já entrou{" "}
+                    <Amount
+                      value={pace.salaryReceived + pace.freelanceReceived}
+                    />
+                    )
+                  </>
+                ) : null}
+                . Depois do gasto e da meta de guardar, o mês tende a fechar{" "}
+                <strong>
+                  {pace.forecastResult >= 0 ? "positivo" : "negativo"} em{" "}
+                  <Amount value={Math.abs(pace.forecastResult)} motion="reel" />
+                </strong>
+                .
+              </>
+            ) : (
+              <>
+                Defina salário e freelas no planejamento para fechar a previsão
+                com a renda do CNPJ.
+              </>
+            ),
+        },
+      ];
   const activeInsight = insights[insightIndex] ?? insights[0];
   const showPrevInsight = () => {
     setInsightDir(-1);
@@ -407,6 +524,18 @@ export function DashboardView(props: Props) {
     setInsightDir(1);
     setInsightIndex((index) => (index + 1) % insights.length);
   };
+  useEffect(() => {
+    setInsightIndex(0);
+  }, [month, isPastMonth]);
+  useEffect(() => {
+    const blocked = isPastMonth ? false : pace.empty;
+    if (blocked || insights.length < 2) return;
+    const timer = window.setInterval(() => {
+      setInsightDir(1);
+      setInsightIndex((index) => (index + 1) % insights.length);
+    }, 7000);
+    return () => window.clearInterval(timer);
+  }, [pace.empty, insights.length, insightIndex, isPastMonth]);
   const insightSlide = {
     enter: (direction: number) => ({
       opacity: 0,
@@ -431,15 +560,158 @@ export function DashboardView(props: Props) {
         <section className="finance-card home-forecast">
           <div className="home-forecast-body">
             <div className="home-card-heading">
-              <h2>Você ainda pode gastar</h2>
-              <span title="Limite = entradas do mês menos o aporte estimado das metas. O ritmo ideal divide esse limite pelos dias do mês. A linha sólida projeta o gasto até o fim do mês no ritmo atual.">
-                <Info size={14} aria-label="Cálculo do limite de gastos" />
-              </span>
-            </div>
-            {pace.empty ? (
-              <div className="home-pace-empty">
-                <p>Sem entradas neste mês.</p>
+              <h2>
+                {isPastMonth ? "Resultado do mês" : "Você ainda pode gastar"}
+              </h2>
+              <div className="home-pace-heading-actions">
+                <span
+                  title={
+                    isPastMonth
+                      ? "Entradas menos saídas do mês selecionado."
+                      : "Limite = renda do CNPJ (o maior entre previsto e já entrada) − quanto guardar. Gastos incluem fatura aberta e reserva de alimentação ainda não usada."
+                  }
+                >
+                  <Info
+                    size={14}
+                    aria-label={
+                      isPastMonth
+                        ? "Cálculo do resultado do mês"
+                        : "Cálculo do quanto ainda pode gastar"
+                    }
+                  />
+                </span>
+                {!isPastMonth && (
+                  <button
+                    type="button"
+                    className="home-pace-edit"
+                    aria-label="Editar planejamento"
+                    onClick={openPlan}
+                  >
+                    <PencilSimple size={14} />
+                  </button>
+                )}
               </div>
+            </div>
+            {!isPastMonth && pace.empty ? (
+              <div className="home-pace-empty">
+                <p>
+                  Defina a renda prevista (ou o teto fallback) no planejamento.
+                </p>
+                <Button type="button" size="sm" onClick={openPlan}>
+                  Planejamento
+                </Button>
+              </div>
+            ) : isPastMonth ? (
+              <>
+                <div className="home-amount home-forecast-amount home-pace-amount">
+                  <Amount value={monthResult} motion="reel" />
+                </div>
+                <div
+                  className="home-chart home-pace-chart"
+                  role="img"
+                  aria-label="Resultado acumulado do mês"
+                  aria-hidden={hidden}
+                >
+                  {!hidden && (
+                    <span
+                      className={`home-pace-pill ${monthPositive ? "" : "over"}`.trim()}
+                    >
+                      {monthPositive ? "Positivo" : "Negativo"}
+                    </span>
+                  )}
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <ComposedChart
+                      data={resultFlow}
+                      accessibilityLayer={!hidden}
+                      margin={{ top: 28, right: 0, bottom: 0, left: 0 }}
+                    >
+                      <defs>
+                        <linearGradient
+                          id="home-result-fill"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor={resultStroke}
+                            stopOpacity={0.18}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor={resultStroke}
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <XAxis
+                        dataKey="day"
+                        hide
+                        domain={[1, resultFlow.length]}
+                      />
+                      <YAxis hide domain={["auto", "auto"]} />
+                      <ReferenceLine
+                        y={0}
+                        stroke="var(--border)"
+                        strokeDasharray="3 3"
+                      />
+                      {!hidden && (
+                        <Tooltip
+                          formatter={(value) => {
+                            if (value == null) return [null, ""];
+                            return [
+                              money(Number(value) * 100),
+                              "Resultado",
+                            ];
+                          }}
+                          labelFormatter={(day) => `Dia ${day}`}
+                          contentStyle={{
+                            borderRadius: 8,
+                            border: "1px solid var(--border)",
+                            fontSize: 11,
+                            background: "var(--popover)",
+                            color: "var(--foreground)",
+                          }}
+                        />
+                      )}
+                      <Area
+                        dataKey="result"
+                        type="monotone"
+                        stroke="none"
+                        fill="url(#home-result-fill)"
+                        isAnimationActive={!hidden && !reducedMotion}
+                        animationDuration={800}
+                        animationEasing="ease-out"
+                      />
+                      <Line
+                        dataKey="result"
+                        type="monotone"
+                        stroke={resultStroke}
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={!hidden && !reducedMotion}
+                        animationDuration={800}
+                        animationEasing="ease-out"
+                      />
+                      {resultFlow.length > 0 && (
+                        <ReferenceDot
+                          x={resultFlow.at(-1)!.day}
+                          y={resultFlow.at(-1)!.result}
+                          r={4}
+                          fill={resultStroke}
+                          stroke="var(--card)"
+                          strokeWidth={2}
+                        />
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="home-chart-dates">
+                  <span>01</span>
+                  <span>{String(resultFlow.length).padStart(2, "0")}</span>
+                </div>
+              </>
             ) : (
               <>
                 <div className="home-amount home-forecast-amount home-pace-amount">
@@ -451,7 +723,7 @@ export function DashboardView(props: Props) {
                 <div
                   className="home-chart home-pace-chart"
                   role="img"
-                  aria-label="Ritmo ideal, gasto acumulado e previsão até o fim do mês"
+                  aria-label="Ritmo ideal e gasto acumulado do mês"
                   aria-hidden={hidden}
                 >
                   {!hidden && (
@@ -466,7 +738,7 @@ export function DashboardView(props: Props) {
                     <ComposedChart
                       data={pace.series}
                       accessibilityLayer={!hidden}
-                      margin={{ top: 28, right: 10, bottom: 0, left: 6 }}
+                      margin={{ top: 28, right: 0, bottom: 0, left: 0 }}
                     >
                       <defs>
                         <linearGradient
@@ -495,11 +767,7 @@ export function DashboardView(props: Props) {
                           formatter={(value, name) => {
                             if (value == null) return [null, ""];
                             const label =
-                              name === "ideal"
-                                ? "Ritmo ideal"
-                                : name === "forecast"
-                                  ? "Previsão"
-                                  : "Gasto";
+                              name === "ideal" ? "Ritmo ideal" : "Gasto";
                             return [money(Number(value) * 100), label];
                           }}
                           labelFormatter={(day) => `Dia ${day}`}
@@ -513,10 +781,11 @@ export function DashboardView(props: Props) {
                         />
                       )}
                       <Area
-                        dataKey="track"
+                        dataKey="actual"
                         type="monotone"
                         stroke="none"
                         fill="url(#home-pace-fill)"
+                        connectNulls={false}
                         isAnimationActive={!hidden && !reducedMotion}
                         animationDuration={800}
                         animationEasing="ease-out"
@@ -538,19 +807,6 @@ export function DashboardView(props: Props) {
                         type="monotone"
                         stroke={paceStroke}
                         strokeWidth={2}
-                        dot={false}
-                        connectNulls={false}
-                        isAnimationActive={!hidden && !reducedMotion}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                      <Line
-                        dataKey="forecast"
-                        type="linear"
-                        stroke={paceStroke}
-                        strokeWidth={2}
-                        strokeDasharray="5 4"
-                        strokeOpacity={0.7}
                         dot={false}
                         connectNulls={false}
                         isAnimationActive={!hidden && !reducedMotion}
@@ -584,11 +840,14 @@ export function DashboardView(props: Props) {
               onClick={() => openTransactions()}
             >
               <span>
-                <Eye size={15} />
                 <span className="home-pace-insight-title">
                   <AnimatePresence mode="wait" initial={false} custom={insightDir}>
                     <m.span
-                      key={pace.empty ? "empty" : activeInsight.id}
+                      key={
+                        !isPastMonth && pace.empty
+                          ? "empty"
+                          : activeInsight.id
+                      }
                       className="home-pace-insight-title-value"
                       custom={insightDir}
                       variants={insightSlide}
@@ -600,7 +859,9 @@ export function DashboardView(props: Props) {
                         ease: [0.22, 1, 0.36, 1],
                       }}
                     >
-                      {pace.empty ? "Ritmo de gastos" : activeInsight.title}
+                      {!isPastMonth && pace.empty
+                        ? "Ritmo de gastos"
+                        : activeInsight.title}
                     </m.span>
                   </AnimatePresence>
                 </span>
@@ -610,7 +871,9 @@ export function DashboardView(props: Props) {
             <div className="home-pace-insight-body" aria-live="polite">
               <AnimatePresence mode="wait" initial={false} custom={insightDir}>
                 <m.p
-                  key={pace.empty ? "empty" : activeInsight.id}
+                  key={
+                    !isPastMonth && pace.empty ? "empty" : activeInsight.id
+                  }
                   className="home-pace-insight-copy"
                   custom={insightDir}
                   variants={insightSlide}
@@ -622,9 +885,9 @@ export function DashboardView(props: Props) {
                     ease: [0.22, 1, 0.36, 1],
                   }}
                 >
-                  {pace.empty ? (
+                  {!isPastMonth && pace.empty ? (
                     <>
-                      Cadastre entradas do mês para ver o ritmo e as projeções.
+                      Defina salário/freelas no planejamento para ver o ritmo.
                     </>
                   ) : (
                     activeInsight.body
@@ -637,7 +900,7 @@ export function DashboardView(props: Props) {
                 type="button"
                 aria-label="Insight anterior"
                 onClick={showPrevInsight}
-                disabled={pace.empty}
+                disabled={!isPastMonth && pace.empty}
               >
                 <CaretLeft size={14} />
               </button>
@@ -649,7 +912,7 @@ export function DashboardView(props: Props) {
                     className="home-pace-insight-dot"
                     aria-label={`Ver ${insight.title}`}
                     aria-current={index === insightIndex}
-                    disabled={pace.empty}
+                    disabled={!isPastMonth && pace.empty}
                     onClick={() => {
                       setInsightDir(index > insightIndex ? 1 : -1);
                       setInsightIndex(index);
@@ -672,7 +935,7 @@ export function DashboardView(props: Props) {
                 type="button"
                 aria-label="Próximo insight"
                 onClick={showNextInsight}
-                disabled={pace.empty}
+                disabled={!isPastMonth && pace.empty}
               >
                 <CaretRight size={14} />
               </button>
@@ -682,11 +945,7 @@ export function DashboardView(props: Props) {
         <button
           className="finance-card home-bills-summary"
           aria-label="Ver contas a pagar"
-          onClick={() => {
-            const card = document.getElementById("home-pending");
-            card?.focus({ preventScroll: true });
-            card?.scrollIntoView({ block: "nearest", behavior: "instant" });
-          }}
+          onClick={() => openTransactions({ type: "expense" })}
         >
           <span className="home-summary-symbol">
             <CalendarDots size={18} />
@@ -697,7 +956,10 @@ export function DashboardView(props: Props) {
               {bills.length === 1 ? "conta a pagar" : "contas a pagar"}
             </strong>
             <span>
-              <Amount value={stats.pending} motion="reel" />
+              <Amount
+                value={bills.reduce((sum, row) => sum + row.amount, 0)}
+                motion="reel"
+              />
               {bills[0] && <span> · {dateLabel(bills[0].date)}</span>}
             </span>
           </span>
@@ -708,15 +970,17 @@ export function DashboardView(props: Props) {
       <SpendingDistribution
         data={data}
         month={month}
-        group={group}
+        category={category}
+        setCategory={setCategory}
         navigate={navigate}
-        openTransactions={openTransactions}
       />
 
       <div className="home-left-stack">
         <section className="finance-card home-result">
           <div className="home-card-heading">
-            <h2>Resultado mensal</h2>
+            <h2>
+              {isPastMonth ? "Resultado do mês" : "Resultado até agora"}
+            </h2>
             <DashboardLink
               label="Ver lançamentos"
               onClick={() => openTransactions()}
@@ -726,13 +990,28 @@ export function DashboardView(props: Props) {
             <strong className="home-amount">
               <Amount value={confirmedResult} motion="reel" />
             </strong>
-            <span className="home-neutral-badge">Confirmado</span>
+            {resultDeltaPercent != null && (
+              <GrowthTag value={resultDelta}>
+                {hidden
+                  ? "••••"
+                  : `${resultDeltaPercent > 0 ? "+" : ""}${resultDeltaPercent.toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`}
+              </GrowthTag>
+            )}
           </div>
+          <p className="home-result-compare">
+            {hidden ? (
+              "vs •••••• mês anterior"
+            ) : (
+              <>
+                vs <Amount value={previousResult} /> mês anterior
+              </>
+            )}
+          </p>
           <div className="home-result-metrics">
             <div>
               <span>
                 <ArrowDownLeft size={13} className="positive" />
-                Entradas
+                Receita
               </span>
               <strong>
                 <Amount value={confirmedIncome} motion="reel" />
@@ -741,7 +1020,7 @@ export function DashboardView(props: Props) {
             <div>
               <span>
                 <ArrowUpRight size={13} className="negative" />
-                Saídas
+                Gasto
               </span>
               <strong>
                 <Amount value={confirmedExpenses} motion="reel" />
@@ -750,92 +1029,16 @@ export function DashboardView(props: Props) {
           </div>
         </section>
 
-        <section className="finance-card home-featured-goal">
-          <div className="home-card-heading">
-            <h2>{featuredGoal ? featuredGoal.name : "Meta em destaque"}</h2>
-            <DashboardLink
-              label="Ver metas"
-              onClick={() => navigate("goals")}
-            />
-          </div>
-          {featuredGoal ? (
-            <>
-              <div className="home-goal-main">
-                <div>
-                  <strong className="home-amount">
-                    <Amount value={featuredGoal.current} motion="reel" />
-                  </strong>
-                  <span className="home-goal-target">
-                    de <Amount value={featuredGoal.target} />
-                  </span>
-                  <span className="home-neutral-badge">
-                    {Math.min(
-                      100,
-                      Math.round(
-                        (featuredGoal.current / featuredGoal.target) * 100,
-                      ),
-                    )}
-                    %
-                  </span>
-                </div>
-                <div className="home-goal-ring" aria-hidden="true">
-                  <svg viewBox="0 0 120 120">
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r="51"
-                      fill="none"
-                      stroke="var(--track)"
-                      strokeWidth="8"
-                    />
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r="51"
-                      fill="none"
-                      stroke={featuredGoal.color}
-                      strokeWidth="8"
-                      pathLength="100"
-                      strokeDasharray={`${Math.min(100, Math.max(0, (featuredGoal.current / featuredGoal.target) * 100))} 100`}
-                      transform="rotate(-90 60 60)"
-                    />
-                  </svg>
-                  <Illustration
-                    name={assetNames[featuredGoal.icon] || "target"}
-                  />
-                </div>
-              </div>
-              <div className="home-card-footer">
-                <span>
-                  Prazo: {dateLabel(featuredGoal.deadline)}{" "}
-                  {featuredGoal.deadline.slice(0, 4)}
-                </span>
-                <button
-                  className="text-link"
-                  onClick={() => updateGoal(featuredGoal)}
-                >
-                  <Plus size={13} />
-                  Atualizar
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="home-empty">
-              <Target size={25} />
-              <span>Nenhuma meta</span>
-              <Button
-                variant="outline"
-                onClick={() => openForm({ resource: "goals" })}
-              >
-                <Plus size={14} />
-                Nova meta
-              </Button>
-            </div>
-          )}
-        </section>
+        <MarketTickers data={data} />
       </div>
 
       <div className="home-middle-stack">
+        <HomeInvestmentsCard
+          data={data}
+          month={month}
+          navigate={navigate}
+          openForm={openForm}
+        />
         <section className="finance-card home-wealth">
           <div className="home-card-heading">
             <h2>Patrimônio</h2>
@@ -859,13 +1062,11 @@ export function DashboardView(props: Props) {
                   <Amount value={wealth.current} motion="reel" />
                 </strong>
                 {wealth.change !== 0 && (
-                  <span
-                    className={`home-growth-badge ${wealth.change < 0 ? "negative" : ""}`}
-                  >
+                  <GrowthTag value={wealth.change}>
                     {hidden
                       ? "••••"
                       : `${wealth.change > 0 ? "+" : ""}${compactMoney(wealth.change)}`}
-                  </span>
+                  </GrowthTag>
                 )}
               </div>
               <div
@@ -878,7 +1079,7 @@ export function DashboardView(props: Props) {
                   <AreaChart
                     data={wealthFlow}
                     accessibilityLayer={!hidden}
-                    margin={{ top: 8, right: 4, bottom: 0, left: 4 }}
+                    margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
                   >
                     <defs>
                       <linearGradient
@@ -955,11 +1156,16 @@ export function DashboardView(props: Props) {
             </>
           )}
         </section>
-
-        <UpcomingCard {...props} />
       </div>
 
-      <CreditCardsCard data={data} month={month} navigate={navigate} />
+      <div className="home-right-stack">
+        <CreditCardsCard
+          data={data}
+          month={month}
+          category={category}
+          navigate={navigate}
+        />
+      </div>
     </div>
   );
 }
@@ -982,15 +1188,16 @@ function DashboardLink({
   );
 }
 
-function pendingBills(data: FinanceData, month: string, group: string) {
+function pendingBills(data: FinanceData, month: string, category: string) {
   return data.transactions
     .filter(
       (row) =>
         row.kind === "expense" &&
         row.status === "pending" &&
+        row.source !== "pluggy" &&
         row.currency === "BRL" &&
         row.date.startsWith(month) &&
-        matchesGroupFilter(row.groupId, group),
+        matchesCategoryFilter(row.category, category),
     )
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -998,13 +1205,12 @@ function pendingBills(data: FinanceData, month: string, group: string) {
 function SpendingDistribution({
   data,
   month,
-  group,
+  category,
+  setCategory,
   navigate,
-  openTransactions,
-}: Pick<Props, "data" | "month" | "group" | "navigate" | "openTransactions">) {
-  const [breakdown, setBreakdown] = useState("category");
+}: Pick<Props, "data" | "month" | "category" | "setCategory" | "navigate">) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const stats = summarize(data, month, group);
+  const stats = summarize(data, month, "all");
   const categories = new Map<
     string,
     {
@@ -1013,13 +1219,14 @@ function SpendingDistribution({
       spent: number;
       color: string;
       icon: string;
+      image: string | null;
       budget: number;
     }
   >();
   for (const row of stats.records.filter((row) => row.kind === "expense")) {
     const name = row.category || "Sem categoria";
-    const category = categories.get(name);
-    if (category) category.spent += row.amount;
+    const entry = categories.get(name);
+    if (entry) entry.spent += row.amount;
     else {
       const parent = data.groups.find((item) => item.id === row.groupId);
       categories.set(name, {
@@ -1027,33 +1234,15 @@ function SpendingDistribution({
         name,
         spent: row.amount,
         color: colorForCategory(name, categories.size),
-        icon: iconForCategory(name, parent?.icon || "layers"),
+        icon: parent?.icon || "layers",
+        image: imageForCategory(name),
         budget: 0,
       });
     }
   }
-  const source =
-    breakdown === "group"
-      ? [
-          ...stats.groups,
-          ...(stats.expenses >
-          stats.groups.reduce((sum, item) => sum + item.spent, 0)
-            ? [
-                {
-                  id: "ungrouped",
-                  name: "Sem grupo",
-                  spent:
-                    stats.expenses -
-                    stats.groups.reduce((sum, item) => sum + item.spent, 0),
-                  budget: 0,
-                  color: "var(--chart-3)",
-                  icon: "layers",
-                },
-              ]
-            : []),
-        ]
-      : [...categories.values()];
-  const visible = source.filter((item) => item.spent > 0 || item.budget > 0);
+  const visible = [...categories.values()].filter(
+    (item) => item.spent > 0 || item.budget > 0,
+  );
   const uncategorized = visible.find(
     (item) => item.name === "Sem categoria" || item.id === "Sem categoria",
   );
@@ -1077,7 +1266,8 @@ function SpendingDistribution({
               .slice(namedLimit)
               .reduce((sum, item) => sum + item.budget, 0),
             color: colorForCategory("Outros"),
-            icon: iconForCategory("Outros"),
+            icon: "layers",
+            image: imageForCategory("Outros"),
           },
           ...(uncategorized ? [uncategorized] : []),
         ]
@@ -1091,43 +1281,24 @@ function SpendingDistribution({
     const end = start + (item.spent / total) * 100;
     return { ...item, start, end };
   });
-  const hovered = slices.find((item) => item.id === hoveredId) ?? null;
-  function openItem(item: (typeof items)[number]) {
+  const activeId = category === "all" ? null : category;
+  const hovered =
+    slices.find((item) => item.id === hoveredId) ??
+    slices.find((item) => item.id === activeId) ??
+    null;
+  const filteringId = hoveredId || activeId;
+  function selectItem(item: (typeof items)[number]) {
     if (item.id === "other") {
-      openTransactions({ type: "expense", category: "all", groupId: group });
+      setCategory("all");
       return;
     }
-    if (breakdown === "group") {
-      openTransactions({
-        type: "expense",
-        category: "all",
-        groupId: item.id,
-      });
-      return;
-    }
-    openTransactions({
-      type: "expense",
-      category: item.name,
-      groupId: group,
-    });
+    setCategory(category === item.name ? "all" : item.name);
   }
   return (
     <section className="finance-card home-distribution">
       <div className="home-card-heading">
         <h2>Distribuição dos gastos</h2>
         <div className="home-distribution-actions">
-          <MotionSegmentedControl
-            value={breakdown}
-            onChange={(value) => {
-              setBreakdown(value);
-              setHoveredId(null);
-            }}
-            options={[
-              ["category", "Categorias"],
-              ["group", "Grupos"],
-            ]}
-            label="Distribuição por"
-          />
           <DashboardLink
             label="Gerenciar grupos"
             onClick={() => navigate("groups")}
@@ -1138,7 +1309,7 @@ function SpendingDistribution({
         className="home-distribution-body"
         onMouseLeave={() => setHoveredId(null)}
       >
-        <div className={`home-donut${hoveredId ? " is-filtering" : ""}`}>
+        <div className={`home-donut${filteringId ? " is-filtering" : ""}`}>
           {slices.length ? (
             <svg
               className="home-donut-svg"
@@ -1148,11 +1319,11 @@ function SpendingDistribution({
               {slices.map((item) => (
                 <path
                   key={item.id}
-                  className={`home-donut-slice${hoveredId === item.id ? " is-hovered" : ""}`}
+                  className={`home-donut-slice${filteringId === item.id ? " is-hovered" : ""}`}
                   d={donutSlicePath(50, 50, 48, 33, item.start, item.end)}
                   fill={item.color}
                   onMouseEnter={() => setHoveredId(item.id)}
-                  onClick={() => openItem(item)}
+                  onClick={() => selectItem(item)}
                 />
               ))}
             </svg>
@@ -1170,40 +1341,37 @@ function SpendingDistribution({
           </div>
         </div>
         <div
-          className={`home-spending-list${hoveredId ? " is-filtering" : ""}`}
+          className={`home-spending-list${filteringId ? " is-filtering" : ""}`}
         >
           {items.length ? (
             items.map((item) => (
               <button
                 type="button"
-                className={`home-spending-row${hoveredId === item.id ? " is-hovered" : ""}`}
+                className={`home-spending-row${filteringId === item.id ? " is-hovered" : ""}${activeId === item.id ? " is-selected" : ""}`}
                 key={item.id}
+                aria-pressed={activeId === item.id}
                 onMouseEnter={() => setHoveredId(item.id)}
-                onClick={() => openItem(item)}
+                onClick={() => selectItem(item)}
               >
                 <span
-                  className="home-category-icon"
+                  className={`home-category-icon${item.image ? " has-image" : ""}`}
                   style={{
                     color: item.color,
                     background: `color-mix(in srgb, ${item.color} 16%, transparent)`,
                   }}
                 >
-                  <FinanceIcon name={item.icon} size={15} />
+                  {item.image ? (
+                    <CategoryImage name={item.image} size={28} />
+                  ) : (
+                    <FinanceIcon name={item.icon} size={15} />
+                  )}
                 </span>
                 <strong>{item.name}</strong>
                 <span className="home-percentage">
                   {Math.round((item.spent / total) * 100)}%
                 </span>
-                <span
-                  className={`home-category-amount ${item.budget && item.spent > item.budget ? "negative" : ""}`}
-                >
+                <span className="home-category-amount">
                   <Amount value={item.spent} />
-                  {breakdown === "group" && item.budget > 0 && (
-                    <small>
-                      {" "}
-                      / <Amount value={item.budget} />
-                    </small>
-                  )}
                 </span>
               </button>
             ))
@@ -1221,12 +1389,15 @@ function SpendingDistribution({
 function CreditCardsCard({
   data,
   month,
+  category,
   navigate,
 }: {
   data: FinanceData;
   month: string;
+  category: string;
   navigate: (view: View) => void;
 }) {
+  const hidden = useContext(PrivacyContext);
   const cards = data.accounts.filter(
     (row) => row.type === "CREDIT" && row.currency === "BRL",
   );
@@ -1246,17 +1417,19 @@ function CreditCardsCard({
   const forecastMonths = ([-1, 0, 1] as const).map((offset) => {
     const key = shiftMonthKey(month, offset);
     const pending = active
-      ? cardInvoiceTotal(data, active.id, key, true)
+      ? cardInvoiceTotal(data, active.id, key, true, category)
       : 0;
     const closed = active
-      ? cardInvoiceTotal(data, active.id, key, false)
+      ? cardInvoiceTotal(data, active.id, key, false, category)
       : 0;
-    // Passado: fatura fechada. Atual: saldo. Futuro: pendências.
+    // Passado: fatura fechada. Atual: saldo (ou filtrado por categoria). Futuro: pendências.
     const amount =
       offset < 0
         ? closed
         : offset === 0 && active
-          ? Math.abs(active.balance) || pending
+          ? category === "all"
+            ? Math.abs(active.balance) || pending
+            : pending || closed
           : pending;
     const monthLabel = shortMonthLabel(key);
     return {
@@ -1270,6 +1443,35 @@ function CreditCardsCard({
     };
   });
   const selected = forecastMonths[forecastIndex] || forecastMonths[1];
+  const previousInvoiceAmount =
+    forecastIndex > 0
+      ? forecastMonths[forecastIndex - 1].amount
+      : active
+        ? cardInvoiceTotal(
+            data,
+            active.id,
+            shiftMonthKey(month, -2),
+            false,
+            category,
+          )
+        : 0;
+  const invoiceDelta = selected.amount - previousInvoiceAmount;
+  const recentCharges = useMemo(() => {
+    if (!active) return [];
+    return data.transactions
+      .filter(
+        (row) =>
+          row.accountId === active.id &&
+          row.currency === "BRL" &&
+          row.kind === "expense" &&
+          row.date.startsWith(selected.key) &&
+          matchesCategoryFilter(row.category, category),
+      )
+      .sort(
+        (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id),
+      )
+      .slice(0, 8);
+  }, [active, category, data.transactions, selected.key]);
 
   function nearestCardIndex() {
     const track = trackRef.current;
@@ -1407,9 +1609,17 @@ function CreditCardsCard({
             )}
           </span>
         </div>
-        <strong className="home-amount home-cards-amount">
-          <Amount value={selected.amount} motion="reel" />
-        </strong>
+        <div className="home-cards-amount-row">
+          <strong className="home-amount home-cards-amount">
+            <Amount value={selected.amount} motion="reel" />
+          </strong>
+          <span
+            className={`home-cards-delta ${invoiceDelta > 0 ? "up" : invoiceDelta < 0 ? "down" : ""}`}
+          >
+            {invoiceDelta > 0 ? "+" : ""}
+            <Amount value={invoiceDelta} />
+          </span>
+        </div>
         <div className="home-cards-toolbar">
           <button
             className="home-cards-invoice"
@@ -1467,6 +1677,46 @@ function CreditCardsCard({
               onSelect={setForecastIndex}
             />
           </div>
+
+          <div className="home-cards-entries">
+            <div className="home-cards-entries-heading">
+              <span>Últimas entradas</span>
+            </div>
+            {recentCharges.length ? (
+              <ul className="home-cards-entry-list">
+                {recentCharges.map((row) => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      className="home-cards-entry"
+                      onClick={() => navigate("transactions")}
+                    >
+                      <span className="home-cards-entry-symbol">
+                        <MerchantLogo
+                          description={row.description}
+                          size={22}
+                        />
+                      </span>
+                      <span className="home-cards-entry-copy">
+                        <strong>{row.description}</strong>
+                        <small>
+                          {dateLabel(row.date)}
+                          {row.category ? ` · ${row.category}` : ""}
+                        </small>
+                      </span>
+                      <strong className="home-cards-entry-amount">
+                        {hidden ? "••••" : <Amount value={row.amount} />}
+                      </strong>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="home-cards-entries-empty">
+                Nenhuma entrada neste mês
+              </p>
+            )}
+          </div>
         </>
       ) : (
         <div className="home-empty">
@@ -1518,7 +1768,6 @@ function CreditCardChip({
 }) {
   const reactId = useId().replace(/:/g, "");
   const fillId = `chip-fill-${variant}-${reactId}`;
-  const clipId = `chip-clip-${variant}-${reactId}`;
 
   return (
     <svg
@@ -1533,45 +1782,41 @@ function CreditCardChip({
           <stop offset="70%" stopColor="#a89478" />
           <stop offset="100%" stopColor="#c8bba8" />
         </linearGradient>
-        <clipPath id={clipId}>
-          <rect width="90" height="60" rx="7" />
-        </clipPath>
       </defs>
-      <rect width="90" height="60" rx="7" fill={`url(#${fillId})`} />
+      <rect width="90" height="60" rx="8" fill={`url(#${fillId})`} />
       <g
-        clipPath={`url(#${clipId})`}
-        transform="translate(90 0) rotate(90)"
         fill="none"
         stroke="#5f5343"
-        strokeWidth="1.05"
+        strokeWidth="1.1"
         strokeLinejoin="round"
         strokeLinecap="butt"
       >
         {variant === "ultravioleta" ? (
           <>
-            {/* Ref 1: laterais em 3 faixas + pad central arredondado */}
-            <rect x="0.75" y="0.75" width="58.5" height="88.5" rx="7" />
-            <path d="M13.5 0.75 V89.25" />
-            <path d="M46.5 0.75 V89.25" />
-            <path d="M30 0.75 V34.5" />
-            <path d="M30 55.5 V89.25" />
-            <path d="M13.5 34.5 H21" />
-            <path d="M39 34.5 H46.5" />
-            <path d="M13.5 55.5 H21" />
-            <path d="M39 55.5 H46.5" />
-            <rect x="21" y="34.5" width="18" height="21" rx="9" />
-            <rect x="24.5" y="39" width="11" height="12" rx="1.2" />
+            {/* Ref 1 em paisagem: faixas + poço central */}
+            <path d="M2 14.5 H88" />
+            <path d="M2 45.5 H88" />
+            <path d="M2 30 H34.5" />
+            <path d="M55.5 30 H88" />
+            <path d="M34.5 14.5 V21" />
+            <path d="M55.5 14.5 V21" />
+            <path d="M34.5 39 V45.5" />
+            <path d="M55.5 39 V45.5" />
+            <rect x="34.5" y="21" width="21" height="18" rx="9" />
+            <rect x="39.5" y="24.5" width="11" height="11" rx="1.2" />
           </>
         ) : (
           <>
-            {/* Ref 2: padrão em H com cortes diagonais */}
-            <rect x="0.75" y="0.75" width="58.5" height="88.5" rx="7" />
-            <path d="M30 0.75 V26" />
-            <path d="M30 64 V89.25" />
-            <path d="M0.75 34 H21 L30 26 L39 34 H59.25" />
-            <path d="M59.25 56 H39 L30 64 L21 56 H0.75" />
-            <path d="M21 34 V56" />
-            <path d="M39 34 V56" />
+            {/* Ref 2 em paisagem: H com cortes diagonais */}
+            <path d="M26 2 V58" />
+            <path d="M64 2 V58" />
+            <path d="M26 2 H64" />
+            <path d="M2 30 H26" />
+            <path d="M64 30 H88" />
+            <path d="M26 18 L45 30 L64 18" />
+            <path d="M26 42 L45 30 L64 42" />
+            <path d="M26 18 V42" />
+            <path d="M64 18 V42" />
           </>
         )}
       </g>
@@ -1606,17 +1851,24 @@ function SicrediMark() {
   return (
     <svg
       className="home-credit-sicredi-mark"
-      viewBox="-32 -28 160 140"
+      viewBox="0 0 145 34"
       aria-hidden="true"
     >
       <path
         fill="currentColor"
-        d="m87.156 52.94c-3.4348 2.8288-5.9942 3.3003-7.1392 2.1553-0.74058-0.74093-0.87549-2.2224-0.33657-4.1083 1.8184-5.9942 3.2325-12.056 4.3774-18.184 6.8697-3.0307 13.739-5.8593 21.35-6.6002-3.5694 9.7655-10.102 19.935-18.251 26.737zm-3.5023 20.137c-4.3103-0.87549-6.3308-2.761-6.1959-4.4449 0.06711-1.0775 1.0775-2.155 2.8285-2.8959 5.3878-2.2899 10.709-4.7818 15.759-7.8126 6.6677 3.2328 13.066 7.3412 18.184 12.527-9.3612 3.5023-20.878 4.6472-30.576 2.6265zm-17.78 10.641c-2.0879-4.3103-1.8859-7.2734-0.53892-8.2838 0.94294-0.67348 2.4245-0.53892 4.1083 0.40402 5.2533 2.9634 10.574 5.6573 16.231 7.8797v0.06745c2.0204 8.0817 3.2328 16.568 2.6939 24.919-9.3612-5.9268-17.847-15.355-22.494-24.987zm-20.137-7.7448c2.357-4.7147 4.8489-6.5331 6.5328-5.9942 1.1449 0.33691 1.953 1.6164 2.2224 3.7043 0.94294 6.6002 2.3573 13.066 4.0409 19.464-5.8593 7.8797-12.123 15.49-20.003 21.686-0.87549-12.729 1.5493-27.344 7.2066-38.86zm-6.0617-21.754c5.3207-1.0778 8.2166-0.20201 8.8901 1.4815 0.40402 1.0775-0.13456 2.5594-1.6164 4.1758-4.9838 5.1858-9.5636 10.641-13.941 16.298h-0.06735c-10.708 0.74058-21.888 0.33657-32.395-2.1553 10.708-9.0247 25.188-17.039 39.13-19.8zm13.604-17.645c3.9738 3.4345 5.0513 6.1288 4.1758 7.6103-0.60603 0.94294-2.0204 1.4144-4.1758 1.2124-7.1388-0.80838-14.278-1.1449-21.484-1.1449-6.8022-7.8126-12.998-16.501-16.972-25.862 13.537 3.0307 28.084 9.3615 38.456 18.184zm21.148 0.26912c0 4.8493-1.347 7.2737-2.9634 7.4086-1.0775 0.13456-2.2899-0.74093-3.4348-2.4919-3.6369-5.6573-7.6103-11.113-11.853-16.433 1.6161-8.486 4.2429-17.107 8.7552-24.582 5.6573 10.843 9.5636 24.044 9.4962 36.099z"
+        d="M25.1965 15.2486C24.2035 16.0664 23.4636 16.2027 23.1326 15.8717C22.9185 15.6575 22.8795 15.2292 23.0353 14.684C23.561 12.9511 23.9698 11.1988 24.3008 9.42702C26.2868 8.55086 28.2728 7.73311 30.4729 7.51894C29.441 10.3421 27.5524 13.2821 25.1965 15.2486ZM24.184 21.0702C22.9379 20.8171 22.3538 20.272 22.3928 19.7852C22.4122 19.4737 22.7043 19.1622 23.2105 18.948C24.7681 18.286 26.3063 17.5656 27.7665 16.6894C29.6941 17.624 31.5438 18.8117 33.0235 20.3109C30.3172 21.3234 26.9877 21.6544 24.184 21.0702ZM19.0439 24.1465C18.4403 22.9004 18.4987 22.0438 18.8881 21.7517C19.1607 21.557 19.589 21.5959 20.0758 21.8685C21.5945 22.7252 23.1326 23.504 24.7681 24.1465C24.7681 24.1465 24.7681 24.1465 24.7681 24.166C25.3522 26.5024 25.7027 28.9557 25.5469 31.37C22.8406 29.6566 20.3873 26.9308 19.0439 24.1465ZM13.2223 21.9075C13.9037 20.5445 14.6241 20.0188 15.1109 20.1746C15.4419 20.272 15.6755 20.6419 15.7534 21.2455C16.026 23.1536 16.4349 25.0227 16.9216 26.8724C15.2277 29.1504 13.417 31.3505 11.1389 33.1418C10.8858 29.4619 11.5868 25.2369 13.2223 21.9075ZM11.4699 15.6186C13.0081 15.307 13.8453 15.5602 14.04 16.0469C14.1568 16.3584 14.0011 16.7868 13.5727 17.2541C12.1319 18.7533 10.8079 20.3304 9.54238 21.9659H9.52291C6.42714 22.18 3.19508 22.0632 0.157715 21.3428C3.25349 18.7338 7.43959 16.4168 11.4699 15.6186ZM15.4029 10.5174C16.5517 11.5103 16.8632 12.2892 16.6101 12.7175C16.4349 12.9901 16.026 13.1264 15.4029 13.068C13.3391 12.8343 11.2752 12.737 9.19192 12.737C7.22542 10.4784 5.43416 7.96676 4.28541 5.26039C8.19893 6.13655 12.4045 7.96676 15.4029 10.5174ZM21.5166 10.5952C21.5166 11.9971 21.1272 12.698 20.6599 12.737C20.3484 12.7759 19.9979 12.5228 19.6669 12.0166C18.6155 10.3811 17.4668 8.80398 16.2402 7.26583C16.7074 4.81257 17.4668 2.32038 18.7713 0.15918C20.4068 3.29389 21.5361 7.11006 21.5166 10.5952Z"
       />
       <path
         fill="currentColor"
-        opacity="0.78"
-        d="m56.172 25.261c1.6164-8.4186 4.2429-17.039 8.7552-24.515-9.6307-1.347-19.531-0.20205-28.556 3.1654 5.5227 5.3879 10.978 10.843 15.894 16.703 0.5742 0.69489 1.1889 1.4169 1.7956 2.1295 0.74577 0.87594 1.4794 1.7377 2.1107 2.5175zm30.51-16.902c-0.40402 6.4655-0.87549 12.864-1.8184 19.194-0.11207 0.70157-0.22449 1.4616-0.33657 2.2216-0.15739 1.064-0.31443 2.128-0.47147 3.0316 6.8693-3.0307 13.739-5.8593 21.349-6.6002-4.7815-7.2063-11.18-13.335-18.723-17.847zm27.138 37.309c-4.3778 3.4348-8.8901 6.8022-13.672 9.6982-0.60949 0.36562-1.2463 0.77275-1.88 1.1775l-3.46e-4 3.46e-4c-0.76618 0.48946-1.5272 0.9758-2.228 1.3815 6.6677 3.2325 13.066 7.3408 18.184 12.527 1.2124-8.5532 1.145-16.231-0.40401-24.784zm-23.51 39.802c5.2533 1.9533 10.709 3.4348 16.163 4.7818-4.5123 7.2737-10.708 13.672-18.049 18.454 0.53892-8.3512-0.67348-16.837-2.6939-24.919v-0.06745c1.1183 0.50329 2.5154 1.0066 3.8057 1.4715l6.92e-4 3.46e-4h3.46e-4c0.26323 0.09478 0.52197 0.18783 0.7731 0.27914zm-23.231 31.519c-2.559-6.1288-4.9838-12.325-6.9368-18.521-0.13975-0.45452-0.28849-0.92668-0.43965-1.4058v-1e-3l-3.45e-4 -3.45e-4v-3.46e-4c-0.43065-1.366-0.87722-2.7839-1.1764-3.9803-5.8593 7.8797-12.123 15.49-19.935 21.686 9.429 2.7614 18.656 3.9734 28.488 2.2224zm-37.775-35.624c-4.5797 6.3979-8.7553 13.268-12.729 20.137-7.8125-7.6106-13.335-17.174-16.029-27.478 10.506 2.4919 21.686 2.8959 32.395 2.155h0.06735c-0.68697 0.92945-1.4467 2.0045-2.2064 3.0793l-5.53e-4 1e-3 -6.57e-4 6.92e-4c-0.50606 0.71602-1.0121 1.4321-1.4966 2.1052zm-29.303-34.823c8.4186-1.0104 16.905-1.8859 25.256-2.1553 0.70665-0.02179 1.4495-0.05119 2.1953-0.0806h5.19e-4c1.5286-0.06053 3.0697-0.12141 4.337-0.12141-6.8696-7.7448-12.998-16.433-16.972-25.794-7.4757 7.8798-12.594 17.713-14.817 28.152z"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M16.239 7.24661C16.7063 4.81283 17.4656 2.32064 18.7701 0.159439C15.9859 -0.229966 13.1237 0.101028 10.5147 1.07454C12.1113 2.63216 13.6884 4.20925 15.1097 5.90317C15.2757 6.10406 15.4534 6.31279 15.6288 6.51881C15.8444 6.77204 16.0565 7.02116 16.239 7.24661ZM25.0594 2.36028C24.9426 4.22942 24.8063 6.0791 24.5337 7.9093C24.5013 8.11212 24.4688 8.33183 24.4364 8.55155C24.3909 8.85915 24.3455 9.16676 24.3001 9.42798C26.286 8.55182 28.272 7.73407 30.4721 7.5199C29.0898 5.43658 27.2401 3.66479 25.0594 2.36028ZM32.9049 13.1462C31.6393 14.1392 30.3348 15.1127 28.9524 15.9499C28.7762 16.0556 28.5921 16.1733 28.4089 16.2903L28.4088 16.2904C28.1873 16.4319 27.9673 16.5725 27.7647 16.6898C29.6923 17.6243 31.542 18.812 33.0217 20.3112C33.3722 17.8385 33.3527 15.6189 32.9049 13.1462ZM26.1083 24.6527C27.627 25.2174 29.2041 25.6457 30.7811 26.0351C29.4766 28.1379 27.6854 29.9876 25.5631 31.37C25.7189 28.9557 25.3684 26.5024 24.7843 24.166V24.1465C25.1076 24.292 25.5115 24.4375 25.8845 24.5719L25.8847 24.572L25.8848 24.572C25.9609 24.5994 26.0357 24.6263 26.1083 24.6527ZM19.3922 33.7646C18.6524 31.9928 17.9514 30.2015 17.3868 28.4103C17.3464 28.2789 17.3034 28.1424 17.2597 28.0039L17.2597 28.0036L17.2596 28.0035L17.2596 28.0034L17.2596 28.0034C17.1351 27.6085 17.006 27.1986 16.9195 26.8527C15.2256 29.1307 13.4149 31.3308 11.1563 33.1221C13.8822 33.9204 16.5496 34.2708 19.3922 33.7646ZM8.47152 23.4658C7.14754 25.3154 5.94039 27.3014 4.79164 29.2874C2.53309 27.0872 0.936531 24.3224 0.157721 21.3435C3.19508 22.0639 6.42714 22.1807 9.52292 21.9665H9.54239C9.34379 22.2352 9.12416 22.546 8.90454 22.8567L8.90438 22.857L8.90419 22.8572C8.75789 23.0642 8.6116 23.2712 8.47152 23.4658ZM0 13.3987C2.43378 13.1066 4.88704 12.8535 7.30135 12.7756C7.50564 12.7693 7.72039 12.7608 7.93601 12.7523L7.93616 12.7523C8.37808 12.7348 8.82359 12.7172 9.18996 12.7172C7.204 10.4782 5.4322 7.96649 4.28346 5.26013C2.12226 7.53815 0.642519 10.3808 0 13.3987Z"
+      />
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M42.5429 11.2948C42.0951 14.6048 43.3023 16.5713 46.6122 17.8563L50.9735 19.5113C52.3559 19.998 52.6675 20.2317 52.4922 21.5557C52.2196 23.2496 51.5382 23.6974 48.4813 23.6974H41.0826L40.4207 28.1171H48.6955C55.1402 28.1171 57.3209 26.6763 57.9634 21.9061C58.3722 18.9077 57.8271 16.7465 53.8551 15.2862L49.7274 13.7675C48.1309 13.2029 47.8388 12.9693 48.053 11.6453C48.2866 10.1655 48.8708 9.83455 50.0584 9.75667H58.8979L59.5599 5.33691H51.6745C46.3007 5.33691 43.2633 6.29096 42.5429 11.2948ZM67.6595 9.75667L68.3021 5.33691H62.9477L62.2857 9.75667H67.6595ZM64.9533 28.0976H59.5989L61.9548 12.0151H67.3286L64.9533 28.0976ZM78.1552 11.5683C75.1178 11.5683 73.015 12.1718 71.5937 13.4764C70.1724 14.7614 69.3546 16.7084 68.8873 19.8237C68.42 22.9194 68.8095 25.1001 70.0945 26.4825C71.3211 27.826 73.385 28.4685 76.4418 28.4685C77.941 28.4685 80.1411 28.3322 82.1076 27.7091L82.2439 27.6702L82.8086 23.8735L82.4581 23.9319C81.0757 24.1266 79.3429 24.2045 77.2985 24.2045C75.8966 24.2045 75.1762 24.0487 74.7868 23.6204C74.3001 23.0947 74.2027 22.0627 74.4753 20.0768C74.9426 16.3969 76.1497 15.8128 78.8366 15.8128C79.927 15.8128 83.9963 15.8712 83.9963 15.8712L84.522 12.2692C84.5193 12.2718 84.4759 12.2611 84.3928 12.2405C83.8578 12.108 81.6775 11.5683 78.1552 11.5683ZM98.131 12.0151H99.1629L98.9682 12.3656C97.469 14.7994 96.9822 16.8632 96.9822 16.8827L96.9433 17.0579H95.7945C94.3927 17.0579 92.5041 18.0315 91.8226 18.8492L90.5181 28.0976H85.1248L87.4807 12.0151H91.7447V15.1109C94.2369 12.9497 96.1645 12.0151 98.131 12.0151ZM115.537 17.2147C115.79 15.5207 115.517 14.2552 114.699 13.3595C113.609 12.1524 111.506 11.5683 108.294 11.5683C101.791 11.5683 99.3373 13.6126 98.5585 19.6874C98.1691 22.8026 98.6169 25.0028 99.9409 26.4046C101.226 27.787 103.368 28.4685 106.463 28.4685C108.644 28.4685 111.974 28.0791 114.076 27.2418L114.271 27.164L114.213 26.9693C114.213 26.9681 114.211 26.9621 114.208 26.9515C114.204 26.9375 114.198 26.9155 114.189 26.8862C114.093 26.5547 113.724 25.2896 113.59 24.1266L113.551 23.8735L113.298 23.9319C112.655 24.0877 108.683 24.2824 107.048 24.2824C105.139 24.2824 104.127 23.9319 104.01 22.0822L108.644 21.7512C112.499 21.4981 115.011 20.6414 115.537 17.2147ZM104.322 18.8696C104.808 16.2606 105.432 15.4429 107.963 15.4429H108.469C109.326 15.4429 109.91 15.5013 110.143 15.7544C110.299 15.9296 110.358 16.2217 110.319 16.7279C110.143 18.1492 109.403 18.4413 107.826 18.5581L104.322 18.8696ZM129.574 11.9372L130.547 5.35628L135.921 5.37575L132.553 28.117H128.25V25.5664C126.108 27.494 123.908 28.487 121.669 28.487C120.111 28.487 118.943 28.0586 118.125 27.163C116.859 25.8001 116.49 23.3663 116.996 19.7448C117.989 12.9497 120.637 11.5868 124.609 11.5868C126.186 11.5868 127.977 11.7036 129.574 11.9372ZM123.479 24.0867C125.115 24.0478 126.419 23.23 128.094 21.8087L129.028 15.3251H126.673C123.674 15.3251 123.032 15.695 122.447 19.8616C122.155 22.0034 122.058 23.3274 122.506 23.8141C122.701 24.0283 123.012 24.1062 123.479 24.0867ZM143.905 9.75667L144.548 5.33691H139.193L138.551 9.75667H143.905ZM141.199 28.0976H135.845L138.2 12.0151H143.574L141.199 28.0976Z"
       />
     </svg>
   );
@@ -1677,6 +1929,7 @@ function ForecastMonths({
     top: number;
     centers: number[];
     lefts: number[];
+    rights: number[];
   } | null>(null);
 
   useEffect(() => {
@@ -1704,6 +1957,10 @@ function ForecastMonths({
         lefts: items.map(
           (item) => item.getBoundingClientRect().left - listRect.left,
         ),
+        rights: items.map((item) => {
+          const rect = item.getBoundingClientRect();
+          return rect.right - listRect.left;
+        }),
       });
     };
 
@@ -1728,16 +1985,68 @@ function ForecastMonths({
       x,
       y: pointY(amounts[index], chart.height),
     })) ?? [];
+  const first = points[0];
+  const second = points[1];
+  const firstLeft = chart?.lefts[0] ?? 0;
+  const leadIn =
+    chart && first
+      ? second
+        ? {
+            x: firstLeft,
+            y: Math.min(
+              chart.height * 0.88,
+              Math.max(
+                chart.height * 0.12,
+                first.y -
+                  ((second.y - first.y) * (first.x - firstLeft)) /
+                    (second.x - first.x),
+              ),
+            ),
+          }
+        : { x: firstLeft, y: first.y }
+      : null;
   const selected = points[selectedIndex];
-  const trend = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const previous = selectedIndex > 0 ? points[selectedIndex - 1] : leadIn;
+  const next = points[selectedIndex + 1] ?? null;
   const selectedLeft = chart?.lefts[selectedIndex] ?? 0;
+  const selectedRight = chart?.rights[selectedIndex] ?? 0;
+  const yAtX = (
+    from: { x: number; y: number } | null,
+    to: { x: number; y: number } | null,
+    x: number,
+    fallback: number,
+  ) => {
+    if (!from || !to || from.x === to.x) return fallback;
+    return from.y + ((to.y - from.y) * (x - from.x)) / (to.x - from.x);
+  };
+  const entryY = yAtX(previous, selected, selectedLeft, selected?.y ?? 0);
+  const exitY = yAtX(selected, next, selectedRight, selected?.y ?? 0);
+  const entry = selected ? { x: selectedLeft, y: entryY } : null;
+  const exit = selected ? { x: selectedRight, y: exitY } : null;
+  const solidPoints =
+    selectedIndex > 0
+      ? leadIn
+        ? [leadIn, ...points.slice(0, selectedIndex + 1)]
+        : points.slice(0, selectedIndex + 1)
+      : [];
+  const dashedPoints =
+    selectedIndex === 0 && leadIn
+      ? [leadIn, ...points]
+      : points.slice(selectedIndex);
+  const solidTrend = solidPoints
+    .map((point) => `${point.x},${point.y}`)
+    .join(" ");
+  const dashedTrend = dashedPoints
+    .map((point) => `${point.x},${point.y}`)
+    .join(" ");
   const fillPath =
-    chart && selected
+    chart && selected && entry && exit
       ? [
-          `M ${selectedLeft} ${selected.y}`,
+          `M ${entry.x} ${entry.y}`,
           `L ${selected.x} ${selected.y}`,
-          `L ${selected.x} ${chart.height}`,
-          `L ${selectedLeft} ${chart.height}`,
+          `L ${exit.x} ${exit.y}`,
+          `L ${exit.x} ${chart.height}`,
+          `L ${entry.x} ${chart.height}`,
           "Z",
         ].join(" ")
       : "";
@@ -1767,23 +2076,19 @@ function ForecastMonths({
               />
             </linearGradient>
           </defs>
-          {selected && (
-            <path d={fillPath} fill={`url(#${fillId})`} />
-          )}
-          {points.length > 1 && (
+          {selected && <path d={fillPath} fill={`url(#${fillId})`} />}
+          {dashedPoints.length > 1 && (
             <polyline
               className="home-cards-forecast-path is-dashed"
               fill="none"
-              points={trend}
+              points={dashedTrend}
             />
           )}
-          {selected && (
-            <line
+          {solidPoints.length > 1 && (
+            <polyline
               className="home-cards-forecast-path is-solid"
-              x1={selectedLeft}
-              y1={selected.y}
-              x2={selected.x}
-              y2={selected.y}
+              fill="none"
+              points={solidTrend}
             />
           )}
           {points.map((point, index) => {
@@ -1854,7 +2159,6 @@ function CreditCardVisual({
         <>
           <span className="home-credit-sicredi-brand" aria-hidden="true">
             <SicrediMark />
-            <strong>Sicredi</strong>
           </span>
           <ContactlessMark />
           <CreditCardChip variant="sicredi" />
@@ -1884,127 +2188,207 @@ function CreditCardVisual({
   );
 }
 
-function UpcomingCard({
+function monthChangePct(history: MarketQuote["history"], month: string) {
+  const points = history.filter((point) => point.date.startsWith(month));
+  if (points.length >= 2) {
+    const first = points[0].price;
+    const last = points.at(-1)!.price;
+    return first ? ((last - first) / first) * 100 : null;
+  }
+  if (history.length >= 2) {
+    const first = history[0].price;
+    const last = history.at(-1)!.price;
+    return first ? ((last - first) / first) * 100 : null;
+  }
+  return null;
+}
+
+function HomeInvestmentsCard({
   data,
   month,
-  group,
+  navigate,
   openForm,
-  mutate,
-  openTransactions,
-}: Props) {
-  const [day, setDay] = useState("all"),
-    [busy, setBusy] = useState("");
-  const bills = pendingBills(data, month, group);
-  const dates = [...new Set(bills.map((row) => row.date.slice(8, 10)))];
-  const activeDay = dates.includes(day) ? day : "all";
-  const filtered =
-    activeDay === "all"
-      ? bills
-      : bills.filter((row) => row.date.endsWith(`-${activeDay}`));
-  async function markPaid(row: Transaction) {
-    if (row.source === "pluggy") {
-      openForm({ resource: "transactions", record: record(row) });
-      return;
+}: {
+  data: FinanceData;
+  month: string;
+  navigate: (view: View) => void;
+  openForm: (form: FormState) => void;
+}) {
+  const hidden = useContext(PrivacyContext);
+  const [period, setPeriod] = useState<"month" | "all">("all");
+  const [quotes, setQuotes] = useState<MarketQuote[]>([]);
+  const tickers = extractEquityTickers(data.investments);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    if (tickers.length) params.set("tickers", tickers.join(","));
+    const query = params.toString();
+    fetch(`/api/market${query ? `?${query}` : ""}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("market");
+        return response.json() as Promise<{ quotes: MarketQuote[] }>;
+      })
+      .then((payload) => setQuotes(payload.quotes || []))
+      .catch((error) => {
+        if (error?.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, [tickers.join(",")]);
+
+  const monthGainById = (() => {
+    if (period !== "month") return {};
+    const gains: Record<string, number> = {};
+    const bySymbol = new Map(
+      quotes.map((quote) => [quote.symbol.toUpperCase(), quote]),
+    );
+    for (const row of data.investments) {
+      if (row.currency !== "BRL" || row.balance <= 0) continue;
+      const bucket = investmentBucket(row);
+      if (bucket === "bolsa") {
+        const match = row.name.toUpperCase().match(/\b([A-Z]{4}\d{1,2}F?)\b/);
+        const quote = match ? bySymbol.get(match[1]) : null;
+        const pct = quote ? monthChangePct(quote.history, month) : null;
+        if (pct != null) gains[row.id] = Math.round((row.balance * pct) / 100);
+      } else if (bucket === "cripto") {
+        const quote = bySymbol.get("BTC");
+        const pct = quote ? monthChangePct(quote.history, month) : null;
+        if (pct != null) gains[row.id] = Math.round((row.balance * pct) / 100);
+      }
     }
-    setBusy(row.id);
-    try {
-      await mutate("transactions", { ...row, status: "paid" }, "PATCH");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Falha ao confirmar.",
-      );
-    } finally {
-      setBusy("");
-    }
-  }
+    return gains;
+  })();
+
+  const overview = investmentsOverview(data.investments, {
+    period,
+    monthGainById,
+  });
+
   return (
     <section
-      className="finance-card home-pending"
-      id="home-pending"
-      tabIndex={-1}
-      aria-label="Contas a pagar"
+      className="finance-card home-investments"
+      aria-label="Investimentos"
     >
       <div className="home-card-heading">
-        <h2>Contas a pagar</h2>
+        <h2>Investimentos</h2>
         <DashboardLink
-          label="Ver todos os lançamentos"
-          onClick={() => openTransactions({ type: "expense" })}
+          label="Ver investimentos"
+          onClick={() => navigate("investments")}
         />
       </div>
-      <strong className="home-amount">
-        <Amount
-          value={bills.reduce((sum, row) => sum + row.amount, 0)}
-          motion="reel"
-        />
-      </strong>
-      <span className="home-muted">
-        {bills.length} {bills.length === 1 ? "pendente" : "pendentes"}
-      </span>
-      {dates.length > 0 && (
-        <div className="home-due-tabs" role="group" aria-label="Vencimento">
-          <button
-            aria-pressed={activeDay === "all"}
-            onClick={() => setDay("all")}
+      {overview.empty ? (
+        <div className="home-empty">
+          <Plant size={24} />
+          <span>Nenhum investimento</span>
+          <Button
+            variant="outline"
+            onClick={() => openForm({ resource: "investments" })}
           >
-            Todas
-          </button>
-          {dates.slice(0, 4).map((date) => (
-            <button
-              key={date}
-              aria-pressed={activeDay === date}
-              onClick={() => setDay(date)}
-            >
-              {date}
-            </button>
-          ))}
+            <Plus size={14} />
+            Adicionar
+          </Button>
         </div>
-      )}
-      <div className="home-bill-list">
-        {filtered.length ? (
-          filtered.slice(0, 6).map((bill) => (
-            <div className="home-bill-row" key={bill.id}>
-              <button
-                className="home-bill-check"
-                aria-label={
-                  bill.source === "manual"
-                    ? `Marcar ${bill.description} como confirmado`
-                    : `Editar categoria de ${bill.description}`
-                }
-                disabled={busy === bill.id}
-                onClick={() => markPaid(bill)}
-              >
-                <Circle size={19} />
-              </button>
-              <button
-                className="home-bill-description"
-                onClick={() =>
-                  openForm({ resource: "transactions", record: record(bill) })
-                }
-              >
-                <strong>{bill.description}</strong>
-                <span className={bill.date < localDate() ? "negative" : ""}>
-                  {dateLabel(bill.date)}
-                  {bill.date < localDate() ? " · Em atraso" : ""}
-                </span>
-              </button>
-              <strong>
-                <Amount value={bill.amount} />
-              </strong>
-            </div>
-          ))
-        ) : (
-          <div className="home-empty">
-            <ShieldCheck size={26} />
-            <span>Nenhuma conta pendente</span>
+      ) : (
+        <>
+          <div className="home-investments-toolbar">
+            <MotionSegmentedControl
+              label="Período da valorização"
+              value={period}
+              onChange={(value) => setPeriod(value as "month" | "all")}
+              options={[
+                ["all", "Todo período"],
+                ["month", "Mês"],
+              ]}
+            />
           </div>
-        )}
-      </div>
-      <div className="home-card-footer">
-        <span>Vencimentos do mês</span>
-        <TextLink onClick={() => openTransactions({ type: "expense" })}>
-          Ver todos
-        </TextLink>
-      </div>
+          <div className="home-investment-categories">
+            {overview.categories.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                className="home-investment-category"
+                onClick={() => navigate("investments")}
+              >
+                <span className="home-investment-share">
+                  <i style={{ background: row.color }} aria-hidden="true" />
+                  <small>
+                    {hidden
+                      ? "••"
+                      : `${row.share.toFixed(1).replace(".", ",")}%`}
+                  </small>
+                </span>
+                <span className="home-investment-category-copy">
+                  <strong>{row.label}</strong>
+                  <span className="home-investment-category-meta">
+                    <Amount value={row.balance} />
+                    {row.gain != null && (
+                      <span
+                        className={
+                          row.gain > 0
+                            ? "home-investment-gain up"
+                            : row.gain < 0
+                              ? "home-investment-gain down"
+                              : "home-investment-gain"
+                        }
+                      >
+                        {row.gain !== 0 && (
+                          <i
+                            className="home-investment-gain-icon"
+                            aria-hidden="true"
+                          >
+                            {row.gain > 0 ? (
+                              <ArrowUp size={10} weight="bold" />
+                            ) : (
+                              <ArrowDown size={10} weight="bold" />
+                            )}
+                          </i>
+                        )}
+                        {hidden
+                          ? "••••"
+                          : `${row.gain > 0 ? "+ " : row.gain < 0 ? "− " : ""}${compactMoney(Math.abs(row.gain))}`}
+                      </span>
+                    )}
+                  </span>
+                </span>
+                <CaretRight size={16} className="home-investment-chevron" />
+              </button>
+            ))}
+          </div>
+          <div className="home-card-footer">
+            <span>
+              Total{" "}
+              <strong>
+                <Amount value={overview.total} />
+              </strong>
+              {overview.gain == null ? (
+                "."
+              ) : overview.gain > 0 ? (
+                <>
+                  . Rendeu{" "}
+                  <strong>
+                    <Amount value={overview.gain} />
+                  </strong>
+                  {period === "month" ? " neste mês." : "."}
+                </>
+              ) : overview.gain < 0 ? (
+                <>
+                  . Caiu{" "}
+                  <strong>
+                    <Amount value={Math.abs(overview.gain)} />
+                  </strong>
+                  {period === "month" ? " neste mês." : "."}
+                </>
+              ) : period === "month" ? (
+                ". Sem variação neste mês."
+              ) : (
+                ". Sem variação."
+              )}
+            </span>
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -2112,12 +2496,23 @@ function TransactionTable({
                     }
                   >
                     <span className={`transaction-symbol ${row.kind}`}>
+                      <MerchantLogo description={row.description} size={31} />
                       {row.kind === "income" ? (
-                        <ArrowDownLeft size={17} />
+                        <ArrowDownLeft
+                          size={17}
+                          className="transaction-symbol-fallback"
+                        />
                       ) : row.kind === "transfer" ? (
-                        <ArrowsLeftRight size={17} />
+                        <ArrowsLeftRight
+                          size={17}
+                          className="transaction-symbol-fallback"
+                        />
                       ) : (
-                        <FinanceIcon name={g?.icon || "layers"} size={17} />
+                        <FinanceIcon
+                          name={g?.icon || "layers"}
+                          size={17}
+                          className="transaction-symbol-fallback"
+                        />
                       )}
                     </span>
                     <span>
@@ -2187,25 +2582,26 @@ export function TransactionsView(props: Props) {
   const {
     data,
     month,
-    group,
+    category,
+    setCategory,
     query,
     setQuery,
     txType,
     setTxType,
-    txCategory,
-    setTxCategory,
     openForm,
   } = props;
   const [status, setStatus] = useState("all"),
     [page, setPage] = useState(1);
-  const stats = summarize(data, month, group);
-  const baseRows = data.transactions.filter(
-    (row) =>
-      row.date.startsWith(month) && matchesGroupFilter(row.groupId, group),
+  const stats = summarize(data, month, category);
+  const baseRows = data.transactions.filter((row) =>
+    row.date.startsWith(month),
   );
   const categories = [
     ...new Set(
-      baseRows.map((row) => row.category || "Sem categoria").filter(Boolean),
+      [
+        ...baseRows.map((row) => row.category || "Sem categoria"),
+        ...(category !== "all" ? [category] : []),
+      ].filter(Boolean),
     ),
   ].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const filtered = filterTransactions(
@@ -2213,7 +2609,7 @@ export function TransactionsView(props: Props) {
     query,
     txType,
     status,
-    txCategory,
+    category,
   );
   const pages = Math.max(1, Math.ceil(filtered.length / 10)),
     currentPage = Math.min(page, pages);
@@ -2295,49 +2691,45 @@ export function TransactionsView(props: Props) {
               }}
             />
           </label>
-          <select
-            className="field-select"
+          <FieldSelect
             aria-label="Filtrar por tipo"
             value={txType}
-            onChange={(e) => {
-              setTxType(e.target.value);
+            onValueChange={(next) => {
+              setTxType(next);
               setPage(1);
             }}
-          >
-            <option value="all">Todos os tipos</option>
-            <option value="income">Entradas</option>
-            <option value="expense">Saídas</option>
-            <option value="transfer">Transferências</option>
-          </select>
-          <select
-            className="field-select"
+            options={[
+              { value: "all", label: "Todos os tipos" },
+              { value: "income", label: "Entradas" },
+              { value: "expense", label: "Saídas" },
+              { value: "transfer", label: "Transferências" },
+            ]}
+          />
+          <FieldSelect
             aria-label="Filtrar por categoria"
-            value={txCategory}
-            onChange={(e) => {
-              setTxCategory(e.target.value);
+            value={category}
+            onValueChange={(next) => {
+              setCategory(next);
               setPage(1);
             }}
-          >
-            <option value="all">Todas as categorias</option>
-            {categories.map((name) => (
-              <option value={name} key={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <select
-            className="field-select"
+            options={[
+              { value: "all", label: "Todas as categorias" },
+              ...categories.map((name) => ({ value: name, label: name })),
+            ]}
+          />
+          <FieldSelect
             aria-label="Filtrar por situação"
             value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
+            onValueChange={(next) => {
+              setStatus(next);
               setPage(1);
             }}
-          >
-            <option value="all">Todas as situações</option>
-            <option value="paid">Confirmados</option>
-            <option value="pending">Pendentes</option>
-          </select>
+            options={[
+              { value: "all", label: "Todas as situações" },
+              { value: "paid", label: "Confirmados" },
+              { value: "pending", label: "Pendentes" },
+            ]}
+          />
         </div>
         {filtered.length ? (
           <>
@@ -2415,11 +2807,9 @@ function MiniStat({
     </div>
   );
 }
-export function InvestmentsView({ data, month, group, openForm }: Props) {
-  const stats = summarize(data, month, group);
-  const all = data.investments.filter((row) =>
-    matchesGroupFilter(row.groupId, group),
-  );
+export function InvestmentsView({ data, month, category, openForm }: Props) {
+  const stats = summarize(data, month, category);
+  const all = data.investments;
   const fixed = stats.investments
     .filter((row) => row.type === "FIXED_INCOME")
     .reduce((n, row) => n + row.balance, 0);
@@ -2493,11 +2883,27 @@ export function InvestmentsView({ data, month, group, openForm }: Props) {
                 </span>
                 <div className="position-value">
                   <Amount value={row.balance} currency={row.currency} />
-                  <small>
-                    {row.source === "pluggy"
-                      ? "Sincronizado pela Pluggy"
-                      : "Posição manual"}
-                  </small>
+                  {row.invested != null && row.invested > 0 ? (
+                    <small
+                      className={
+                        row.balance === row.invested
+                          ? undefined
+                          : row.balance > row.invested
+                            ? "positive"
+                            : "negative"
+                      }
+                    >
+                      {row.balance === row.invested
+                        ? "Sem variação"
+                        : `${row.balance > row.invested ? "+" : ""}${(((row.balance - row.invested) / row.invested) * 100).toFixed(2).replace(".", ",")}% vs custo`}
+                    </small>
+                  ) : (
+                    <small>
+                      {row.source === "pluggy"
+                        ? "Informe o custo para ver valorização"
+                        : "Posição manual"}
+                    </small>
+                  )}
                 </div>
                 <CaretRight size={17} />
               </button>
@@ -2521,8 +2927,8 @@ export function InvestmentsView({ data, month, group, openForm }: Props) {
     </>
   );
 }
-export function GoalsView({ data, group, openForm }: Props) {
-  const goals = data.goals.filter((g) => matchesGroupFilter(g.groupId, group));
+export function GoalsView({ data, openForm }: Props) {
+  const goals = data.goals;
   return (
     <>
       <div className="section-top">
@@ -2570,8 +2976,8 @@ export function GoalsView({ data, group, openForm }: Props) {
     </>
   );
 }
-export function GroupsView({ data, month, group, openForm }: Props) {
-  const stats = summarize(data, month, group);
+export function GroupsView({ data, month, category, openForm }: Props) {
+  const stats = summarize(data, month, category);
   return (
     <>
       <div className="section-top">

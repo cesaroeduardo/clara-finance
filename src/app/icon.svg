@@ -1,1 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="26" fill="#fff"/><text x="63" y="79" text-anchor="middle" font-family="Arial,sans-serif" font-size="43" font-weight="700" letter-spacing="-3" fill="#171717">clara<tspan fill="#171717">.</tspan></text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" shape-rendering="crispEdges">
+  <rect width="128" height="128" rx="26" fill="#fff"/>
+  <g transform="translate(31 25) scale(3)" fill="#171717">
+    <path d="M9 0h4v1h-4zM8 1h6v1h-6zM7 2h8v1h-8zM7 3h8v1h-8zM8 4h6v1h-6zM6 5h10v1h-10zM5 6h12v1h-12zM4 7h14v1h-14zM3 8h7v1h-7zM12 8h7v1h-7zM3 9h6v1h-6zM13 9h6v1h-6zM2 10h6v1h-6zM14 10h6v1h-6zM2 11h5v1h-5zM15 11h5v1h-5zM1 12h5v1h-5zM16 12h5v1h-5zM1 13h4v1h-4zM17 13h4v1h-4zM0 14h4v1h-4zM18 14h4v1h-4zM0 15h3v1h-3zM4 15h6v1h-6zM12 15h6v1h-6zM19 15h3v1h-3zM0 16h2v1h-2zM3 16h1v1h-1zM10 16h2v1h-2zM18 16h1v1h-1zM20 16h2v1h-2zM0 17h2v1h-2zM3 17h1v1h-1zM6 17h2v1h-2zM10 17h2v1h-2zM14 17h2v1h-2zM18 17h1v1h-1zM20 17h2v1h-2zM0 18h2v1h-2zM3 18h1v1h-1zM5 18h1v1h-1zM8 18h1v1h-1zM10 18h2v1h-2zM13 18h1v1h-1zM16 18h1v1h-1zM18 18h1v1h-1zM20 18h2v1h-2zM0 19h2v1h-2zM3 19h1v1h-1zM10 19h2v1h-2zM18 19h1v1h-1zM20 19h2v1h-2zM1 20h1v1h-1zM4 20h6v1h-6zM12 20h6v1h-6zM20 20h1v1h-1zM1 21h1v1h-1zM20 21h1v1h-1zM2 22h1v1h-1zM10 22h2v1h-2zM19 22h1v1h-1zM3 23h1v1h-1zM18 23h1v1h-1zM4 24h2v1h-2zM16 24h2v1h-2zM6 25h10v1h-10z"/>
+  </g>
+</svg>

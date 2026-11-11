@@ -1,6 +1,11 @@
-import { categorizeTransaction, isBillPayment } from "./categorize";
+import {
+  categorizeTransaction,
+  cleanTransactionDescription,
+  isBillPayment,
+} from "./categorize";
 import { db } from "./db";
 import { AppError } from "./http";
+import { parseInstallment, reconcileRecurrings } from "./recurring";
 import type { TransactionKind } from "./types";
 
 type RemoteAccount = {
@@ -25,6 +30,17 @@ type RemoteTransaction = {
   date: string;
   status: string;
   operationType?: string;
+  creditCardMetadata?: {
+    installmentNumber?: number | null;
+    totalInstallments?: number | null;
+  } | null;
+  paymentData?: {
+    paymentMethod?: string | null;
+    installmentData?: {
+      installmentNumber?: number | null;
+      totalInstallments?: number | null;
+    } | null;
+  } | null;
 };
 type RemoteInvestment = {
   id: string;
@@ -32,6 +48,8 @@ type RemoteInvestment = {
   type: string;
   balance: number;
   amount?: number;
+  /** Valor originalmente aplicado; base de custo quando a instituição envia. */
+  amountOriginal?: number | null;
   currencyCode: string;
 };
 type RemoteItem = {
@@ -63,6 +81,15 @@ const transferOperations = new Set([
   "TRANSFERENCIA_SALDO_RESERVADO",
   "TRANSFERENCIA_SALDOS_RESERVADOS",
 ]);
+function remoteInstallment(row: RemoteTransaction) {
+  const meta =
+    row.creditCardMetadata || row.paymentData?.installmentData || null;
+  return parseInstallment(
+    row.description || "",
+    meta?.installmentNumber,
+    meta?.totalInstallments,
+  );
+}
 function investmentMovement(description?: string) {
   if (!description) return false;
   const text = description
@@ -306,7 +333,20 @@ async function importItem(itemId: string): Promise<SyncResult> {
         );
       }
       const txnUpsert = database.prepare(
-        `INSERT INTO transactions(id,mode,description,amount,kind,date,status,group_id,category,account_id,source,currency) VALUES(?,'personal',?,?,?,?,?,?,?,?,'pluggy',?) ON CONFLICT(id) DO UPDATE SET description=excluded.description,amount=excluded.amount,kind=CASE WHEN transactions.user_categorized=1 THEN transactions.kind ELSE excluded.kind END,date=excluded.date,status=excluded.status,account_id=excluded.account_id,currency=excluded.currency,group_id=CASE WHEN transactions.user_categorized=1 OR transactions.category!='Sem categoria' THEN transactions.group_id ELSE excluded.group_id END,category=CASE WHEN transactions.user_categorized=1 OR transactions.category!='Sem categoria' THEN transactions.category ELSE excluded.category END`,
+        `INSERT INTO transactions(id,mode,description,amount,kind,date,status,group_id,category,account_id,source,currency,installment_number,installment_total)
+         VALUES(?,'personal',?,?,?,?,?,?,?,?,'pluggy',?,?,?)
+         ON CONFLICT(id) DO UPDATE SET
+           description=excluded.description,
+           amount=excluded.amount,
+           kind=CASE WHEN transactions.user_categorized=1 THEN transactions.kind ELSE excluded.kind END,
+           date=excluded.date,
+           status=excluded.status,
+           account_id=excluded.account_id,
+           currency=excluded.currency,
+           installment_number=excluded.installment_number,
+           installment_total=excluded.installment_total,
+           group_id=CASE WHEN transactions.user_categorized=1 OR transactions.category!='Sem categoria' THEN transactions.group_id ELSE excluded.group_id END,
+           category=CASE WHEN transactions.user_categorized=1 OR transactions.category!='Sem categoria' THEN transactions.category ELSE excluded.category END`,
       );
       for (const { account, rows } of transactions)
         for (const row of rows) {
@@ -314,9 +354,12 @@ async function importItem(itemId: string): Promise<SyncResult> {
             Math.abs(row.amountInAccountCurrency ?? row.amount),
           );
           if (!amount) continue;
-          const description = row.description || "Transação importada";
+          const description = cleanTransactionDescription(
+            row.description || "Transação importada",
+          );
           const kind = transactionKind({ ...row, description });
           const classified = categorizeTransaction({ description, kind });
+          const installment = remoteInstallment({ ...row, description });
           txnUpsert.run(
             row.id,
             description,
@@ -328,6 +371,8 @@ async function importItem(itemId: string): Promise<SyncResult> {
             classified.category,
             account.id,
             account.currencyCode || row.currencyCode || "BRL",
+            installment?.current ?? null,
+            installment?.total ?? null,
           );
           count++;
         }
@@ -343,21 +388,27 @@ async function importItem(itemId: string): Promise<SyncResult> {
             database
               .prepare("DELETE FROM investments WHERE id=? AND source='pluggy'")
               .run(row.id);
-        // Pluggy's amount is a gross position, not a cost basis. Never present it as money invested.
+        // `amount` is gross balance, not cost. Prefer `amountOriginal` when the bank sends it.
+        // If Pluggy has no original, keep any cost the user typed manually.
         const invUpsert = database.prepare(
-          `INSERT INTO investments(id,mode,name,institution,type,balance,invested,group_id,currency,source,item_id) VALUES(?,'personal',?,?,?,?,?,'personal-future',?,'pluggy',?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,institution=excluded.institution,type=excluded.type,balance=excluded.balance,currency=excluded.currency,item_id=excluded.item_id`,
+          `INSERT INTO investments(id,mode,name,institution,type,balance,invested,group_id,currency,source,item_id) VALUES(?,'personal',?,?,?,?,?,'personal-future',?,'pluggy',?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,institution=excluded.institution,type=excluded.type,balance=excluded.balance,invested=COALESCE(excluded.invested,investments.invested),currency=excluded.currency,item_id=excluded.item_id`,
         );
-        for (const row of investments)
+        for (const row of investments) {
+          const original =
+            row.amountOriginal != null && row.amountOriginal > 0
+              ? cents(row.amountOriginal)
+              : null;
           invUpsert.run(
             row.id,
             row.name,
             item.connector?.name || "Meu Pluggy",
             row.type,
             Math.max(0, cents(row.balance)),
-            null,
+            original,
             row.currencyCode || "BRL",
             itemId,
           );
+        }
       }
       database
         .prepare(
@@ -371,6 +422,7 @@ async function importItem(itemId: string): Promise<SyncResult> {
           itemId,
         );
     })();
+    reconcileRecurrings(database, "personal");
     return {
       itemId,
       ok: true,

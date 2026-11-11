@@ -6,6 +6,7 @@ import {
   ArrowsClockwise,
   ArrowsLeftRight,
   Bank,
+  CalendarDots,
   CaretDown,
   CaretLeft,
   CaretRight,
@@ -13,7 +14,6 @@ import {
   Eye,
   EyeSlash,
   List,
-  MagnifyingGlass,
   Moon,
   Plant,
   Plus,
@@ -21,16 +21,19 @@ import {
   SquaresFour,
   Stack,
   Sun,
+  Tag,
   Target,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { FieldSelect } from "@/components/ui/field-select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ClaraMark } from "./clara-mark";
 import { FinanceForm, type FormState, type Mutate } from "./finance-form";
 import { PrivacyContext } from "./finance-privacy";
 import {
@@ -48,11 +51,14 @@ import {
   GroupsView,
   AccountsView,
 } from "./finance-views";
+import { RecurringView } from "./finance-recurring";
+import { CommandTrigger, FinanceCommandBar } from "./finance-command";
 import { monthKey, monthLabel } from "@/lib/format";
 import type { FinanceData } from "@/lib/types";
 export type View =
   | "dashboard"
   | "transactions"
+  | "recurring"
   | "investments"
   | "goals"
   | "groups"
@@ -64,6 +70,7 @@ const navigationSections = [
     items: [
       { id: "dashboard", label: "Visão geral", icon: SquaresFour },
       { id: "transactions", label: "Lançamentos", icon: ArrowsLeftRight },
+      { id: "recurring", label: "Recorrentes", icon: CalendarDots },
       { id: "investments", label: "Investimentos", icon: Plant },
       { id: "goals", label: "Metas", icon: Target },
     ],
@@ -112,16 +119,17 @@ export function FinanceApp() {
     () => false,
   );
   const [month, setMonth] = useState(monthKey()),
-    [group, setGroup] = useState("all"),
+    [monthDirection, setMonthDirection] = useState<1 | -1>(1),
+    [category, setCategory] = useState("all"),
     [query, setQuery] = useState(""),
-    [txType, setTxType] = useState("all"),
-    [txCategory, setTxCategory] = useState("all");
+    [txType, setTxType] = useState("all");
   const [form, setForm] = useState<FormState | null>(null),
     [refresh, setRefresh] = useState(0),
     [error, setError] = useState("");
   const [sidebar, setSidebar] = useState(false),
     [hidden, setHidden] = useState(false),
-    [syncing, setSyncing] = useState(false);
+    [syncing, setSyncing] = useState(false),
+    [commandOpen, setCommandOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     () =>
       Object.fromEntries(navigationSections.map((section) => [section.id, true])),
@@ -134,12 +142,7 @@ export function FinanceApp() {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k")
         return;
       event.preventDefault();
-      setView("transactions");
-      if (window.matchMedia("(max-width: 700px)").matches) setSidebar(true);
-      window.setTimeout(
-        () => document.getElementById("sidebar-search")?.focus(),
-        0,
-      );
+      setCommandOpen((open) => !open);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -175,12 +178,10 @@ export function FinanceApp() {
     setSidebar(false);
   };
   const openTransactions = (filters?: {
-    groupId?: string;
     category?: string;
     type?: string;
   }) => {
-    setGroup(filters?.groupId ?? "all");
-    setTxCategory(filters?.category ?? "all");
+    setCategory(filters?.category ?? "all");
     setTxType(filters?.type ?? "all");
     setQuery("");
     navigate("transactions");
@@ -228,24 +229,44 @@ export function FinanceApp() {
     }
   }
   function changeMonth(delta: number) {
+    setMonthDirection(delta >= 0 ? 1 : -1);
     const date = new Date(month + "-15T12:00:00");
     date.setMonth(date.getMonth() + delta);
     setMonth(
       `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
     );
   }
+  function goToCurrentMonth() {
+    const next = monthKey();
+    setMonthDirection(next > month ? 1 : -1);
+    setMonth(next);
+  }
+  const categoryOptions = data
+    ? [
+        ...new Set(
+          [
+            ...data.transactions
+              .filter(
+                (row) =>
+                  row.date.startsWith(month) && row.currency === "BRL",
+              )
+              .map((row) => row.category || "Sem categoria"),
+            ...(category !== "all" ? [category] : []),
+          ],
+        ),
+      ].sort((a, b) => a.localeCompare(b, "pt-BR"))
+    : [];
   const props =
     data?.mode === mode
       ? {
           data,
           month,
-          group,
+          category,
+          setCategory,
           query,
           setQuery,
           txType,
           setTxType,
-          txCategory,
-          setTxCategory,
           openForm: setForm,
           mutate,
           navigate,
@@ -270,6 +291,7 @@ export function FinanceApp() {
                 onClick={() => navigate("dashboard")}
                 aria-label="Clara, página inicial"
               >
+                <ClaraMark className="brand-mark" />
                 <span>
                   clara<span className="brand-dot">.</span>
                 </span>
@@ -286,29 +308,7 @@ export function FinanceApp() {
                 />
               </button>
             </div>
-            <label className="sidebar-search">
-              <MagnifyingGlass size={15} aria-hidden="true" />
-              <input
-                id="sidebar-search"
-                aria-label="Buscar lançamentos"
-                placeholder="Buscar"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  if (view !== "transactions") {
-                    openSectionForView("transactions");
-                    setView("transactions");
-                  }
-                }}
-                onFocus={() => {
-                  if (view !== "transactions") {
-                    openSectionForView("transactions");
-                    setView("transactions");
-                  }
-                }}
-              />
-              <kbd aria-hidden="true">⌘K</kbd>
-            </label>
+            <CommandTrigger onOpen={() => setCommandOpen(true)} />
           </div>
           <div className="sidebar-nav">
             {navigationSections.map((section) => {
@@ -347,27 +347,25 @@ export function FinanceApp() {
             })}
           </div>
           <div className="sidebar-bottom">
-            <button className="theme-toggle" onClick={() => setDark((v) => !v)}>
-              <IconSwap
-                active={dark}
-                first={<Sun size={16} />}
-                second={<Moon size={16} />}
-              />
-              <span>Aparência</span>
-              <span className="theme-track">
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() => setDark((v) => !v)}
+              aria-label={dark ? "Usar tema claro" : "Usar tema escuro"}
+            >
+              <span className="theme-track" data-theme={dark ? "dark" : "light"}>
                 <Sun size={13} />
                 <Moon size={12} />
               </span>
             </button>
             <a
-              className="sidebar-help"
+              className="icon-button sidebar-help"
               href="https://meu.pluggy.ai/api-guide"
               target="_blank"
               rel="noreferrer"
               aria-label="Ajuda com Meu Pluggy"
             >
               <Question size={16} />
-              <span>Ajuda</span>
             </a>
           </div>
         </aside>
@@ -382,7 +380,9 @@ export function FinanceApp() {
                 >
                   <List size={21} />
                 </button>
-                {["dashboard", "transactions", "groups"].includes(view) ? (
+                {["dashboard", "transactions", "recurring", "groups"].includes(
+                  view,
+                ) ? (
                   <div className="period-picker">
                     <button
                       className="icon-button"
@@ -392,13 +392,19 @@ export function FinanceApp() {
                       <CaretLeft size={17} />
                     </button>
                     <label className="period-label">
-                      <AnimatedLabel value={monthLabel(month)} />
+                      <AnimatedLabel
+                        value={monthLabel(month)}
+                        direction={monthDirection}
+                      />
                       <input
                         aria-label="Mês de referência"
                         type="month"
                         value={month}
                         onChange={(e) => {
-                          if (e.target.value) setMonth(e.target.value);
+                          const next = e.target.value;
+                          if (!next) return;
+                          setMonthDirection(next > month ? 1 : -1);
+                          setMonth(next);
                         }}
                       />
                     </label>
@@ -413,20 +419,20 @@ export function FinanceApp() {
                 ) : null}
                 {view !== "accounts" && (
                   <div className="group-filter">
-                    <Stack size={15} />
-                    <select
-                      aria-label="Filtrar por grupo"
-                      value={group}
-                      onChange={(e) => setGroup(e.target.value)}
-                    >
-                      <option value="all">Todos os grupos</option>
-                      <option value="ungrouped">Sem grupo</option>
-                      {data?.groups.map((g) => (
-                        <option value={g.id} key={g.id}>
-                          {g.name}
-                        </option>
-                      ))}
-                    </select>
+                    <Tag size={15} />
+                    <FieldSelect
+                      aria-label="Filtrar por categoria"
+                      value={category}
+                      onValueChange={setCategory}
+                      triggerClassName="group-filter-select"
+                      options={[
+                        { value: "all", label: "Todas as categorias" },
+                        ...categoryOptions.map((name) => ({
+                          value: name,
+                          label: name,
+                        })),
+                      ]}
+                    />
                   </div>
                 )}
               </div>
@@ -482,6 +488,14 @@ export function FinanceApp() {
                       Meta
                     </DropdownMenuItem>
                     <DropdownMenuItem
+                      onClick={() =>
+                        setForm({ resource: "recurrings", kind: "expense" })
+                      }
+                    >
+                      <CalendarDots />
+                      Recorrência
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       onClick={() => setForm({ resource: "groups" })}
                     >
                       <Stack />
@@ -511,6 +525,8 @@ export function FinanceApp() {
                     <DashboardView {...props} />
                   ) : view === "transactions" ? (
                     <TransactionsView {...props} />
+                  ) : view === "recurring" ? (
+                    <RecurringView {...props} />
                   ) : view === "investments" ? (
                     <InvestmentsView {...props} />
                   ) : view === "goals" ? (
@@ -538,6 +554,20 @@ export function FinanceApp() {
             mutate={mutate}
           />
         )}
+        <FinanceCommandBar
+          open={commandOpen}
+          onOpenChange={setCommandOpen}
+          dark={dark}
+          hidden={hidden}
+          syncing={syncing}
+          navigate={navigate}
+          openForm={setForm}
+          sync={sync}
+          setDark={setDark}
+          setHidden={setHidden}
+          changeMonth={changeMonth}
+          goToCurrentMonth={goToCurrentMonth}
+        />
       </div>
     </PrivacyContext>
   );

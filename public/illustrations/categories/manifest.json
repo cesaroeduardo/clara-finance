@@ -1,0 +1,77 @@
+{
+  "alimentacao": {
+    "alt": "Coffee",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-mOoyvLISs98asAdPdQUhTac4S9Q1M9.webp",
+    "file": "alimentacao.webp"
+  },
+  "restaurantes": {
+    "alt": "Margherita Pizza",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-V7BPAAQv214eiQpGFqsPGYShI0LmK3.webp",
+    "file": "restaurantes.webp"
+  },
+  "compras": {
+    "alt": "Reusable Shopping Bag",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-GyjU0YEf7HXbb9eSo4yKff0zaJxdqB.webp",
+    "file": "compras.webp"
+  },
+  "contas-da-casa": {
+    "alt": "House",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-0OoMAJRtHLxXtHGKaC50y1kLqsAPFV.webp",
+    "file": "contas-da-casa.webp"
+  },
+  "saude": {
+    "alt": "Medicine Capsule",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-6YCD688sjOC1kmBZgegAoQNGOCBOuQ.webp",
+    "file": "saude.webp"
+  },
+  "transporte": {
+    "alt": "Car",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-BUdFzT6W46HCgNoa5ncDJwdfqXzfqq.webp",
+    "file": "transporte.webp"
+  },
+  "assinaturas": {
+    "alt": "Television remote",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-lxszLi1QNtT8l8PltSLvQpidOZ7I3B.webp",
+    "file": "assinaturas.webp"
+  },
+  "software": {
+    "alt": "Laptop",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-UsyTZyMk2er8VfZu1T68Z4BbnfHYL1.webp",
+    "file": "software.webp"
+  },
+  "pets": {
+    "alt": "Dog",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-YXDHNtGHmuIYVUpDDrH3GBHMqKQB4c.webp",
+    "file": "pets.webp"
+  },
+  "jogos": {
+    "alt": "Retro Joystick",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-15N4BVZNdL1FuhIKEOcIVdzQjHyIaG.webp",
+    "file": "jogos.webp"
+  },
+  "taxas": {
+    "alt": "Crumpled Receipt",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-UiXhCO3kIWmA5OGmHGOxwA8sXKM7Wi.webp",
+    "file": "taxas.webp"
+  },
+  "investimentos": {
+    "alt": "Ancient Coin",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-Bot2RQmN2zy1wvCRmSEPAW3LyUmHQs.webp",
+    "file": "investimentos.webp"
+  },
+  "transferencias": {
+    "alt": "Hook-and-Loop Wallet",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-3pVEvjgJ7M5buPvZMdbQOzM04PNWGs.webp",
+    "file": "transferencias.webp"
+  },
+  "sem-categoria": {
+    "alt": "Question Mark",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-GHLlVvoifSdvzv5ojMTLUf8GOVIeee.webp",
+    "file": "sem-categoria.webp"
+  },
+  "outros": {
+    "alt": "Open Box",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-6lis8ZNWsE3pFGLUyw2i5B5vo9wBns.webp",
+    "file": "outros.webp"
+  }
+}
