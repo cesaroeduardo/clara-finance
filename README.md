@@ -1,20 +1,37 @@
-# Clara · Finanças pessoais
+# Clara Finance
 
-Aplicativo pessoal de controle financeiro com **Next.js 16, React, TypeScript, Tailwind CSS 4, shadcn/ui, Recharts e SQLite local**. Interface em português, valores em reais e datas no fuso America/Sao_Paulo.
+**Clara Finance** (`clara-finance`) é um aplicativo de finanças pessoais para acompanhar receitas, despesas, contas bancárias, faturas de cartão, investimentos e metas em um só lugar. Permite registrar lançamentos manualmente, organizar categorias e regras de classificação, acompanhar recorrências e consultar os resultados por período.
+
+Repositório: [cesaroeduardo/clara-finance](https://github.com/cesaroeduardo/clara-finance).
+
+O aplicativo roda no seu computador e armazena os dados em **SQLite local**. A integração com **Meu Pluggy** é opcional e importa contas, transações e investimentos autorizados por você. Também é possível testar a interface com dados fictícios, separados dos dados pessoais, sem configurar credenciais bancárias.
+
+Construído com **Next.js 16, React, TypeScript, Tailwind CSS 4, shadcn/ui e Recharts**. Interface em português, valores em reais, datas no fuso America/Sao_Paulo e temas claro e escuro.
+
+## Telas
+
+Visão geral com dados fictícios: gastos por categoria, investimentos e faturas dos cartões.
+
+![Visão geral do Clara Finance no tema escuro](docs/screenshots/visao-geral.png)
+
+Metas com valores reservados, prazos e acompanhamento do progresso.
+
+![Página de metas do Clara Finance no tema escuro](docs/screenshots/metas.png)
 
 ## Começar
 
 Requer Node.js 22.13+ e npm. O banco é criado automaticamente na primeira leitura.
 
 ```powershell
-cd personal-finances
+git clone https://github.com/cesaroeduardo/clara-finance.git
+cd clara-finance
 npm ci
 npm run dev
 ```
 
 Abra http://127.0.0.1:3000. Para outra porta, use `npm run dev -- --port 3013`.
 
-A primeira abertura usa **dados de demonstração**, identificados no topo. Clique em **Usar meus dados** para acessar o espaço pessoal vazio. A escolha é lembrada no navegador. Os dados de demonstração e pessoais ficam isolados no banco.
+O aplicativo abre no espaço pessoal. Para testar com dados de exemplo, ative **Dados fictícios** na tela **Contas**. Desative o mesmo toggle para voltar aos seus dados. A escolha é lembrada no navegador. Os dois espaços ficam isolados no banco; a demonstração não sincroniza com a Pluggy.
 
 Para usar a versão compilada:
 
@@ -25,12 +42,35 @@ npm start
 
 O aplicativo inicia apenas na interface local (127.0.0.1). Ele foi feito para uma pessoa, em seu computador; não inclui login nem hospedagem pública.
 
+### Atalho no desktop do Windows
+
+Depois de instalar o Node.js e executar `npm ci` na pasta do projeto:
+
+1. Abra a pasta do projeto no Explorador de Arquivos e localize `start-local.cmd`.
+2. Clique com o botão direito no arquivo. No Windows 11, escolha **Mostrar mais opções**.
+3. Selecione **Enviar para → Área de trabalho (criar atalho)**.
+4. Na área de trabalho, renomeie o atalho para **Clara Finance**.
+5. Para usar o ícone do projeto, abra **Propriedades → Atalho → Alterar ícone → Procurar** e selecione `public\clara.ico` dentro da pasta do projeto. Se o Windows avisar que o arquivo `.cmd` não contém ícones, confirme e escolha o arquivo `.ico`.
+
+Ao abrir o atalho, uma janela de terminal inicia o servidor com `npm run dev`. Aguarde a mensagem de que o servidor está pronto e abra http://127.0.0.1:3000 no navegador. Mantenha o terminal aberto enquanto usa o aplicativo; para encerrar, pressione `Ctrl+C` nessa janela.
+
+O atalho usa a localização atual de `start-local.cmd`. Se mover ou renomear a pasta do projeto, recrie o atalho. Ele não instala as dependências nem abre o navegador automaticamente.
+
+### Acesso pela rede local (opcional)
+
+Defina `ALLOW_LAN_ACCESS=true` em `.env.local` e reinicie com `npm run dev` ou `npm start` para acessar por outro dispositivo. O servidor passa a ouvir em `0.0.0.0`; acesse `http://IP-DO-COMPUTADOR:3000`. O `start-local.cmd` usa a mesma configuração. Com a variável ausente ou `false`, o acesso fica restrito ao computador.
+
+O modo de rede continua **sem login**: qualquer dispositivo que alcance a porta pode ler e alterar seus dados. Use apenas em rede confiável, sem encaminhar a porta no roteador. Para webhook, use o túnel restrito descrito abaixo.
+
+### Logos opcionais
+
+`NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY` aceita apenas a chave publicável do Logo.dev. Ela aparece no navegador; nunca use Client Secret ou chave privada nessa variável. As requisições de logos enviam o domínio da marca ao provedor, sem valores ou descrições completas dos lançamentos.
+
 ## O que funciona
 
-- Dashboard com resultado mensal previsto, entradas, saídas, grupos, contas pendentes, fluxo acumulado, investimentos e metas.
-- Lançamentos: criar, editar, excluir, pesquisar, filtrar por mês/grupo/tipo/situação e exportar CSV.
-- Grupos: cor, ícone e orçamento mensal; vínculos com lançamentos, investimentos e metas.
-- Investimentos: posições manuais ou importadas, com instituição, classe e grupo.
+- Dashboard com resultado mensal previsto, entradas, saídas, contas pendentes, fluxo acumulado, investimentos e metas.
+- Lançamentos: criar, editar, excluir, pesquisar, filtrar por mês/categoria/tipo/situação e exportar CSV.
+- Investimentos: posições manuais ou importadas, com instituição e classe.
 - Metas: valor desejado, prazo, valor reservado e registro incremental de progresso.
 - Contas: saldos e cartões importados, conexões e erros/estado da última sincronização.
 - Tema claro/escuro, ocultação de valores e navegação responsiva.
@@ -51,7 +91,7 @@ PLUGGY_CLIENT_ID=seu_client_id
 PLUGGY_CLIENT_SECRET=seu_client_secret
 ```
 
-6. Reinicie o aplicativo. Em **Usar meus dados → Contas & conexões**, clique em **Adicionar conexão**, informe o nome e o itemId e depois clique em **Sincronizar**.
+6. Reinicie o aplicativo. Na tela **Contas**, com **Dados fictícios** desativado, clique em **Adicionar conexão**, informe o nome e o itemId e depois clique em **Sincronizar**.
 
 As credenciais e a API key ficam no servidor; o navegador recebe apenas o indicador de configuração. `.env.local`, banco, backups e arquivos de teste não são enviados ao Git.
 
@@ -61,8 +101,8 @@ A integração usa `/auth`, `/items/{id}`, `/accounts`, `/v2/transactions` e `/i
 
 - O botão lê os dados já disponíveis na Pluggy. Ele **não força uma atualização no banco**; o Meu Pluggy atualiza suas conexões a cada 24 horas.
 - Importa todas as páginas e grava cada instituição de forma atômica. Erros não apagam os dados locais existentes.
-- Reimportações atualizam pelo ID da Pluggy, sem duplicar transações. Grupo, categoria e tipo ajustados pelo usuário são preservados.
-- Categorias usam uma taxonomia local por palavras-chave na descrição (Uber → Transporte, Unifique → Contas da casa, etc.). A categorização paga da Pluggy não é usada. Edições manuais e categorias já preenchidas são preservadas na reimportação; só `Sem categoria` recebe classificação automática.
+- Reimportações atualizam pelo ID da Pluggy, sem duplicar transações. Categoria e tipo ajustados pelo usuário são preservados.
+- Categorias e regras de classificação ficam no SQLite. As regras comparam a descrição do lançamento e definem a categoria. A categorização paga da Pluggy não é usada. Edições manuais e categorias já preenchidas são preservadas na reimportação; novos registros e os que estão `Sem categoria` recebem classificação automática.
 - Pagamentos de fatura (`PAGAMENTO_FATURA`), aplicações e resgates financeiros (`APLICACAO_FINANCEIRA`, `RESGATE_APLIC_FINANCEIRA`, saldos reservados) e descrições típicas de aplicação/resgate/tesouro são classificados como transferência, para não entrar no resultado do mês. Rendimentos (`RENDIMENTO_APLIC_FINANCEIRA`) continuam como entrada. Confira PIX/TED para corretora e pagamentos de fatura sem identificador para evitar dupla contagem.
 - Se investimentos não estiverem autorizados, a sincronização avisa e preserva as posições anteriores.
 - A autorização pessoal expira após um ano. Renove no Dashboard/Meu Pluggy e confira os novos itemIds.
@@ -115,6 +155,28 @@ Referências: [webhooks da Pluggy](https://docs.pluggy.ai/en/docs/developer-tool
 Os totais do dashboard e os gráficos consolidam BRL. Valores em outras moedas são mantidos e mostrados em sua moeda, sem conversão inventada. Investimentos representam posições atuais, não um histórico de rentabilidade. O campo `amount` da Pluggy é saldo bruto e não é tratado como custo de aquisição.
 
 Os orçamentos são mensais. Metas representam o valor que você registrou como reservado: atualizar uma meta não transfere dinheiro, não cria um lançamento e não altera o saldo da instituição. Lançamentos manuais também não substituem o saldo importado.
+
+## Categorias e regras de classificação
+
+Em **Categorias**, os cartões identificam categorias padrão, personalizadas e a categoria protegida `Sem categoria`. Também mostram a quantidade de regras associadas. As categorias padrão podem ser renomeadas; as regras continuam vinculadas pelo ID. Apenas `Sem categoria` tem nome e exclusão protegidos.
+
+No seletor da página, alterne entre **Categorias** e **Configuração**. A configuração mostra as regras em tabela, com busca e filtro por categoria. Ao editar uma categoria, o botão **Ver configurações** abre essa tabela já filtrada para ela.
+
+Na tabela, use **Adicionar regra** ou o botão de edição da linha. Escolha se a descrição contém um texto ou é igual a ele, a categoria e a prioridade. A comparação ignora maiúsculas e acentos. O menor número de prioridade ganha; empates seguem a ordem de criação. Regras podem ser pausadas, editadas ou excluídas.
+
+Alterações nas regras não reclassificam o histórico já preenchido. A sincronização mantém escolhas anteriores. Ao excluir uma categoria sem registros associados, suas regras também são excluídas.
+
+Instalações novas recebem apenas regras genéricas de exemplo, gravadas uma vez no banco e editáveis pela interface. Regras pessoais não fazem parte desses dados iniciais. Na migração de uma instalação anterior, um arquivo local `<DATABASE_PATH>.legacy-category-rules.json`, se existente, é importado uma única vez. O arquivo contém uma lista de objetos com `match` e `category`; mantenha-o junto aos dados privados, fora do repositório. Depois da migração, o banco é a fonte das regras e o backup já as inclui.
+
+## Proteção dos dados no Git
+
+`npm ci` instala o hook de pre-commit em `.githooks`. Se houver outro `core.hooksPath`, ele é preservado: integre `node scripts/check-private-data.cjs` ao hook existente. Para reinstalar, execute `npm run prepare`.
+
+O `.gitignore` exclui bancos SQLite e auxiliares, dumps SQL, backups, exportações CSV/OFX, arquivos de ambiente e logs. O hook inspeciona **o conteúdo em staging**, inclusive arquivos adicionados com `git add -f`, e bloqueia assinaturas SQLite, exportações reconhecidas e valores secretos locais. Também consulta nomes privados dos logos no banco local, quando disponível. `npm run security:check` verifica os arquivos atuais que seriam publicáveis; a CI repete essa verificação.
+
+Logos pessoais e seus nomes ficam na tabela `merchant_assets`; as imagens são armazenadas no próprio SQLite e incluídas no backup. A migração opcional `<DATABASE_PATH>.legacy-merchants.json` importa uma lista `{ "match": "texto", "src": "data:image/png;base64,..." }` uma vez, apenas no modo pessoal. Novas instalações não recebem dados pessoais. Regras pessoais ficam em `category_rules`.
+
+O banco e os backups não são criptografados pelo aplicativo. Mantenha-os em armazenamento protegido. Hooks podem ser ignorados e nenhuma detecção automática reconhece toda transcrição de dados: revise o diff antes de publicar. Essas proteções não apagam informações de commits antigos; o histórico precisa ser sanitizado antes de abrir o repositório.
 
 ## Banco e backup
 
