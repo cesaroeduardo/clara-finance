@@ -4,9 +4,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { db, getData } from "../src/lib/db";
+import { categoryFallback, listCategoryRules } from "../src/lib/category-rules";
 import { POST, PATCH, DELETE } from "../src/app/api/manage/[resource]/route";
 import { GET } from "../src/app/api/data/route";
 import {
+  cardInvoiceAmount,
+  shiftMonth,
   isCnpjIncome,
   netWorth,
   spendingPace,
@@ -55,7 +58,6 @@ const transaction = {
   kind: "expense",
   date: "2026-11-10",
   status: "paid",
-  groupId: "personal-home",
   category: "Alimentação",
   accountId: null,
 };
@@ -63,11 +65,122 @@ const transaction = {
 test("banco cria demonstração isolada dos dados pessoais", () => {
   const demo = getData("demo");
   assert.ok(demo.transactions.length > 0);
+  assert.equal(
+    demo.transactions.some((row) => row.category === "Moradia"),
+    false,
+  );
+  assert.equal(
+    demo.categories.some((row) => row.name === "Moradia"),
+    false,
+  );
+  assert.equal(
+    demo.transactions
+      .filter(
+        (row) =>
+          row.category === "Contas da casa" &&
+          row.date.startsWith(localDate().slice(0, 7)),
+      )
+      .reduce((total, row) => total + row.amount, 0),
+    370000,
+  );
+  assert.equal(demo.investments.length, 7);
+  assert.equal(
+    demo.investments.reduce((total, row) => total + row.balance, 0),
+    15_000_000,
+  );
   assert.ok(demo.recurrings.some((row) => row.type === "fixed"));
   assert.ok(demo.recurrings.some((row) => row.type === "installment"));
   assert.equal(getData("personal").transactions.length, 0);
-  assert.equal(getData("personal").groups.length, 5);
+  assert.equal("groups" in getData("personal"), false);
+  assert.ok(
+    getData("personal").categories.some((row) => row.name === "Educação"),
+  );
   assert.equal(database.pragma("journal_mode", { simple: true }), "wal");
+});
+test("cartão Sicredi fictício tem faturas passadas, atuais e futuras isoladas", () => {
+  const demo = getData("demo");
+  const month = localDate().slice(0, 7);
+  const card = demo.accounts.find((row) => row.id === "demo-credit-sicredi");
+  assert.equal(card?.institution, "Sicredi");
+  assert.equal(card?.type, "CREDIT");
+  for (let offset = -2; offset <= 5; offset++) {
+    const key = shiftMonth(month, offset);
+    const rows: import("../src/lib/types").Transaction[] =
+      demo.transactions.filter(
+        (row) => row.accountId === card?.id && row.date.startsWith(key),
+      );
+    assert.equal(rows.length, 4);
+    assert.ok(cardInvoiceAmount(demo, card!.id, key) > 0);
+    const notebook = rows.find((row) => row.description.startsWith("Notebook"));
+    assert.equal(notebook?.installmentNumber, offset + 3);
+    assert.equal(notebook?.installmentTotal, 8);
+  }
+  assert.equal(cardInvoiceAmount(demo, card!.id, month), 98650);
+  assert.equal(
+    getData("personal").transactions.some((row) => row.accountId === card?.id),
+    false,
+  );
+});
+
+test("Ultravioleta fictício tem compras e parcelas nos oito meses de faturas", () => {
+  const demo = getData("demo");
+  const month = localDate().slice(0, 7);
+  for (let offset = -2; offset <= 5; offset++) {
+    const key = shiftMonth(month, offset);
+    const rows = demo.transactions.filter(
+      (row) => row.accountId === "demo-credit" && row.date.startsWith(key),
+    );
+    assert.equal(rows.length, 5);
+    assert.ok(cardInvoiceAmount(demo, "demo-credit", key) > 0);
+    assert.equal(rows.filter((row) => row.installmentTotal === 10).length, 2);
+    assert.ok(
+      rows.every((row) => row.status === (offset < 0 ? "paid" : "pending")),
+    );
+  }
+  assert.equal(cardInvoiceAmount(demo, "demo-credit", month), 214790);
+  assert.equal(
+    demo.transactions.some(
+      (row) => row.id === "demo-iphone" || row.id === "demo-sofa",
+    ),
+    false,
+  );
+});
+
+test("categorias podem ser criadas, renomeadas e excluídas", async () => {
+  const created = await POST(
+    req("POST", "categories", {
+      name: "Cursos",
+      color: "#6366F1",
+      imageSlug: null,
+    }),
+    ctx("categories"),
+  );
+  assert.equal(created.status, 201);
+  const { id } = await created.json();
+  assert.ok(
+    getData("personal").categories.some((row) => row.name === "Cursos"),
+  );
+  const renamed = await PATCH(
+    req("PATCH", "categories", {
+      id,
+      name: "Cursos online",
+      color: "#4F46E5",
+      imageSlug: null,
+    }),
+    ctx("categories"),
+  );
+  assert.equal(renamed.status, 200);
+  assert.ok(
+    getData("personal").categories.some((row) => row.name === "Cursos online"),
+  );
+  const removed = await DELETE(
+    req("DELETE", "categories", { id }),
+    ctx("categories"),
+  );
+  assert.equal(removed.status, 200);
+  assert.ok(
+    !getData("personal").categories.some((row) => row.name === "Cursos online"),
+  );
 });
 test("valores brasileiros mantêm centavos e rejeitam formatos ambíguos", () => {
   assert.equal(parseMoney("1234,56"), 123456);
@@ -105,7 +218,10 @@ test("lançamento é persistido, validado e isolado por modo", async () => {
   assert.equal(
     (
       await POST(
-        req("POST", "transactions", { ...transaction, groupId: "demo-home" }),
+        req("POST", "transactions", {
+          ...transaction,
+          accountId: "missing-account",
+        }),
         ctx("transactions"),
       )
     ).status,
@@ -168,7 +284,7 @@ test("requisições de outro site e payloads inválidos são recusados", async (
   assert.equal(response.status, 400);
   assert.equal(GET(new NextRequest("http://example.com/api/data")).status, 403);
 });
-test("resumo separa transferências, moedas e grupos", () => {
+test("resumo separa transferências, moedas e categorias", () => {
   const data = getData("personal");
   data.transactions = [
     {
@@ -218,6 +334,8 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
   const wealth = netWorth(
     {
       mode: "personal",
+      categories: [],
+      categoryRules: [],
       accounts: [
         {
           id: "a1",
@@ -264,7 +382,6 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           type: "FIXED_INCOME",
           balance: 50000,
           invested: 45000,
-          groupId: "personal-future",
           currency: "BRL",
           source: "manual",
         },
@@ -277,7 +394,6 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           kind: "income",
           date: `${month}-05`,
           status: "paid",
-          groupId: "personal-work",
           category: "Salário",
           accountId: "a1",
           source: "manual",
@@ -292,7 +408,6 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           kind: "expense",
           date: `${month}-08`,
           status: "paid",
-          groupId: "personal-home",
           category: "Alimentação",
           accountId: "a1",
           source: "manual",
@@ -307,7 +422,6 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           kind: "transfer",
           date: `${month}-09`,
           status: "paid",
-          groupId: "personal-future",
           category: "Investimento",
           accountId: "a1",
           source: "manual",
@@ -322,7 +436,6 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           kind: "income",
           date: `${prev}-20`,
           status: "paid",
-          groupId: "personal-work",
           category: "Salário",
           accountId: "a1",
           source: "manual",
@@ -331,7 +444,7 @@ test("patrimônio soma contas e investimentos e reconstrói a variação do mês
           installmentTotal: null,
         },
       ],
-      groups: [],
+
       goals: [],
       connections: [],
       recurrings: [],
@@ -359,10 +472,10 @@ test("progresso de metas é acumulado sem criar movimento bancário", async () =
   const result = await POST(
     req("POST", "goals", {
       name: "Reserva teste",
+      description: "Detalhes da meta\nhttps://example.com/reserva",
       target: 500000,
       current: 10000,
       deadline: "2027-01-01",
-      groupId: "personal-future",
       icon: "shield",
       color: "#2563eb",
     }),
@@ -383,23 +496,34 @@ test("progresso de metas é acumulado sem criar movimento bancário", async () =
     getData("personal").goals.find((g) => g.id === id)?.current,
     20001,
   );
-  assert.equal(getData("personal").transactions.length, 0);
+  const savedGoal = getData("personal").goals.find((goal) => goal.id === id)!;
   assert.equal(
-    (
-      await DELETE(
-        req("DELETE", "groups", { id: "personal-future" }),
-        ctx("groups"),
-      )
-    ).status,
-    400,
+    savedGoal.description,
+    "Detalhes da meta\nhttps://example.com/reserva",
   );
+  const update = await PATCH(
+    req("PATCH", "goals", {
+      ...savedGoal,
+      category: "Compras",
+      description: "Novo link: www.example.com",
+    }),
+    ctx("goals"),
+  );
+  assert.equal(update.status, 200);
+  assert.equal(
+    getData("personal").goals.find((goal) => goal.id === id)?.category,
+    "Compras",
+  );
+  assert.equal(
+    getData("personal").goals.find((goal) => goal.id === id)?.description,
+    "Novo link: www.example.com",
+  );
+  assert.equal(getData("personal").transactions.length, 0);
 });
 test("remove prefixo de operação Open Finance da descrição", () => {
   assert.equal(
-    cleanTransactionDescription(
-      "Pagamento efetuado|fornecedor local E SERVICOS",
-    ),
-    "fornecedor local E SERVICOS",
+    cleanTransactionDescription("Pagamento efetuado|CONSULTORIA DE TESTE"),
+    "CONSULTORIA DE TESTE",
   );
   assert.equal(
     cleanTransactionDescription(
@@ -418,144 +542,47 @@ test("remove prefixo de operação Open Finance da descrição", () => {
   assert.equal(cleanTransactionDescription("Uber* Trip"), "Uber* Trip");
 });
 
-test("taxonomia local classifica descrição em categoria e grupo", () => {
-  assert.deepEqual(categorizeTransaction({ description: "Uber* Trip" }), {
-    category: "Transporte",
-    groupId: "personal-life",
-  });
-  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
-    category: "Restaurantes",
-    groupId: "personal-life",
-  });
+test("regras do banco classificam descrição em categoria e grupo", () => {
+  const rules = listCategoryRules(database, "personal");
+  const fallback = categoryFallback(database, "personal");
   assert.deepEqual(
-    categorizeTransaction({ description: "fornecedor local" }),
-    { category: "Restaurantes", groupId: "personal-life" },
+    categorizeTransaction({ description: "Udemy Course" }, rules, fallback),
+    { category: "Educação" },
   );
   assert.deepEqual(
-    categorizeTransaction({ description: "fornecedor local" }),
-    { category: "Transporte", groupId: "personal-life" },
+    categorizeTransaction(
+      { description: "Pagamento efetuado|Uber* Trip" },
+      rules,
+      fallback,
+    ),
+    { category: "Transporte" },
   );
   assert.deepEqual(
-    categorizeTransaction({ description: "fornecedor local" }),
-    { category: "Transporte", groupId: "personal-life" },
+    categorizeTransaction(
+      { description: "IOF de compra internacional" },
+      rules,
+      fallback,
+    ),
+    { category: "Taxas" },
   );
   assert.deepEqual(
-    categorizeTransaction({ description: "fornecedor local" }),
-    { category: "Restaurantes", groupId: "personal-life" },
-  );
-  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
-    category: "Compras",
-    groupId: "personal-life",
-  });
-  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
-    category: "Saúde",
-    groupId: "personal-home",
-  });
-  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
-    category: "Restaurantes",
-    groupId: "personal-life",
-  });
-  assert.deepEqual(
-    categorizeTransaction({ description: "fornecedor local" }),
-    { category: "Compras", groupId: "personal-life" },
+    categorizeTransaction(
+      { description: "Lançamento sem regra" },
+      rules,
+      fallback,
+    ),
+    { category: "Sem categoria" },
   );
   assert.deepEqual(
-    categorizeTransaction({ description: "203 - fornecedor local-Rs Poa 1/2" }),
-    { category: "Compras", groupId: "personal-life" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({
-      description: "fornecedor local Sistemas de Processamento de Dados Ltda",
-    }),
-    { category: "Transporte", groupId: "personal-life" },
-  );
-  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
-    category: "Software",
-    groupId: "personal-work",
-  });
-  assert.deepEqual(
-    categorizeTransaction({ description: "IOF de volta de fornecedor local" }),
-    { category: "Taxas", groupId: "personal-other" },
-  );
-  assert.deepEqual(categorizeTransaction({ description: "fornecedor local" }), {
-    category: "Software",
-    groupId: "personal-work",
-  });
-  assert.deepEqual(
-    categorizeTransaction({ description: "fornecedor local" }),
-    { category: "Transporte", groupId: "personal-life" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({ description: "fornecedor local" }),
-    { category: "Restaurantes", groupId: "personal-life" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({ description: "fornecedor local" }),
-    { category: "Restaurantes", groupId: "personal-life" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({
-      description: "Transferência enviada pelo Pix|fornecedor local 83806490015",
-    }),
-    { category: "Barbeiro", groupId: "personal-life" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({
-      description: "Pagamento efetuado|fornecedor local Ltda",
-    }),
-    { category: "Saúde", groupId: "personal-home" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({
-      description: "Transferência enviada pelo Pix|fornecedor local",
-    }),
-    { category: "Saúde", groupId: "personal-home" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({
-      description: "Pagamento efetuado|UNIFIQUE TELECOMUNICACOES S A",
-    }),
-    { category: "Contas da casa", groupId: "personal-home" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({
-      description: "Pagamento efetuado|fornecedor local & CIA LTDA",
-    }),
-    { category: "Contas da casa", groupId: "personal-home" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({
-      description: "Pagamento efetuado|fornecedor local E SERVICOS",
-    }),
-    { category: "Contas da casa", groupId: "personal-home" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({
-      description:
-        "Transferência enviada pelo Pix|RGE SUL DISTRIBUIDORA DE ENERGIA S.A",
-    }),
-    { category: "Contas da casa", groupId: "personal-home" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({ description: "IOF de compra internacional" }),
-    { category: "Taxas", groupId: "personal-other" },
-  );
-  assert.deepEqual(categorizeTransaction({ description: "Aplicação RDB" }), {
-    category: "Investimentos",
-    groupId: "personal-future",
-  });
-  assert.deepEqual(
-    categorizeTransaction({
-      description: "Pagamento de fatura",
-      kind: "transfer",
-    }),
-    { category: "Transferências", groupId: "personal-other" },
-  );
-  assert.deepEqual(
-    categorizeTransaction({ description: "Lançamento sem regra" }),
-    { category: "Sem categoria", groupId: "personal-other" },
+    categorizeTransaction(
+      { description: "Transferência própria", kind: "transfer" },
+      rules,
+      fallback,
+    ),
+    { category: "Transferências" },
   );
 });
+
 test("fatura, aplicação e resgate usam tipo transferência", () => {
   assert.equal(
     transactionKind({
@@ -646,6 +673,24 @@ test("fatura, aplicação e resgate usam tipo transferência", () => {
 });
 test("sincronização paginada é idempotente, preserva classificação e mantém dados em falhas", async () => {
   const originalFetch = global.fetch;
+  const originalRule = getData("personal").categoryRules.find(
+    (rule) => rule.match === "uber",
+  )!;
+  const targetCategory = getData("personal").categories.find(
+    (category) => category.name === "Educação",
+  )!;
+  assert.equal(
+    (
+      await PATCH(
+        req("PATCH", "category-rules", {
+          ...originalRule,
+          categoryId: targetCategory.id,
+        }),
+        ctx("category-rules"),
+      )
+    ).status,
+    200,
+  );
   process.env.PLUGGY_CLIENT_ID = "test-client";
   process.env.PLUGGY_CLIENT_SECRET = "test-secret";
   const itemId = "10000000-0000-4000-8000-000000000001";
@@ -760,19 +805,20 @@ test("sincronização paginada é idempotente, preserva classificação e manté
     const uber = data.transactions.find((t) => t.id === "remote-2");
     assert.equal(uber?.description, "Uber* Trip");
     assert.equal(uber?.amount, 2256);
-    assert.equal(uber?.category, "Transporte");
-    assert.equal(uber?.groupId, "personal-life");
+    assert.equal(uber?.category, "Educação");
+
     assert.equal(data.investments[0].balance, 120025);
     assert.equal(data.investments[0].invested, 110050);
     database
       .prepare(
-        "UPDATE transactions SET group_id='personal-life',category='Minha categoria',kind='transfer',user_categorized=1 WHERE id='remote-2'",
+        "UPDATE transactions SET category='Minha categoria',kind='transfer',user_categorized=1 WHERE id='remote-2'",
       )
       .run();
     assert.equal((await syncAll())[0].ok, true);
     assert.equal(
-      getData("personal").investments.find((row) => row.id === "investment-test")
-        ?.invested,
+      getData("personal").investments.find(
+        (row) => row.id === "investment-test",
+      )?.invested,
       110050,
     );
     data = getData("personal");
@@ -802,6 +848,10 @@ test("sincronização paginada é idempotente, preserva classificação e manté
     assert.ok(calls.some((c) => c.includes("after=page-2")));
   } finally {
     global.fetch = originalFetch;
+    await PATCH(
+      req("PATCH", "category-rules", originalRule),
+      ctx("category-rules"),
+    );
     delete process.env.PLUGGY_CLIENT_ID;
     delete process.env.PLUGGY_CLIENT_SECRET;
   }
@@ -809,13 +859,17 @@ test("sincronização paginada é idempotente, preserva classificação e manté
 
 test("previsão CNPJ separa salário e freela e usa max(previsto, recebido)", () => {
   assert.equal(
-    isCnpjIncome("Transferência Recebida|45.548.809 EDUARDO DE CESARO AMARANTE"),
+    isCnpjIncome(
+      "Transferência Recebida|45.548.809 EDUARDO DE CESARO AMARANTE",
+    ),
     true,
   );
   const month = localDate().slice(0, 7);
   const pace = spendingPace(
     {
       mode: "personal",
+      categories: [],
+      categoryRules: [],
       accounts: [],
       investments: [],
       transactions: [
@@ -827,7 +881,6 @@ test("previsão CNPJ separa salário e freela e usa max(previsto, recebido)", ()
           kind: "income",
           date: `${month}-06`,
           status: "paid",
-          groupId: "personal-work",
           category: "Salário",
           accountId: null,
           source: "manual",
@@ -843,7 +896,6 @@ test("previsão CNPJ separa salário e freela e usa max(previsto, recebido)", ()
           kind: "income",
           date: `${month}-10`,
           status: "paid",
-          groupId: "personal-work",
           category: "Freela",
           accountId: null,
           source: "manual",
@@ -852,7 +904,7 @@ test("previsão CNPJ separa salário e freela e usa max(previsto, recebido)", ()
           installmentTotal: null,
         },
       ],
-      groups: [],
+
       goals: [],
       connections: [],
       recurrings: [],
@@ -909,5 +961,56 @@ test("planejamento é salvo por mês e herda o mês anterior", async () => {
   assert.equal(data.plans["2026-11"]?.monthlyLimit, 500_000);
   const { planForMonth } = await import("../src/lib/analytics");
   assert.equal(planForMonth(data, "2026-12").expectedFreelance, 250_000);
-  assert.equal(planForMonth(data, "2026-09").expectedFreelance, data.plan.expectedFreelance);
+  assert.equal(
+    planForMonth(data, "2026-09").expectedFreelance,
+    data.plan.expectedFreelance,
+  );
+});
+
+test("datas da meta registram criação e cada nova conclusão sem alterar o histórico na edição", async () => {
+  const response = await POST(
+    req("POST", "goals", {
+      name: "Histórico de meta",
+      target: 10000,
+      current: 0,
+      deadline: "2027-12-31",
+      icon: "target",
+      color: "#737373",
+    }),
+    ctx("goals"),
+  );
+  assert.equal(response.status, 201);
+  const { id } = await response.json();
+  const read = () => getData("personal").goals.find((goal) => goal.id === id)!;
+  const created = read().createdAt;
+  assert.ok(created && Number.isFinite(Date.parse(created)));
+  assert.equal(read().completedAt, null);
+  const save = async (completed: boolean) => {
+    const result = await PATCH(
+      req("PATCH", "goals", { ...read(), completed }),
+      ctx("goals"),
+    );
+    assert.equal(result.status, 200);
+  };
+  await save(true);
+  assert.ok(
+    read().completedAt && Number.isFinite(Date.parse(read().completedAt!)),
+  );
+  const previous = "2026-01-01T12:00:00.000Z";
+  database
+    .prepare("UPDATE goals SET completed_at=? WHERE id=?")
+    .run(previous, id);
+  await save(true);
+  assert.equal(read().completedAt, previous);
+  assert.equal(read().createdAt, created);
+  await save(false);
+  assert.equal(read().completedAt, null);
+  await save(true);
+  assert.notEqual(read().completedAt, previous);
+  assert.equal(read().createdAt, created);
+  assert.ok(
+    getData("demo").goals.every(
+      (goal) => goal.createdAt === null && goal.completedAt === null,
+    ),
+  );
 });

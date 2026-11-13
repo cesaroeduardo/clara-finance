@@ -1,9 +1,5 @@
 import { normalizeText } from "./categorize";
 
-/** Logos locais (prioridade sobre Logo.dev). Match mais específico primeiro. */
-const merchantAssets: ReadonlyArray<{ match: string; src: string }> = [];
-
-/** Domínios conhecidos para avatar via Logo.dev (match mais específico primeiro). */
 const merchantDomains: ReadonlyArray<{ match: string; domain: string }> = [
   { match: "aplicacao rdb", domain: "nubank.com.br" },
   { match: "resgate rdb", domain: "nubank.com.br" },
@@ -36,9 +32,14 @@ const merchantDomains: ReadonlyArray<{ match: string; domain: string }> = [
   { match: "livepix", domain: "livepix.gg" },
 ];
 
-export function merchantAssetFor(description: string) {
+export type MerchantAsset = { match: string; src: string };
+
+export function merchantAssetFor(
+  description: string,
+  assets: readonly MerchantAsset[] = [],
+) {
   const text = normalizeText(description || "");
-  for (const rule of merchantAssets) {
+  for (const rule of assets) {
     if (text.includes(normalizeText(rule.match))) return rule.src;
   }
   return null;
@@ -52,8 +53,12 @@ export function merchantDomainFor(description: string) {
   return null;
 }
 
-export function merchantLogoUrl(description: string, size = 64) {
-  const local = merchantAssetFor(description);
+export function merchantLogoUrl(
+  description: string,
+  size = 64,
+  assets: readonly MerchantAsset[] = [],
+) {
+  const local = merchantAssetFor(description, assets);
   if (local) return local;
   const domain = merchantDomainFor(description);
   const token = process.env.NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY;

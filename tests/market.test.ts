@@ -7,10 +7,7 @@ import {
   positionCostForTicker,
   positionReturnPct,
 } from "../src/lib/market";
-import {
-  investmentBucket,
-  investmentsOverview,
-} from "../src/lib/analytics";
+import { investmentBucket, investmentsOverview } from "../src/lib/analytics";
 
 test("extractEquityTickers acha tickers B3 na carteira", () => {
   const tickers = extractEquityTickers([
@@ -87,7 +84,6 @@ test("investmentBucket e overview por categoria", () => {
       type: "FIXED_INCOME",
       balance: 100,
       invested: 90,
-      groupId: "g",
       currency: "BRL",
       source: "manual",
     }),
@@ -101,7 +97,6 @@ test("investmentBucket e overview por categoria", () => {
       type: "FIXED_INCOME",
       balance: 100,
       invested: null,
-      groupId: "g",
       currency: "BRL",
       source: "pluggy",
     }),
@@ -115,7 +110,6 @@ test("investmentBucket e overview por categoria", () => {
       type: "FIXED_INCOME",
       balance: 80000,
       invested: 70000,
-      groupId: "g",
       currency: "BRL",
       source: "manual",
     },
@@ -126,7 +120,6 @@ test("investmentBucket e overview por categoria", () => {
       type: "OTHER",
       balance: 20000,
       invested: 18000,
-      groupId: "g",
       currency: "BRL",
       source: "manual",
     },
@@ -137,7 +130,6 @@ test("investmentBucket e overview por categoria", () => {
       type: "EQUITY",
       balance: 10000,
       invested: 9000,
-      groupId: "g",
       currency: "BRL",
       source: "pluggy",
     },

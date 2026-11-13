@@ -25,6 +25,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import Image from "next/image";
+import { categoryImageSource } from "@/lib/category-image";
 
 const icons: Record<string, Icon> = {
   house: House,
@@ -99,7 +100,7 @@ export function CategoryImage({
 }) {
   return (
     <Image
-      src={`/illustrations/categories/${name}.webp`}
+      src={categoryImageSource(name)}
       width={size}
       height={size}
       unoptimized

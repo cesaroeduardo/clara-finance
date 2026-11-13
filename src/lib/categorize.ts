@@ -1,12 +1,6 @@
-import type { TransactionKind } from "./types";
+import type { Category, CategoryRule, TransactionKind } from "./types";
 
-export type CategoryRule = {
-  match: string;
-  category: string;
-  groupId: string;
-};
-
-/** Categorias da taxonomia local (sugestões do formulário). */
+/** Categorias da taxonomia local (seed e fallback). */
 export const taxonomyCategories = [
   "Alimentação",
   "Restaurantes",
@@ -19,6 +13,7 @@ export const taxonomyCategories = [
   "Software",
   "Compras",
   "Jogos",
+  "Educação",
   "Taxas",
   "Investimentos",
   "Transferências",
@@ -38,11 +33,12 @@ export const categoryColors: Record<string, string> = {
   Software: "#DB2777",
   Pets: "#F59E0B",
   Jogos: "#A855F7",
+  Educação: "#6366F1",
   Taxas: "#64748B",
   Investimentos: "#10B981",
   Transferências: "#94A3B8",
-  "Sem categoria": "var(--track)",
-  Outros: "var(--chart-4)",
+  "Sem categoria": "#94A3B8",
+  Outros: "#A1A1AA",
 };
 
 /**
@@ -55,7 +51,7 @@ export const categoryImages: Record<string, string> = {
   Alimentação: "compras-mercado",
   Restaurantes: "alimentacao",
   Saúde: "saude",
-  Barbeiro: "outros",
+  Barbeiro: "barbeiro",
   Transporte: "transporte",
   Assinaturas: "assinaturas",
   Software: "software",
@@ -67,6 +63,14 @@ export const categoryImages: Record<string, string> = {
   "Sem categoria": "sem-categoria",
   Outros: "outros",
 };
+
+/** Seed inicial da tabela `categories` (cor hex e imagem opcional). */
+export const defaultCategorySeed = taxonomyCategories.map((name, index) => ({
+  name,
+  color: categoryColors[name] || "#737373",
+  imageSlug: categoryImages[name] || null,
+  sortOrder: index,
+}));
 
 const categoryFallbackPalette = [
   "#FF8A00",
@@ -81,30 +85,22 @@ const categoryFallbackPalette = [
   "#34D399",
 ];
 
-export function colorForCategory(name: string, index = 0) {
+export function colorForCategory(
+  name: string,
+  index = 0,
+  categories?: Category[],
+) {
   return (
+    categories?.find((category) => category.name === name)?.color ||
     categoryColors[name] ||
     categoryFallbackPalette[index % categoryFallbackPalette.length]
   );
 }
 
-export function imageForCategory(name: string) {
-  return categoryImages[name] || null;
+export function imageForCategory(name: string, categories?: Category[]) {
+  const category = categories?.find((category) => category.name === name);
+  return category ? category.imageSlug : categoryImages[name] || null;
 }
-
-const groups = {
-  home: "personal-home",
-  life: "personal-life",
-  future: "personal-future",
-  work: "personal-work",
-  other: "personal-other",
-} as const;
-
-/**
- * Regras da mais específica para a mais genérica.
- * `match` é comparado com contains, sem acento e case-insensitive.
- */
-export const categoryRules: CategoryRule[] = [];
 
 export function normalizeText(value: string) {
   return value
@@ -132,20 +128,27 @@ export function cleanTransactionDescription(description: string) {
   return merchant || text;
 }
 
-export function categorizeTransaction(input: {
-  description: string;
-  kind?: TransactionKind;
-}): { category: string; groupId: string } {
+export function categorizeTransaction(
+  input: {
+    description: string;
+    kind?: TransactionKind;
+  },
+  rules: CategoryRule[],
+  fallback: { category: string; transferCategory: string },
+): { category: string } {
   const text = normalizeText(
     cleanTransactionDescription(input.description || ""),
   );
-  for (const rule of categoryRules) {
-    if (text.includes(normalizeText(rule.match)))
-      return { category: rule.category, groupId: rule.groupId };
+  for (const rule of rules) {
+    if (!rule.active) continue;
+    const match = normalizeText(rule.match).trim();
+    if (
+      rule.operator === "equals" ? text.trim() === match : text.includes(match)
+    )
+      return { category: rule.category };
   }
-  if (input.kind === "transfer")
-    return { category: "Transferências", groupId: groups.other };
-  return { category: "Sem categoria", groupId: groups.other };
+  if (input.kind === "transfer") return { category: fallback.transferCategory };
+  return { category: fallback.category };
 }
 
 /** Heurística de descrição para pagamento de fatura sem operationType. */

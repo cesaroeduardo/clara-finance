@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  CATEGORY_IMAGE_DATA_PATTERN,
+  MAX_CATEGORY_IMAGE_LENGTH,
+} from "./category-image";
 const amount = z.number().int().positive().max(100_000_000_000);
 const date = z
   .string()
@@ -15,31 +19,46 @@ export const transactionSchema = z.object({
   kind: z.enum(["income", "expense", "transfer"]),
   date,
   status: z.enum(["paid", "pending"]),
-  groupId: z.string().min(1),
+
   category: z.string().trim().min(1).max(80),
   accountId: z.string().nullable().default(null),
 });
-export const groupSchema = z.object({
-  name: z.string().trim().min(1).max(60),
+export const categorySchema = z.object({
+  name: z.string().trim().min(1).max(80),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  icon: z.enum([
-    "house",
-    "coffee",
-    "sprout",
-    "briefcase",
-    "layers",
-    "plane",
-    "heart",
-    "car",
-  ]),
-  budget: z.number().int().min(0).max(100_000_000_000),
+  imageSlug: z
+    .union([
+      z
+        .string()
+        .trim()
+        .max(60)
+        .regex(/^[a-z0-9-]*$/),
+      z
+        .string()
+        .max(MAX_CATEGORY_IMAGE_LENGTH)
+        .regex(CATEGORY_IMAGE_DATA_PATTERN),
+    ])
+    .nullable()
+    .default(null)
+    .transform((value) => (value ? value : null)),
+});
+export const categoryRuleSchema = z.object({
+  categoryId: z.string().min(1),
+  match: z.string().trim().min(1).max(160),
+  operator: z.enum(["contains", "equals"]),
+
+  priority: z.number().int().min(0).max(9999),
+  active: z.boolean(),
 });
 export const goalSchema = z.object({
+  category: z.string().trim().min(1).max(80).default("Sem categoria"),
+  description: z.string().trim().max(5000).default(""),
+  imageSlug: categorySchema.shape.imageSlug,
+  completed: z.boolean().default(false),
   name: z.string().trim().min(1).max(80),
   target: amount,
   current: z.number().int().min(0).max(100_000_000_000),
   deadline: date,
-  groupId: z.string().min(1),
   icon: z.enum(["shield", "plane", "house", "target", "car"]),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 });
@@ -57,7 +76,6 @@ export const investmentSchema = z.object({
   ]),
   balance: z.number().int().min(0).max(100_000_000_000),
   invested: z.number().int().min(0).max(100_000_000_000).nullable(),
-  groupId: z.string().min(1),
 });
 export const connectionSchema = z.object({
   itemId: z.string().uuid(),
@@ -72,7 +90,7 @@ export const recurringSchema = z
     dayOfMonth: z.number().int().min(1).max(31),
     frequency: z.enum(["monthly"]).default("monthly"),
     category: z.string().trim().min(1).max(80),
-    groupId: z.string().min(1),
+
     accountId: z.string().nullable().default(null),
     installmentCurrent: z.number().int().min(1).max(360).nullable().optional(),
     installmentTotal: z.number().int().min(1).max(360).nullable().optional(),

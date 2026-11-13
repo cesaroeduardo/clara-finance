@@ -36,8 +36,7 @@ export function cleanAccountName(
 ) {
   const raw = (account.marketingName || account.name || "").trim();
   const text = normalize(raw);
-  const credit =
-    account.type === "CREDIT" || account.subtype === "CREDIT_CARD";
+  const credit = account.type === "CREDIT" || account.subtype === "CREDIT_CARD";
 
   if (credit) {
     if (/ultraviolet/.test(text)) return "Ultravioleta";
@@ -47,10 +46,7 @@ export function cleanAccountName(
     return "Cartão de crédito";
   }
 
-  if (
-    account.subtype === "SAVINGS_ACCOUNT" ||
-    /\bpoupanca\b/.test(text)
-  )
+  if (account.subtype === "SAVINGS_ACCOUNT" || /\bpoupanca\b/.test(text))
     return "Poupança";
 
   if (
@@ -65,9 +61,7 @@ export function cleanAccountName(
 }
 
 /** Canal: cartão vs conta (PIX e demais débitos da conta). */
-export function accountChannelLabel(
-  account: Pick<Account, "type" | "name">,
-) {
+export function accountChannelLabel(account: Pick<Account, "type" | "name">) {
   if (account.type === "CREDIT") return "Cartão";
   if (/poupan/i.test(account.name)) return "Poupança";
   return "Conta";
@@ -96,14 +90,50 @@ export function formatAccountLabel(
   return `${displayInstitution(account, connections)} · ${accountChannelLabel(account)}`;
 }
 
+/** Domínios Logo.dev por instituição (match mais específico primeiro). */
+const institutionDomains: ReadonlyArray<{ match: string; domain: string }> = [
+  { match: "nubank", domain: "nubank.com.br" },
+  { match: "nu pagamentos", domain: "nubank.com.br" },
+  { match: "sicredi", domain: "sicredi.com.br" },
+  { match: "itaú", domain: "itau.com.br" },
+  { match: "itau", domain: "itau.com.br" },
+  { match: "bradesco", domain: "bradesco.com.br" },
+  { match: "santander", domain: "santander.com.br" },
+  { match: "banco do brasil", domain: "bb.com.br" },
+  { match: "banco brasil", domain: "bb.com.br" },
+  { match: "caixa", domain: "caixa.gov.br" },
+  { match: "inter", domain: "bancointer.com.br" },
+  { match: "c6", domain: "c6bank.com.br" },
+  { match: "btg", domain: "btgpactual.com" },
+  { match: "xp", domain: "xpi.com.br" },
+];
+
+export function institutionDomainFor(institution: string) {
+  const text = normalize(institution || "");
+  for (const rule of institutionDomains) {
+    if (text.includes(normalize(rule.match))) return rule.domain;
+  }
+  return null;
+}
+
+export function institutionLogoUrl(institution: string, size = 64) {
+  if (normalize(institution || "").includes("sicredi"))
+    return "/institutions/sicredi.png";
+  const domain = institutionDomainFor(institution);
+  const token = process.env.NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY;
+  if (!domain || !token) return null;
+  const params = new URLSearchParams({
+    token,
+    size: String(size),
+    format: "png",
+    fallback: "404",
+  });
+  return `https://img.logo.dev/${domain}?${params.toString()}`;
+}
+
 /** Corrige instituições agregadoras já gravadas, usando o nome da conexão. */
 export function repairAccountInstitutions(
-  database: {
-    prepare: (sql: string) => {
-      run: (...params: unknown[]) => unknown;
-      all: (...params: unknown[]) => unknown[];
-    };
-  },
+  database: import("better-sqlite3").Database,
 ) {
   database
     .prepare(

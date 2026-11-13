@@ -5,7 +5,7 @@ import { monthKey } from "@/lib/format";
 import { apiError, AppError, guardWrite, modeOf } from "@/lib/http";
 import {
   transactionSchema,
-  groupSchema,
+  categorySchema,
   goalSchema,
   investmentSchema,
   connectionSchema,
@@ -14,10 +14,12 @@ import {
 } from "@/lib/validation";
 import { cleanTransactionDescription } from "@/lib/categorize";
 import { normalizeMatchKey } from "@/lib/recurring";
+import { manageCategoryRule } from "@/lib/manage-category-rules";
 type Context = { params: Promise<{ resource: string }> };
 const resources = [
   "transactions",
-  "groups",
+  "categories",
+  "category-rules",
   "goals",
   "investments",
   "connections",
@@ -35,6 +37,13 @@ async function handle(request: NextRequest, context: Context) {
       body = await request.json();
     if (!body || typeof body !== "object" || Array.isArray(body))
       throw new AppError("Envie os campos do registro.");
+    if (resource === "category-rules")
+      return NextResponse.json(
+        manageCategoryRule(database, mode, request.method, body),
+        {
+          status: request.method === "POST" ? 201 : 200,
+        },
+      );
     if (resource === "plan") {
       if (request.method === "DELETE")
         throw new AppError("O planejamento não pode ser excluído.");
@@ -108,18 +117,29 @@ async function handle(request: NextRequest, context: Context) {
         throw new AppError(
           "A remoção de consentimento deve ser feita no Meu Pluggy.",
         );
-      if (resource === "groups") {
+
+      if (resource === "categories") {
+        if (existing?.name === "Sem categoria")
+          throw new AppError("A categoria padrão precisa ser mantida.");
         const count = database
           .prepare(
-            "SELECT (SELECT count(*) FROM transactions WHERE group_id=?) + (SELECT count(*) FROM goals WHERE group_id=?) + (SELECT count(*) FROM investments WHERE group_id=?) AS n",
+            `SELECT
+               (SELECT count(*) FROM transactions WHERE mode=? AND category=?) +
+               (SELECT count(*) FROM recurrings WHERE mode=? AND category=?) +
+               (SELECT count(*) FROM goals WHERE mode=? AND category=?) AS n`,
           )
-          .get(body.id, body.id, body.id) as { n: number };
+          .get(
+            mode,
+            existing?.name,
+            mode,
+            existing?.name,
+            mode,
+            existing?.name,
+          ) as { n: number };
         if (count.n)
           throw new AppError(
-            "Mova os registros deste grupo antes de excluí-lo.",
+            "Mova os registros desta categoria antes de excluí-la.",
           );
-        if (body.id === `${mode}-other`)
-          throw new AppError("O grupo padrão precisa ser mantido.");
       }
       if (resource === "recurrings" && existing?.source === "detected") {
         database
@@ -135,14 +155,6 @@ async function handle(request: NextRequest, context: Context) {
       return NextResponse.json({ ok: true });
     }
     const id = existing ? String(existing.id) : randomUUID();
-    const assertGroup = (groupId: string) => {
-      if (
-        !database
-          .prepare("SELECT 1 FROM groups WHERE id=? AND mode=?")
-          .get(groupId, mode)
-      )
-        throw new AppError("Grupo inválido.");
-    };
     if (resource === "transactions") {
       const row = {
         ...transactionSchema.parse(body),
@@ -151,7 +163,7 @@ async function handle(request: NextRequest, context: Context) {
         ),
       };
       if (!row.description) throw new AppError("Informe a descrição.");
-      assertGroup(row.groupId);
+
       if (
         row.accountId &&
         !database
@@ -164,13 +176,13 @@ async function handle(request: NextRequest, context: Context) {
       if (existing?.source === "pluggy")
         database
           .prepare(
-            "UPDATE transactions SET group_id=?,category=?,kind=?,user_categorized=1 WHERE id=? AND mode=?",
+            "UPDATE transactions SET category=?,kind=?,user_categorized=1 WHERE id=? AND mode=?",
           )
-          .run(row.groupId, row.category, row.kind, id, mode);
+          .run(row.category, row.kind, id, mode);
       else if (existing)
         database
           .prepare(
-            "UPDATE transactions SET description=?,amount=?,kind=?,date=?,status=?,group_id=?,category=?,account_id=? WHERE id=? AND mode=?",
+            "UPDATE transactions SET description=?,amount=?,kind=?,date=?,status=?,category=?,account_id=? WHERE id=? AND mode=?",
           )
           .run(
             row.description,
@@ -178,7 +190,7 @@ async function handle(request: NextRequest, context: Context) {
             row.kind,
             row.date,
             row.status,
-            row.groupId,
+
             row.category,
             row.accountId,
             id,
@@ -187,7 +199,7 @@ async function handle(request: NextRequest, context: Context) {
       else
         database
           .prepare(
-            "INSERT INTO transactions(id,mode,description,amount,kind,date,status,group_id,category,account_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO transactions(id,mode,description,amount,kind,date,status,category,account_id) VALUES(?,?,?,?,?,?,?,?,?)",
           )
           .run(
             id,
@@ -197,24 +209,53 @@ async function handle(request: NextRequest, context: Context) {
             row.kind,
             row.date,
             row.status,
-            row.groupId,
+
             row.category,
             row.accountId,
           );
-    } else if (resource === "groups") {
-      const row = groupSchema.parse(body);
-      if (existing)
+    } else if (resource === "categories") {
+      const row = categorySchema.parse(body);
+      const duplicate = database
+        .prepare("SELECT id FROM categories WHERE mode=? AND name=? AND id!=?")
+        .get(mode, row.name, id) as { id: string } | undefined;
+      if (duplicate)
+        throw new AppError("Já existe uma categoria com este nome.");
+      if (existing) {
+        const previousName = String(existing.name);
+        if (previousName === "Sem categoria" && row.name !== "Sem categoria")
+          throw new AppError("A categoria padrão não pode ser renomeada.");
         database
           .prepare(
-            "UPDATE groups SET name=?,color=?,icon=?,budget=? WHERE id=? AND mode=?",
+            "UPDATE categories SET name=?,color=?,image_slug=? WHERE id=? AND mode=?",
           )
-          .run(row.name, row.color, row.icon, row.budget, id, mode);
-      else
+          .run(row.name, row.color, row.imageSlug, id, mode);
+        if (previousName !== row.name) {
+          database
+            .prepare(
+              "UPDATE transactions SET category=? WHERE mode=? AND category=?",
+            )
+            .run(row.name, mode, previousName);
+          database
+            .prepare(
+              "UPDATE recurrings SET category=? WHERE mode=? AND category=?",
+            )
+            .run(row.name, mode, previousName);
+          database
+            .prepare("UPDATE goals SET category=? WHERE mode=? AND category=?")
+            .run(row.name, mode, previousName);
+        }
+      } else {
+        const maxSort = database
+          .prepare(
+            "SELECT coalesce(max(sort_order), -1) AS n FROM categories WHERE mode=?",
+          )
+          .get(mode) as { n: number };
         database
           .prepare(
-            "INSERT INTO groups(id,mode,name,color,icon,budget) VALUES(?,?,?,?,?,?)",
+            "INSERT INTO categories(id,mode,name,color,image_slug,sort_order) VALUES(?,?,?,?,?,?)",
           )
-          .run(id, mode, row.name, row.color, row.icon, row.budget);
+          .run(id, mode, row.name, row.color, row.imageSlug, maxSort.n + 1);
+      }
     } else if (resource === "goals") {
       if (existing && body.contribution !== undefined) {
         const contribution = Number(body.contribution);
@@ -229,53 +270,65 @@ async function handle(request: NextRequest, context: Context) {
           .run(contribution, id, mode);
       } else {
         const row = goalSchema.parse(body);
-        assertGroup(row.groupId);
+        const now = new Date().toISOString();
+        const completedAt = row.completed
+          ? existing?.completed
+            ? (existing.completed_at ?? null)
+            : now
+          : null;
         if (existing)
           database
             .prepare(
-              "UPDATE goals SET name=?,target=?,current=?,deadline=?,group_id=?,icon=?,color=? WHERE id=? AND mode=?",
+              "UPDATE goals SET name=?,description=?,target=?,current=?,deadline=?,icon=?,color=?,image_slug=?,completed=?,category=?,completed_at=? WHERE id=? AND mode=?",
             )
             .run(
               row.name,
+              row.description,
               row.target,
               row.current,
               row.deadline,
-              row.groupId,
               row.icon,
               row.color,
+              row.imageSlug,
+              Number(row.completed),
+              row.category,
+              completedAt,
               id,
               mode,
             );
         else
           database
             .prepare(
-              "INSERT INTO goals(id,mode,name,target,current,deadline,group_id,icon,color) VALUES(?,?,?,?,?,?,?,?,?)",
+              "INSERT INTO goals(id,mode,name,description,target,current,deadline,icon,color,image_slug,completed,category,created_at,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             )
             .run(
               id,
               mode,
               row.name,
+              row.description,
               row.target,
               row.current,
               row.deadline,
-              row.groupId,
               row.icon,
               row.color,
+              row.imageSlug,
+              Number(row.completed),
+              row.category,
+              now,
+              completedAt,
             );
       }
     } else if (resource === "investments") {
       const row = investmentSchema.parse(body);
-      assertGroup(row.groupId);
+
       if (existing?.source === "pluggy")
         database
-          .prepare(
-            "UPDATE investments SET invested=?,group_id=? WHERE id=? AND mode=?",
-          )
-          .run(row.invested, row.groupId, id, mode);
+          .prepare("UPDATE investments SET invested=? WHERE id=? AND mode=?")
+          .run(row.invested, id, mode);
       else if (existing)
         database
           .prepare(
-            "UPDATE investments SET name=?,institution=?,type=?,balance=?,invested=?,group_id=? WHERE id=? AND mode=?",
+            "UPDATE investments SET name=?,institution=?,type=?,balance=?,invested=? WHERE id=? AND mode=?",
           )
           .run(
             row.name,
@@ -283,14 +336,14 @@ async function handle(request: NextRequest, context: Context) {
             row.type,
             row.balance,
             row.invested,
-            row.groupId,
+
             id,
             mode,
           );
       else
         database
           .prepare(
-            "INSERT INTO investments(id,mode,name,institution,type,balance,invested,group_id) VALUES(?,?,?,?,?,?,?,?)",
+            "INSERT INTO investments(id,mode,name,institution,type,balance,invested) VALUES(?,?,?,?,?,?,?)",
           )
           .run(
             id,
@@ -300,7 +353,6 @@ async function handle(request: NextRequest, context: Context) {
             row.type,
             row.balance,
             row.invested,
-            row.groupId,
           );
     } else if (resource === "recurrings") {
       const parsed = recurringSchema.parse(body);
@@ -309,7 +361,7 @@ async function handle(request: NextRequest, context: Context) {
         description: cleanTransactionDescription(parsed.description),
       };
       if (!row.description) throw new AppError("Informe a descrição.");
-      assertGroup(row.groupId);
+
       if (
         row.accountId &&
         !database
@@ -326,7 +378,7 @@ async function handle(request: NextRequest, context: Context) {
       if (existing)
         database
           .prepare(
-            `UPDATE recurrings SET kind=?,type=?,description=?,amount=?,day_of_month=?,category=?,group_id=?,
+            `UPDATE recurrings SET kind=?,type=?,description=?,amount=?,day_of_month=?,category=?,
               account_id=?,installment_current=?,installment_total=?,start_date=?,end_date=?,match_key=?,
               active=?,ignored=?,user_edited=1,source=CASE WHEN source='detected' THEN 'detected' ELSE 'manual' END
              WHERE id=? AND mode=?`,
@@ -338,7 +390,7 @@ async function handle(request: NextRequest, context: Context) {
             row.amount,
             row.dayOfMonth,
             row.category,
-            row.groupId,
+
             row.accountId,
             installmentCurrent,
             installmentTotal,
@@ -353,10 +405,7 @@ async function handle(request: NextRequest, context: Context) {
       else
         database
           .prepare(
-            `INSERT INTO recurrings(
-              id,mode,kind,type,description,amount,day_of_month,frequency,category,group_id,account_id,
-              installment_current,installment_total,start_date,end_date,source,match_key,ignored,active,user_edited,currency
-            ) VALUES(?,?,?,?,?,?,?,'monthly',?,?,?,?,?,?,?,'manual',?,0,1,1,'BRL')`,
+            `INSERT INTO recurrings(id,mode,kind,type,description,amount,day_of_month,frequency,category,account_id,installment_current,installment_total,start_date,end_date,source,match_key,ignored,active,user_edited,currency) VALUES(?,?,?,?,?,?,?,'monthly',?,?,?,?,?,?,'manual',?,0,1,1,'BRL')`,
           )
           .run(
             id,
@@ -367,7 +416,7 @@ async function handle(request: NextRequest, context: Context) {
             row.amount,
             row.dayOfMonth,
             row.category,
-            row.groupId,
+
             row.accountId,
             installmentCurrent,
             installmentTotal,

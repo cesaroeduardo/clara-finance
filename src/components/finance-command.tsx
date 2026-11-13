@@ -27,6 +27,7 @@ import {
   Question,
   SquaresFour,
   Sun,
+  Tag,
   Target,
 } from "@phosphor-icons/react";
 import {
@@ -43,6 +44,7 @@ type AppView =
   | "recurring"
   | "investments"
   | "goals"
+  | "categories"
   | "accounts";
 
 export type ShortcutPart = { type: "key"; value: string } | { type: "text"; value: string };
@@ -215,6 +217,15 @@ export function FinanceCommandBar({
         run: () => go("accounts"),
       },
       {
+        id: "nav-categories",
+        section: "Páginas",
+        label: "Categorias",
+        keywords: "taxonomia labels organizacao",
+        icon: <Tag size={16} />,
+        shortcut: key("G", "A"),
+        run: () => go("categories"),
+      },
+      {
         id: "create-income",
         section: "Criar",
         label: "Nova entrada…",
@@ -249,6 +260,14 @@ export function FinanceCommandBar({
         icon: <Target size={16} />,
         shortcut: key("C", "M"),
         run: () => create({ resource: "goals" }),
+      },
+      {
+        id: "create-category",
+        section: "Criar",
+        label: "Nova categoria…",
+        keywords: "taxonomia label criar",
+        icon: <Tag size={16} />,
+        run: () => create({ resource: "categories" }),
       },
       {
         id: "create-recurring",

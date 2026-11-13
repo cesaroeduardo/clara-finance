@@ -9,6 +9,7 @@ import {
   isBillPayment,
 } from "./categorize";
 import { db } from "./db";
+import { categoryFallback, listCategoryRules } from "./category-rules";
 import { AppError } from "./http";
 import { parseInstallment, reconcileRecurrings } from "./recurring";
 import type { TransactionKind } from "./types";
@@ -347,8 +348,7 @@ async function importItem(itemId: string): Promise<SyncResult> {
         );
       }
       const txnUpsert = database.prepare(
-        `INSERT INTO transactions(id,mode,description,amount,kind,date,status,group_id,category,account_id,source,currency,installment_number,installment_total)
-         VALUES(?,'personal',?,?,?,?,?,?,?,?,'pluggy',?,?,?)
+        `INSERT INTO transactions(id,mode,description,amount,kind,date,status,category,account_id,source,currency,installment_number,installment_total) VALUES(?,'personal',?,?,?,?,?,?,?,'pluggy',?,?,?)
          ON CONFLICT(id) DO UPDATE SET
            description=excluded.description,
            amount=excluded.amount,
@@ -359,9 +359,11 @@ async function importItem(itemId: string): Promise<SyncResult> {
            currency=excluded.currency,
            installment_number=excluded.installment_number,
            installment_total=excluded.installment_total,
-           group_id=CASE WHEN transactions.user_categorized=1 OR transactions.category!='Sem categoria' THEN transactions.group_id ELSE excluded.group_id END,
+
            category=CASE WHEN transactions.user_categorized=1 OR transactions.category!='Sem categoria' THEN transactions.category ELSE excluded.category END`,
       );
+      const rules = listCategoryRules(database, "personal");
+      const fallback = categoryFallback(database, "personal");
       for (const { account, rows } of transactions)
         for (const row of rows) {
           const amount = cents(
@@ -372,7 +374,11 @@ async function importItem(itemId: string): Promise<SyncResult> {
             row.description || "Transação importada",
           );
           const kind = transactionKind({ ...row, description });
-          const classified = categorizeTransaction({ description, kind });
+          const classified = categorizeTransaction(
+            { description, kind },
+            rules,
+            fallback,
+          );
           const installment = remoteInstallment({ ...row, description });
           txnUpsert.run(
             row.id,
@@ -381,7 +387,7 @@ async function importItem(itemId: string): Promise<SyncResult> {
             kind,
             row.date.slice(0, 10),
             row.status === "POSTED" ? "paid" : "pending",
-            classified.groupId,
+
             classified.category,
             account.id,
             account.currencyCode || row.currencyCode || "BRL",
@@ -405,7 +411,7 @@ async function importItem(itemId: string): Promise<SyncResult> {
         // `amount` is gross balance, not cost. Prefer `amountOriginal` when the bank sends it.
         // If Pluggy has no original, keep any cost the user typed manually.
         const invUpsert = database.prepare(
-          `INSERT INTO investments(id,mode,name,institution,type,balance,invested,group_id,currency,source,item_id) VALUES(?,'personal',?,?,?,?,?,'personal-future',?,'pluggy',?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,institution=excluded.institution,type=excluded.type,balance=excluded.balance,invested=COALESCE(excluded.invested,investments.invested),currency=excluded.currency,item_id=excluded.item_id`,
+          `INSERT INTO investments(id,mode,name,institution,type,balance,invested,currency,source,item_id) VALUES(?,'personal',?,?,?,?,?,?,'pluggy',?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,institution=excluded.institution,type=excluded.type,balance=excluded.balance,invested=COALESCE(excluded.invested,investments.invested),currency=excluded.currency,item_id=excluded.item_id`,
         );
         for (const row of investments) {
           const original =

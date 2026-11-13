@@ -62,9 +62,24 @@ Defina `ALLOW_LAN_ACCESS=true` em `.env.local` e reinicie com `npm run dev` ou `
 
 O modo de rede continua **sem login**: qualquer dispositivo que alcance a porta pode ler e alterar seus dados. Use apenas em rede confiável, sem encaminhar a porta no roteador. Para webhook, use o túnel restrito descrito abaixo.
 
-### Logos opcionais
+### Configurar o Logo.dev (opcional)
 
-`NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY` aceita apenas a chave publicável do Logo.dev. Ela aparece no navegador; nunca use Client Secret ou chave privada nessa variável. As requisições de logos enviam o domínio da marca ao provedor, sem valores ou descrições completas dos lançamentos.
+O Logo.dev fornece logos de instituições, estabelecimentos e algumas empresas exibidas no painel de mercado. O aplicativo funciona sem essa integração: quando não há logo disponível, usa os ícones e identificações locais. Arquivos locais, como o símbolo do Sicredi, não dependem dessa chave.
+
+1. Crie uma conta no [Logo.dev](https://www.logo.dev/) e abra [API keys no dashboard](https://www.logo.dev/dashboard/api-keys).
+2. Copie a **Publishable key**, que começa com `pk_`. A **Secret key** (`sk_`) não é usada neste projeto.
+3. Copie `.env.example` para `.env.local`, caso ainda não exista. Se já configurou a Pluggy, edite o arquivo existente e mantenha as outras variáveis.
+4. Preencha a variável abaixo em `.env.local`:
+
+```dotenv
+NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY=pk_sua_chave_publicavel
+```
+
+Reinicie `npm run dev`. Na versão compilada, execute `npm run build` novamente e depois `npm start`: variáveis `NEXT_PUBLIC_` são incorporadas ao código do navegador durante o build.
+
+A chave publicável fica visível no navegador e nas URLs das imagens. Nunca coloque Client Secret da Pluggy ou uma chave `sk_` nessa variável. O código solicita imagens de `img.logo.dev` pelo domínio da marca; não envia valores ou descrições completas dos lançamentos ao Logo.dev.
+
+Se ativar **Allowed domains only** no dashboard, cadastre os hosts usados para abrir o app, como `localhost` e `127.0.0.1`, sem protocolo, porta ou caminho. Para acesso pela rede, inclua também o host usado nesse acesso. Uma resposta `401` pode indicar chave incorreta ou host não permitido; `404` pode indicar logo indisponível. Consulte a [documentação de chaves e restrições](https://www.logo.dev/docs/platform/api-keys) e as [condições de atribuição do plano](https://www.logo.dev/docs/platform/attribution).
 
 ## O que funciona
 

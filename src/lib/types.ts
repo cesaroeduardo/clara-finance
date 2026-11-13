@@ -7,7 +7,7 @@ export type Transaction = {
   kind: TransactionKind;
   date: string;
   status: "paid" | "pending";
-  groupId: string;
+
   category: string;
   accountId: string | null;
   source: "manual" | "pluggy";
@@ -26,7 +26,7 @@ export type Recurring = {
   dayOfMonth: number;
   frequency: "monthly";
   category: string;
-  groupId: string;
+
   accountId: string | null;
   installmentCurrent: number | null;
   installmentTotal: number | null;
@@ -39,12 +39,23 @@ export type Recurring = {
   userEdited: boolean;
   currency: string;
 };
-export type Group = {
+export type Category = {
   id: string;
   name: string;
   color: string;
-  icon: string;
-  budget: number;
+  imageSlug: string | null;
+  sortOrder: number;
+  taxonomyKey?: string | null;
+};
+export type CategoryRule = {
+  id: string;
+  categoryId: string;
+  category: string;
+  match: string;
+  operator: "contains" | "equals";
+
+  priority: number;
+  active: boolean;
 };
 export type Account = {
   id: string;
@@ -65,17 +76,22 @@ export type Investment = {
   type: string;
   balance: number;
   invested: number | null;
-  groupId: string;
+
   currency: string;
   source: string;
 };
 export type Goal = {
+  createdAt: string | null;
+  completedAt: string | null;
+  category: string;
+  description: string;
+  imageSlug: string | null;
+  completed: boolean;
   id: string;
   name: string;
   target: number;
   current: number;
   deadline: string;
-  groupId: string;
   icon: string;
   color: string;
 };
@@ -95,9 +111,12 @@ export type PlanSettings = {
   expectedFreelance: number;
 };
 export type FinanceData = {
+  merchantAssets?: { match: string; src: string }[];
   mode: Mode;
   transactions: Transaction[];
-  groups: Group[];
+
+  categories: Category[];
+  categoryRules: CategoryRule[];
   accounts: Account[];
   investments: Investment[];
   goals: Goal[];

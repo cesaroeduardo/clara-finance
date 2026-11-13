@@ -61,6 +61,7 @@
 .page-enter > .summary-grid > *,
 .page-enter > .goals-page-grid > *,
 .page-enter > .groups-page-grid > *,
+.page-enter > .categories-page-grid > *,
 .page-enter > .recurring-page > *,
 .page-enter > .finance-card,
 .page-enter > .section-top,
@@ -79,6 +80,7 @@
 .page-enter.is-shown > .summary-grid > *,
 .page-enter.is-shown > .goals-page-grid > *,
 .page-enter.is-shown > .groups-page-grid > *,
+.page-enter.is-shown > .categories-page-grid > *,
 .page-enter.is-shown > .recurring-page > *,
 .page-enter.is-shown > .finance-card,
 .page-enter.is-shown > .section-top,
@@ -92,6 +94,7 @@
 .page-enter > .summary-grid > *:nth-child(1),
 .page-enter > .goals-page-grid > *:nth-child(1),
 .page-enter > .groups-page-grid > *:nth-child(1),
+.page-enter > .categories-page-grid > *:nth-child(1),
 .page-enter > .section-top,
 .page-enter > .finance-card:nth-of-type(1) {
   transition-delay: 0ms;
@@ -100,6 +103,7 @@
 .page-enter > .summary-grid > *:nth-child(2),
 .page-enter > .goals-page-grid > *:nth-child(2),
 .page-enter > .groups-page-grid > *:nth-child(2),
+.page-enter > .categories-page-grid > *:nth-child(2),
 .page-enter > .finance-card:nth-of-type(2) {
   transition-delay: var(--stagger-stagger);
 }
@@ -107,6 +111,7 @@
 .page-enter > .summary-grid > *:nth-child(3),
 .page-enter > .goals-page-grid > *:nth-child(3),
 .page-enter > .groups-page-grid > *:nth-child(3),
+.page-enter > .categories-page-grid > *:nth-child(3),
 .page-enter > .finance-card:nth-of-type(3) {
   transition-delay: calc(var(--stagger-stagger) * 2);
 }
@@ -114,6 +119,7 @@
 .page-enter > .summary-grid > *:nth-child(4),
 .page-enter > .goals-page-grid > *:nth-child(4),
 .page-enter > .groups-page-grid > *:nth-child(4),
+.page-enter > .categories-page-grid > *:nth-child(4),
 .page-enter > .finance-card:nth-of-type(4) {
   transition-delay: calc(var(--stagger-stagger) * 3);
 }
@@ -121,12 +127,14 @@
 .page-enter > .summary-grid > *:nth-child(5),
 .page-enter > .goals-page-grid > *:nth-child(5),
 .page-enter > .groups-page-grid > *:nth-child(5),
+.page-enter > .categories-page-grid > *:nth-child(5),
 .page-enter > .finance-card:nth-of-type(5) {
   transition-delay: calc(var(--stagger-stagger) * 4);
 }
 .page-enter > .home-grid > *:nth-child(n + 6),
 .page-enter > .goals-page-grid > *:nth-child(n + 6),
 .page-enter > .groups-page-grid > *:nth-child(n + 6),
+.page-enter > .categories-page-grid > *:nth-child(n + 6),
 .page-enter > .finance-card:nth-of-type(n + 6),
 .page-enter > .view-footnote {
   transition-delay: calc(var(--stagger-stagger) * 5);
@@ -141,7 +149,6 @@
 }
 .t-modal[data-starting-style],
 .t-modal[data-ending-style] {
-  animation: clara-modal-exit var(--motion-close) var(--motion-ease-out) both;
   opacity: 0;
   scale: 0.96;
 }
@@ -180,6 +187,7 @@
   }
 }
 .t-modal[data-ending-style] {
+  animation: clara-modal-exit var(--motion-close) var(--motion-ease-out) both;
   transition-duration: var(--motion-close);
   pointer-events: none;
 }
@@ -348,6 +356,7 @@
   .page-enter > .summary-grid > *,
   .page-enter > .goals-page-grid > *,
   .page-enter > .groups-page-grid > *,
+  .page-enter > .categories-page-grid > *,
   .page-enter > .finance-card,
   .page-enter > .section-top,
   .page-enter > .view-footnote,

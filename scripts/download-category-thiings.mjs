@@ -14,6 +14,7 @@ const picks = {
   compras: { q: "shopping bag", prefer: /shopping bag/i },
   "contas-da-casa": { q: "house", prefer: /^house$|cottage|home$/i },
   saude: { q: "medicine bottle", prefer: /medicine|pill bottle|first aid/i },
+  barbeiro: { q: "hair clipper", prefer: /hair clipper|clipper|barber/i },
   transporte: { q: "car", prefer: /^car$|sedan|hatchback/i },
   assinaturas: { q: "television", prefer: /television|^tv$|smart tv/i },
   software: { q: "laptop", prefer: /laptop|notebook|macbook/i },

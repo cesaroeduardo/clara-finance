@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -24,9 +24,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { PrivacyContext } from "./finance-privacy";
+import { MotionSegmentedControl } from "./finance-motion";
 import {
   extractEquityTickers,
+  marketLogoConfig,
+  marketLogoUrl,
   periodStats,
   positionCentsForTicker,
   positionCostForTicker,
@@ -35,6 +37,21 @@ import {
 } from "@/lib/market";
 import type { FinanceData } from "@/lib/types";
 import { dateLabel, money } from "@/lib/format";
+
+type MarketPeriod = "today" | "month";
+
+function quoteChangeForPeriod(quote: MarketQuote, period: MarketPeriod) {
+  if (period === "month" && quote.history.length > 1) {
+    return {
+      changePct: periodStats(quote.history).changePct,
+      changeKnown: true,
+    };
+  }
+  return {
+    changePct: quote.changePct,
+    changeKnown: quote.changeKnown !== false,
+  };
+}
 
 function formatMarketPrice(quote: MarketQuote) {
   if (quote.unit === "percent") {
@@ -105,15 +122,30 @@ function sparklinePath(values: number[], width: number, height: number) {
   return { line, area };
 }
 
-function TickerIcon({ id, size = 16 }: { id: string; size?: number }) {
+function TickerIcon({ id, size = 13 }: { id: string; size?: number }) {
+  const src = marketLogoUrl(id, Math.max(44, size * 2));
+  const fit = marketLogoConfig(id)?.fit || "cover";
+  const [failed, setFailed] = useState(false);
+  if (src && !failed) {
+    return (
+      // Logo.dev: unoptimized / plain img — não passar pelo Image Optimization do Next.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        className={`market-ticker-logo market-ticker-logo-${id} market-ticker-logo-${fit}`}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
   if (id === "usd") return <CurrencyDollar size={size} weight="bold" />;
   if (id === "btc") return <CurrencyBtc size={size} weight="bold" />;
-  if (
-    id === "ibov" ||
-    id === "spx" ||
-    id === "nvda" ||
-    /^[a-z]{4}\d/.test(id)
-  ) {
+  if (id === "ibov" || id === "spx" || /^[a-z]{4}\d/.test(id)) {
     return <ChartLineUp size={size} weight="bold" />;
   }
   return <Plant size={size} weight="bold" />;
@@ -132,15 +164,16 @@ function strokeOf(tone: "up" | "down" | "flat") {
 
 function MarketTickerCard({
   quote,
+  period,
   onOpen,
 }: {
   quote: MarketQuote;
+  period: MarketPeriod;
   onOpen: () => void;
 }) {
-  const hidden = useContext(PrivacyContext);
   const gradientId = useId();
-  const changeKnown = quote.changeKnown !== false;
-  const tone = toneOf(quote.changePct, changeKnown);
+  const { changePct, changeKnown } = quoteChangeForPeriod(quote, period);
+  const tone = toneOf(changePct, changeKnown);
   const stroke = strokeOf(tone);
   const path = sparklinePath(quote.series, 120, 36);
 
@@ -158,15 +191,15 @@ function MarketTickerCard({
         <span>
           <span className="market-ticker-symbol">{quote.name}</span>{" "}
           <span className="market-ticker-price">
-            {hidden ? "••••" : formatMarketPrice(quote)}
+            {formatMarketPrice(quote)}
           </span>{" "}
           <span className={`market-ticker-change ${tone}`}>
-            {hidden ? "••••" : changeKnown ? formatPct(quote.changePct) : "—"}
+            {changeKnown ? formatPct(changePct) : "—"}
           </span>
         </span>
       </span>
-      <span className="market-ticker-chart" aria-hidden={hidden}>
-        {path && !hidden ? (
+      <span className="market-ticker-chart">
+        {path ? (
           <svg viewBox="0 0 120 36" preserveAspectRatio="none">
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -199,7 +232,6 @@ function MarketDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const hidden = useContext(PrivacyContext);
   const gradientId = useId();
   const history = quote?.history ?? [];
   const stats = useMemo(() => periodStats(history), [history]);
@@ -212,6 +244,10 @@ function MarketDialog({
     value: point.price,
   }));
   const historyNewest = [...history].reverse();
+  const returnPct =
+    quote?.positionCents && quote.costCents != null && quote.costCents > 0
+      ? positionReturnPct(quote.positionCents, quote.costCents) || 0
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -236,16 +272,16 @@ function MarketDialog({
               </div>
             </DialogHeader>
 
+            {quote.description && (
+              <p className="market-dialog-about">{quote.description}</p>
+            )}
+
             <div className="market-dialog-price">
-              <strong>
-                {hidden ? "••••" : formatMarketPrice(quote)}
-              </strong>
+              <strong>{formatMarketPrice(quote)}</strong>
               <span className={`market-ticker-change ${tone}`}>
-                {hidden
-                  ? "••••"
-                  : quote.changeKnown !== false
-                    ? formatPct(quote.changePct)
-                    : "—"}
+                {quote.changeKnown !== false
+                  ? formatPct(quote.changePct)
+                  : "—"}
                 {!isRate && <small> hoje</small>}
               </span>
             </div>
@@ -254,29 +290,17 @@ function MarketDialog({
               <div className="market-dialog-position">
                 <p>
                   Sua posição:{" "}
-                  <strong>
-                    {hidden ? "••••" : money(quote.positionCents)}
-                  </strong>
+                  <strong className="amount">{money(quote.positionCents)}</strong>
                 </p>
                 {quote.costCents != null && quote.costCents > 0 ? (
                   <p>
                     Custo:{" "}
-                    <strong>
-                      {hidden ? "••••" : money(quote.costCents)}
-                    </strong>
+                    <strong className="amount">{money(quote.costCents)}</strong>
                     {" · "}
                     <span
-                      className={`market-ticker-change ${toneOf(positionReturnPct(quote.positionCents, quote.costCents) || 0)}`}
+                      className={`amount market-ticker-change ${toneOf(returnPct || 0)}`}
                     >
-                      {hidden
-                        ? "••••"
-                        : formatPct(
-                            positionReturnPct(
-                              quote.positionCents,
-                              quote.costCents,
-                            ) || 0,
-                          )}{" "}
-                      vs custo
+                      {formatPct(returnPct || 0)} vs custo
                     </span>
                   </p>
                 ) : (
@@ -293,12 +317,10 @@ function MarketDialog({
                 className="market-dialog-chart"
                 role="img"
                 aria-label={`Evolução de ${quote.symbol}`}
-                aria-hidden={hidden}
               >
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <AreaChart
                     data={chartData}
-                    accessibilityLayer={!hidden}
                     margin={{ top: 8, right: 4, bottom: 0, left: 4 }}
                   >
                     <defs>
@@ -323,27 +345,25 @@ function MarketDialog({
                     </defs>
                     <XAxis dataKey="date" hide />
                     <YAxis hide domain={["auto", "auto"]} />
-                    {!hidden && (
-                      <Tooltip
-                        formatter={(value) => [
-                          quote.unit === "percent"
-                            ? `${Number(value).toFixed(2).replace(".", ",")}%`
-                            : formatMarketPrice({
-                                ...quote,
-                                price: Number(value),
-                              }),
-                          quote.symbol,
-                        ]}
-                        labelFormatter={(label) => dateLabel(String(label))}
-                        contentStyle={{
-                          borderRadius: 8,
-                          border: "1px solid var(--border)",
-                          fontSize: 11,
-                          background: "var(--popover)",
-                          color: "var(--foreground)",
-                        }}
-                      />
-                    )}
+                    <Tooltip
+                      formatter={(value) => [
+                        quote.unit === "percent"
+                          ? `${Number(value).toFixed(2).replace(".", ",")}%`
+                          : formatMarketPrice({
+                              ...quote,
+                              price: Number(value),
+                            }),
+                        quote.symbol,
+                      ]}
+                      labelFormatter={(label) => dateLabel(String(label))}
+                      contentStyle={{
+                        borderRadius: 8,
+                        border: "1px solid var(--border)",
+                        fontSize: 11,
+                        background: "var(--popover)",
+                        color: "var(--foreground)",
+                      }}
+                    />
                     <Area
                       dataKey="value"
                       type="monotone"
@@ -362,23 +382,19 @@ function MarketDialog({
                 <div>
                   <span>Máxima</span>
                   <strong>
-                    {hidden
-                      ? "••••"
-                      : formatMarketPrice({ ...quote, price: stats.high })}
+                    {formatMarketPrice({ ...quote, price: stats.high })}
                   </strong>
                 </div>
                 <div>
                   <span>Mínima</span>
                   <strong>
-                    {hidden
-                      ? "••••"
-                      : formatMarketPrice({ ...quote, price: stats.low })}
+                    {formatMarketPrice({ ...quote, price: stats.low })}
                   </strong>
                 </div>
                 <div>
                   <span>No período</span>
                   <strong className={`market-ticker-change ${periodTone}`}>
-                    {hidden ? "••••" : formatPct(stats.changePct)}
+                    {formatPct(stats.changePct)}
                   </strong>
                 </div>
                 <div>
@@ -421,15 +437,13 @@ function MarketDialog({
                         </span>
                         <span className="market-history-values">
                           <strong>
-                            {hidden
-                              ? "••••"
-                              : formatMarketPrice({
-                                  ...quote,
-                                  price: point.price,
-                                })}
+                            {formatMarketPrice({
+                              ...quote,
+                              price: point.price,
+                            })}
                           </strong>
                           <small className={`market-ticker-change ${dayTone}`}>
-                            {hidden ? "••••" : formatPct(point.changePct)}
+                            {formatPct(point.changePct)}
                           </small>
                         </span>
                       </li>
@@ -455,6 +469,7 @@ export function MarketTickers({ data }: { data: FinanceData }) {
   const [quotes, setQuotes] = useState<MarketQuote[]>([]);
   const [failed, setFailed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [period, setPeriod] = useState<MarketPeriod>("today");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -496,18 +511,32 @@ export function MarketTickers({ data }: { data: FinanceData }) {
     <section className="finance-card home-market">
       <div className="home-card-heading">
         <h2>Mercado</h2>
-        <span>{failed && !quotes.length ? "Indisponível" : "Hoje"}</span>
+        {failed && !quotes.length ? <span>Indisponível</span> : null}
       </div>
       {quotes.length ? (
-        <div className="market-ticker-list">
-          {quotes.map((quote) => (
-            <MarketTickerCard
-              key={quote.id}
-              quote={quote}
-              onOpen={() => setSelectedId(quote.id)}
+        <>
+          <div className="home-market-toolbar">
+            <MotionSegmentedControl
+              label="Período da variação"
+              value={period}
+              onChange={(value) => setPeriod(value as MarketPeriod)}
+              options={[
+                ["today", "Hoje"],
+                ["month", "Mês"],
+              ]}
             />
-          ))}
-        </div>
+          </div>
+          <div className="market-ticker-list">
+            {quotes.map((quote) => (
+              <MarketTickerCard
+                key={quote.id}
+                quote={quote}
+                period={period}
+                onOpen={() => setSelectedId(quote.id)}
+              />
+            ))}
+          </div>
+        </>
       ) : (
         <div className="home-empty market-ticker-empty">
           <Plant size={22} />

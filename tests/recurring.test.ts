@@ -14,7 +14,6 @@ function tx(
 ): Transaction {
   return {
     status: "paid",
-    groupId: "demo-home",
     category: "Moradia",
     accountId: "demo-nubank",
     source: "manual",
@@ -205,22 +204,8 @@ test("ignora assinaturas antigas, anuais e estornos", () => {
 test("resume o ciclo com totais, pendências e projeção de 6 meses", () => {
   const data: FinanceData = {
     mode: "demo",
-    groups: [
-      {
-        id: "demo-home",
-        name: "Casa & rotina",
-        color: "#2563eb",
-        icon: "house",
-        budget: 0,
-      },
-      {
-        id: "demo-work",
-        name: "Trabalho",
-        color: "#f4a52b",
-        icon: "briefcase",
-        budget: 0,
-      },
-    ],
+    categories: [],
+    categoryRules: [],
     accounts: [
       {
         id: "demo-nubank",
@@ -259,7 +244,6 @@ test("resume o ciclo com totais, pendências e projeção de 6 meses", () => {
         amount: 500000,
         kind: "income",
         date: "2026-11-05",
-        groupId: "demo-work",
         category: "Salário",
         status: "paid",
       }),
@@ -277,7 +261,6 @@ test("resume o ciclo com totais, pendências e projeção de 6 meses", () => {
         dayOfMonth: 2,
         frequency: "monthly",
         category: "Moradia",
-        groupId: "demo-home",
         accountId: "demo-nubank",
         installmentCurrent: null,
         installmentTotal: null,
@@ -299,7 +282,6 @@ test("resume o ciclo com totais, pendências e projeção de 6 meses", () => {
         dayOfMonth: 15,
         frequency: "monthly",
         category: "Contas da casa",
-        groupId: "demo-home",
         accountId: "demo-nubank",
         installmentCurrent: null,
         installmentTotal: null,
@@ -321,7 +303,6 @@ test("resume o ciclo com totais, pendências e projeção de 6 meses", () => {
         dayOfMonth: 6,
         frequency: "monthly",
         category: "Compras",
-        groupId: "demo-home",
         accountId: "demo-nubank",
         installmentCurrent: 11,
         installmentTotal: 12,
@@ -343,7 +324,6 @@ test("resume o ciclo com totais, pendências e projeção de 6 meses", () => {
         dayOfMonth: 5,
         frequency: "monthly",
         category: "Salário",
-        groupId: "demo-work",
         accountId: "demo-nubank",
         installmentCurrent: null,
         installmentTotal: null,

@@ -1,13 +1,18 @@
 import { SquaresFour } from "@phosphor-icons/react";
 import { CategoryImage } from "./finance-icons";
 import { colorForCategory, imageForCategory } from "@/lib/categorize";
+import type { Category } from "@/lib/types";
 
 export function CategoryMark({
   name,
   size = 22,
+  color: colorProp,
+  imageSlug: imageProp,
 }: {
   name: string;
   size?: number;
+  color?: string;
+  imageSlug?: string | null;
 }) {
   if (name === "all") {
     return (
@@ -16,8 +21,9 @@ export function CategoryMark({
       </span>
     );
   }
-  const color = colorForCategory(name);
-  const image = imageForCategory(name);
+  const color = colorProp || colorForCategory(name);
+  const image =
+    imageProp === undefined ? imageForCategory(name) : imageProp || null;
   return (
     <span
       className={`category-mark${image ? " has-image" : ""}`}
@@ -38,9 +44,19 @@ export function CategoryMark({
   );
 }
 
+export function categoryLookup(
+  name: string,
+  categories?: Category[],
+): Pick<Category, "color" | "imageSlug"> | undefined {
+  return categories?.find((category) => category.name === name);
+}
+
 export function categoryFieldOptions(
   names: string[],
-  { includeAll = true }: { includeAll?: boolean } = {},
+  {
+    includeAll = true,
+    categories,
+  }: { includeAll?: boolean; categories?: Category[] } = {},
 ) {
   return [
     ...(includeAll
@@ -52,10 +68,19 @@ export function categoryFieldOptions(
           },
         ]
       : []),
-    ...names.map((name) => ({
-      value: name,
-      label: name,
-      leading: <CategoryMark name={name} />,
-    })),
+    ...names.map((name) => {
+      const meta = categoryLookup(name, categories);
+      return {
+        value: name,
+        label: name,
+        leading: (
+          <CategoryMark
+            name={name}
+            color={meta?.color}
+            imageSlug={meta?.imageSlug}
+          />
+        ),
+      };
+    }),
   ];
 }

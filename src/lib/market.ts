@@ -17,6 +17,7 @@ export type MarketQuote = {
   currency: "BRL" | "USD";
   unit?: "currency" | "percent" | "index";
   changeKnown?: boolean;
+  description?: string;
   positionCents?: number;
   costCents?: number | null;
 };
@@ -28,10 +29,83 @@ type YahooInstrument = {
   yahoo: string;
   currency?: "BRL" | "USD";
   unit?: "currency" | "index";
+  description: string;
 };
 
-/** Índices e papéis de referência sempre exibidos no Mercado. */
+type MarketLogoConfig = {
+  /** Domínio ou path Logo.dev (`apple.com`, `index/SPX`). */
+  domain?: string;
+  /** URL pronta (bandeiras etc.), sem Logo.dev. */
+  src?: string;
+  /** Ajuste Logo.dev para fundo claro/escuro (png/webp). */
+  theme?: "light" | "dark" | "auto";
+  greyscale?: boolean;
+  /** Como o PNG encaixa no avatar. */
+  fit?: "cover" | "contain";
+};
+
+function flagCdnUrl(country: "br" | "us", size: number) {
+  const width = size <= 40 ? 40 : size <= 80 ? 80 : 160;
+  return `https://flagcdn.com/w${width}/${country}.png`;
+}
+
+/** Logos por id/símbolo do indicador. */
+export const MARKET_LOGOS: Record<string, MarketLogoConfig> = {
+  aapl: { domain: "apple.com", theme: "light", fit: "contain" },
+  nvda: { domain: "nvidia.com" },
+  bbas3: { domain: "bb.com.br", theme: "light", fit: "contain" },
+  cpfe3: { domain: "cpfl.com.br" },
+  ibov: { src: "flag:br", fit: "cover" },
+  spx: { src: "flag:us", fit: "cover" },
+  spacex: { domain: "spacex.com" },
+};
+
+const KNOWN_B3: Record<
+  string,
+  { name: string; description: string }
+> = {
+  BBAS3: {
+    name: "Banco do Brasil",
+    description:
+      "Ação do Banco do Brasil na B3. Cotação via Yahoo Finance.",
+  },
+  CPFE3: {
+    name: "CPFL",
+    description:
+      "Ação da CPFL Energia na B3. Cotação via Yahoo Finance.",
+  },
+};
+
+/** Ordem fixa dos indicadores no Mercado. */
+export const MARKET_QUOTE_ORDER = [
+  "usd",
+  "btc",
+  "bbas3",
+  "cpfe3",
+  "ibov",
+  "spx",
+  "nvda",
+  "aapl",
+] as const;
+
+/** Papéis de referência sempre exibidos no Mercado. */
 export const FEATURED_MARKETS: YahooInstrument[] = [
+  {
+    id: "bbas3",
+    name: "Banco do Brasil",
+    symbol: "BBAS3",
+    yahoo: "BBAS3.SA",
+    currency: "BRL",
+    description: KNOWN_B3.BBAS3.description,
+  },
+  {
+    id: "cpfe3",
+    name: "CPFL",
+    symbol: "CPFE3",
+    yahoo: "CPFE3.SA",
+    currency: "BRL",
+    description: KNOWN_B3.CPFE3.description,
+  },
   {
     id: "ibov",
     name: "Ibovespa",
@@ -39,6 +113,8 @@ export const FEATURED_MARKETS: YahooInstrument[] = [
     yahoo: "^BVSP",
     unit: "index",
     currency: "BRL",
+    description:
+      "Índice da B3 com as ações mais negociadas do Brasil. Cotação via Yahoo Finance.",
   },
   {
     id: "spx",
@@ -47,6 +123,8 @@ export const FEATURED_MARKETS: YahooInstrument[] = [
     yahoo: "^GSPC",
     unit: "index",
     currency: "USD",
+    description:
+      "Índice das 500 maiores empresas listadas nos EUA. Cotação via Yahoo Finance.",
   },
   {
     id: "nvda",
@@ -54,8 +132,44 @@ export const FEATURED_MARKETS: YahooInstrument[] = [
     symbol: "NVDA",
     yahoo: "NVDA",
     currency: "USD",
+    description:
+      "Ação da NVIDIA na Nasdaq (EUA). Cotação via Yahoo Finance.",
+  },
+  {
+    id: "aapl",
+    name: "Apple",
+    symbol: "AAPL",
+    yahoo: "AAPL",
+    currency: "USD",
+    description:
+      "Ação da Apple na Nasdaq (EUA). Cotação via Yahoo Finance.",
   },
 ];
+
+export function marketLogoConfig(idOrSymbol: string) {
+  return MARKET_LOGOS[idOrSymbol.toLowerCase()] || null;
+}
+
+export function marketLogoUrl(idOrSymbol: string, size = 64) {
+  const config = marketLogoConfig(idOrSymbol);
+  if (!config) return null;
+  if (config.src === "flag:br") return flagCdnUrl("br", size);
+  if (config.src === "flag:us") return flagCdnUrl("us", size);
+  if (config.src) return config.src;
+  if (!config.domain) return null;
+  const token = process.env.NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY;
+  if (!token) return null;
+  const params = new URLSearchParams({
+    token,
+    size: String(size),
+    format: "png",
+    fallback: "404",
+    retina: "true",
+  });
+  if (config.theme) params.set("theme", config.theme);
+  if (config.greyscale) params.set("greyscale", "true");
+  return `https://img.logo.dev/${config.domain}?${params.toString()}`;
+}
 
 type AwesomeQuote = {
   code?: string;
@@ -202,6 +316,7 @@ function toFxQuote(
   symbol: string,
   quote: AwesomeQuote,
   history: MarketHistoryPoint[],
+  description: string,
 ): MarketQuote {
   const price = Number(quote.bid);
   const changePct = Number(quote.pctChange);
@@ -217,6 +332,7 @@ function toFxQuote(
     currency: "BRL",
     unit: "currency",
     changeKnown: true,
+    description,
   };
 }
 
@@ -369,14 +485,18 @@ async function getYahooQuote(
     result.meta.shortName?.replace(/\s+/g, " ").trim() ||
     result.meta.longName ||
     "";
+  const knownB3 = KNOWN_B3[instrument.symbol.toUpperCase()];
   const name =
-    instrument.unit === "index" || instrument.currency === "USD"
+    instrument.unit === "index" ||
+    instrument.currency === "USD" ||
+    knownB3
       ? instrument.name
       : remoteName || instrument.name;
 
   return quoteFromHistory(instrument.id, name, instrument.symbol, history, {
     currency: instrument.currency || "BRL",
     unit: instrument.unit || "currency",
+    description: instrument.description,
     positionCents,
     changePct: Number.isFinite(
       result.meta.regularMarketChangePercent as number,
@@ -387,12 +507,16 @@ async function getYahooQuote(
 }
 
 function b3Instrument(ticker: string): YahooInstrument {
+  const known = KNOWN_B3[ticker.toUpperCase()];
   return {
     id: ticker.toLowerCase(),
-    name: ticker,
+    name: known?.name || ticker,
     symbol: ticker,
     yahoo: `${ticker}.SA`,
     currency: "BRL",
+    description:
+      known?.description ||
+      "Ação listada na B3, a bolsa de valores do Brasil. Cotação via Yahoo Finance.",
   };
 }
 
@@ -405,8 +529,22 @@ async function getFxQuotes(): Promise<MarketQuote[]> {
     fetchJson<AwesomeDaily[]>(`${AWESOME_BASE}/daily/BTC-BRL/30`),
   ]);
   return [
-    toFxQuote("usd", "Dólar", "USD", latest.USDBRL, parseAwesomeHistory(usdDaily)),
-    toFxQuote("btc", "Bitcoin", "BTC", latest.BTCBRL, parseAwesomeHistory(btcDaily)),
+    toFxQuote(
+      "usd",
+      "Dólar",
+      "USD",
+      latest.USDBRL,
+      parseAwesomeHistory(usdDaily),
+      "Cotação do dólar americano em reais. Fonte: AwesomeAPI.",
+    ),
+    toFxQuote(
+      "btc",
+      "Bitcoin",
+      "BTC",
+      latest.BTCBRL,
+      parseAwesomeHistory(btcDaily),
+      "Cotação do Bitcoin em reais. Fonte: AwesomeAPI.",
+    ),
   ];
 }
 
@@ -436,11 +574,34 @@ export async function getMarketQuotes(options?: {
     getFxQuotes().catch(() => [] as MarketQuote[]),
   ]);
 
-  return [
-    ...equities.filter((quote): quote is MarketQuote => quote != null),
-    ...featured.filter((quote): quote is MarketQuote => quote != null),
+  const byId = new Map<string, MarketQuote>();
+  for (const quote of [
+    ...featured.filter((row): row is MarketQuote => row != null),
     ...fx,
-  ];
+    // Carteira por último para preservar posição/custo em tickers duplicados.
+    ...equities.filter((row): row is MarketQuote => row != null),
+  ]) {
+    const previous = byId.get(quote.id);
+    byId.set(
+      quote.id,
+      previous
+        ? {
+            ...quote,
+            positionCents: quote.positionCents ?? previous.positionCents,
+            costCents: quote.costCents ?? previous.costCents,
+          }
+        : quote,
+    );
+  }
+
+  const ordered: MarketQuote[] = [];
+  for (const id of MARKET_QUOTE_ORDER) {
+    const quote = byId.get(id);
+    if (!quote) continue;
+    ordered.push(quote);
+    byId.delete(id);
+  }
+  return [...ordered, ...byId.values()];
 }
 
 export function periodStats(history: MarketHistoryPoint[]) {

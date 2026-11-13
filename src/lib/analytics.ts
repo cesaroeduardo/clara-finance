@@ -1,7 +1,14 @@
 import type { FinanceData, PlanSettings, Transaction } from "./types";
-import { localDate, money, parseMoney } from "./format";
+import { localDate, monthLabel, money, parseMoney } from "./format";
 
 export type TransactionPeriod = "month" | "last3" | "all" | "custom";
+
+export type AppPeriod =
+  | { mode: "all" }
+  | { mode: "month"; month: string }
+  | { mode: "last3"; end: string }
+  | { mode: "year"; year: number }
+  | { mode: "range"; from: string; to: string };
 
 const emptyPlan = (): PlanSettings => ({
   monthlyLimit: 0,
@@ -10,6 +17,10 @@ const emptyPlan = (): PlanSettings => ({
   expectedSalary: 0,
   expectedFreelance: 0,
 });
+
+export function currentAppPeriod(today = localDate()): AppPeriod {
+  return { mode: "month", month: today.slice(0, 7) };
+}
 
 /** Plano do mês; se não houver, herda o último mês anterior salvo. */
 export function planForMonth(
@@ -26,7 +37,7 @@ export function planForMonth(
   return data.plan || emptyPlan();
 }
 
-function shiftMonth(month: string, delta: number) {
+export function shiftMonth(month: string, delta: number) {
   const date = new Date(`${month}-15T12:00:00`);
   date.setMonth(date.getMonth() + delta);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -40,6 +51,95 @@ function monthEnd(month: string, today = localDate()) {
     0,
   ).getDate();
   return `${month}-${String(lastDay).padStart(2, "0")}`;
+}
+
+function shortMonthAbbr(month: string) {
+  const short = new Intl.DateTimeFormat("pt-BR", { month: "short" })
+    .format(new Date(`${month}-15T12:00:00`))
+    .replace(/\.$/, "")
+    .trim();
+  return short.charAt(0).toLocaleUpperCase("pt-BR") + short.slice(1);
+}
+
+export function periodMonthBounds(period: AppPeriod): {
+  fromMonth: string;
+  toMonth: string;
+} {
+  if (period.mode === "all") {
+    const month = localDate().slice(0, 7);
+    return { fromMonth: month, toMonth: month };
+  }
+  if (period.mode === "month") {
+    return { fromMonth: period.month, toMonth: period.month };
+  }
+  if (period.mode === "last3") {
+    return {
+      fromMonth: shiftMonth(period.end, -2),
+      toMonth: period.end,
+    };
+  }
+  if (period.mode === "year") {
+    return {
+      fromMonth: `${period.year}-01`,
+      toMonth: `${period.year}-12`,
+    };
+  }
+  const fromMonth = period.from <= period.to ? period.from : period.to;
+  const toMonth = period.from <= period.to ? period.to : period.from;
+  return { fromMonth, toMonth };
+}
+
+export function periodDateBounds(
+  period: AppPeriod,
+  today = localDate(),
+): { from: string; to: string } | null {
+  if (period.mode === "all") return null;
+  const { fromMonth, toMonth } = periodMonthBounds(period);
+  return {
+    from: `${fromMonth}-01`,
+    to: monthEnd(toMonth, today),
+  };
+}
+
+export function periodAnchor(period: AppPeriod, today = localDate()) {
+  const current = today.slice(0, 7);
+  if (period.mode === "all") return current;
+  const { fromMonth, toMonth } = periodMonthBounds(period);
+  if (current >= fromMonth && current <= toMonth) return current;
+  return toMonth;
+}
+
+export function periodLabel(period: AppPeriod) {
+  if (period.mode === "all") return "Todo o período";
+  if (period.mode === "month") return monthLabel(period.month);
+  if (period.mode === "last3") return "Últimos 3 meses";
+  if (period.mode === "year") return String(period.year);
+  const { fromMonth, toMonth } = periodMonthBounds(period);
+  if (fromMonth === toMonth) return monthLabel(fromMonth);
+  const fromYear = fromMonth.slice(0, 4);
+  const toYear = toMonth.slice(0, 4);
+  if (fromYear === toYear) {
+    return `${shortMonthAbbr(fromMonth)}–${shortMonthAbbr(toMonth)} ${toYear}`;
+  }
+  return `${shortMonthAbbr(fromMonth)}. ${fromYear}–${shortMonthAbbr(toMonth)}. ${toYear}`;
+}
+
+export function shiftAppPeriod(period: AppPeriod, delta: number): AppPeriod {
+  if (period.mode === "all") return period;
+  if (period.mode === "month") {
+    return { mode: "month", month: shiftMonth(period.month, delta) };
+  }
+  if (period.mode === "last3") {
+    return { mode: "last3", end: shiftMonth(period.end, delta) };
+  }
+  if (period.mode === "year") {
+    return { mode: "year", year: period.year + delta };
+  }
+  return {
+    mode: "range",
+    from: shiftMonth(period.from, delta),
+    to: shiftMonth(period.to, delta),
+  };
 }
 
 /** Contas + investimentos em BRL, com série reconstruída pelos lançamentos pagos. */
@@ -78,12 +178,6 @@ export function netWorth(data: FinanceData, months = 6) {
   };
 }
 
-export function matchesGroupFilter(groupId: string, filter: string) {
-  if (filter === "all") return true;
-  if (filter === "ungrouped") return !groupId;
-  return groupId === filter;
-}
-
 export function matchesCategoryFilter(
   category: string | null | undefined,
   filter: string,
@@ -106,12 +200,6 @@ export function summarize(data: FinanceData, month: string, category = "all") {
   const income = sum("income"),
     expenses = sum("expense"),
     transfers = sum("transfer");
-  const groups = data.groups.map((group) => ({
-    ...group,
-    spent: records
-      .filter((row) => row.groupId === group.id && row.kind === "expense")
-      .reduce((total, row) => total + row.amount, 0),
-  }));
   const daysInMonth = new Date(
     Number(month.slice(0, 4)),
     Number(month.slice(5, 7)),
@@ -141,7 +229,6 @@ export function summarize(data: FinanceData, month: string, category = "all") {
     balance: income - expenses,
     pending: sum("expense", "pending"),
     paid: sum("expense", "paid"),
-    groups,
     flow,
     investments,
     invested: investments.reduce((n, row) => n + row.balance, 0),
@@ -149,12 +236,49 @@ export function summarize(data: FinanceData, month: string, category = "all") {
   };
 }
 
+/** Totais no intervalo do período; série diária (`flow`) só no mês âncora. */
+export function summarizePeriod(
+  data: FinanceData,
+  period: AppPeriod,
+  category = "all",
+  today = localDate(),
+) {
+  const bounds = periodDateBounds(period, today);
+  const anchor = periodAnchor(period, today);
+  const records = data.transactions.filter(
+    (row) =>
+      row.currency === "BRL" &&
+      inPeriod(row.date, bounds) &&
+      matchesCategoryFilter(row.category, category),
+  );
+  const sum = (kind: string, status?: string) =>
+    records
+      .filter((row) => row.kind === kind && (!status || row.status === status))
+      .reduce((total, row) => total + row.amount, 0);
+  const income = sum("income"),
+    expenses = sum("expense"),
+    transfers = sum("transfer");
+  const anchorSummary = summarize(data, anchor, category);
+  const investments = data.investments.filter((row) => row.currency === "BRL");
+  return {
+    records,
+    income,
+    expenses,
+    transfers,
+    balance: income - expenses,
+    pending: sum("expense", "pending"),
+    paid: sum("expense", "paid"),
+    flow: anchorSummary.flow,
+    investments,
+    invested: investments.reduce((n, row) => n + row.balance, 0),
+    goals: data.goals,
+    anchor,
+    bounds,
+  };
+}
+
 export type InvestmentBucket =
-  | "caixinhas"
-  | "tesouro"
-  | "cripto"
-  | "bolsa"
-  | "fundos";
+  "caixinhas" | "tesouro" | "cripto" | "bolsa" | "fundos";
 
 export const investmentBucketMeta: Record<
   InvestmentBucket,
@@ -244,7 +368,9 @@ export function investmentsOverview(
   const gains = categories
     .map((row) => row.gain)
     .filter((value): value is number => value != null);
-  const gain = gains.length ? gains.reduce((sum, value) => sum + value, 0) : null;
+  const gain = gains.length
+    ? gains.reduce((sum, value) => sum + value, 0)
+    : null;
 
   return {
     total,
@@ -322,8 +448,7 @@ export function filterTransactions(
     (row) =>
       (type === "all" || row.kind === type) &&
       (status === "all" || row.status === status) &&
-      (category === "all" ||
-        (row.category || "Sem categoria") === category) &&
+      (category === "all" || (row.category || "Sem categoria") === category) &&
       matchesTransactionQuery(row, query),
   );
 }
@@ -360,49 +485,70 @@ function creditAccountIds(data: FinanceData) {
   );
 }
 
-function cardMonthExpenses(
+/** Fatura do mês, líquida de estornos e sem pagamentos de faturas anteriores. */
+export function cardInvoiceAmount(
   data: FinanceData,
   accountId: string,
   month: string,
-  category: string,
-  pendingOnly = false,
+  category = "all",
+  today = localDate(),
 ) {
-  return data.transactions
-    .filter(
-      (row) =>
-        row.accountId === accountId &&
-        row.currency === "BRL" &&
-        row.kind === "expense" &&
-        row.date.startsWith(month) &&
-        matchesCategoryFilter(row.category, category) &&
-        (!pendingOnly || row.status === "pending"),
-    )
-    .reduce((total, row) => total + row.amount, 0);
+  const card = data.accounts.find(
+    (row) =>
+      row.id === accountId && row.type === "CREDIT" && row.currency === "BRL",
+  );
+  if (!card) return 0;
+
+  const currentMonth = today.slice(0, 7);
+  const movements = data.transactions.filter(
+    (row) =>
+      row.accountId === accountId &&
+      row.currency === "BRL" &&
+      row.kind !== "transfer",
+  );
+  const netAmount = (rows: Transaction[]) =>
+    rows.reduce(
+      (total, row) =>
+        total + (row.kind === "expense" ? row.amount : -row.amount),
+      0,
+    );
+
+  if (month === currentMonth && category === "all" && card.itemId) {
+    // O saldo importado inclui parcelas futuras e pode chegar antes da lista
+    // de compras. Retira apenas movimentos futuros da mesma integração.
+    const future = movements.filter(
+      (row) => row.source === "pluggy" && row.date.slice(0, 7) > month,
+    );
+    return Math.max(0, Math.abs(card.balance) - netAmount(future));
+  }
+
+  return Math.max(
+    0,
+    netAmount(
+      movements.filter(
+        (row) =>
+          row.date.startsWith(month) &&
+          matchesCategoryFilter(row.category, category) &&
+          (month < currentMonth || row.status === "pending"),
+      ),
+    ),
+  );
 }
 
-/**
- * Fatura aberta conta no mês corrente (vence no início do próximo).
- * Mês atual: saldo do cartão (ou pendências). Passado: lançamentos do mês.
- */
+/** Mesma composição usada no cartão e no ritmo de gastos. */
 function openCreditInvoices(
   data: FinanceData,
   month: string,
   category: string,
-  isCurrent: boolean,
-  isPast: boolean,
+  today: string,
 ) {
   return data.accounts
     .filter((row) => row.type === "CREDIT" && row.currency === "BRL")
-    .reduce((total, card) => {
-      const pending = cardMonthExpenses(data, card.id, month, category, true);
-      const closed = cardMonthExpenses(data, card.id, month, category, false);
-      if (category !== "all") {
-        return total + (isCurrent ? pending || closed : closed);
-      }
-      if (isCurrent) return total + (Math.abs(card.balance) || pending);
-      if (isPast) return total + closed;
-      return total + pending;
-    }, 0);
+    .reduce(
+      (total, card) =>
+        total + cardInvoiceAmount(data, card.id, month, category, today),
+      0,
+    );
 }
 
 const HOUSE_CATEGORY = "Contas da casa";
@@ -433,8 +579,8 @@ export function spendingPace(
   data: FinanceData,
   month: string,
   category = "all",
+  today = localDate(),
 ) {
-  const today = localDate();
   const currentMonth = today.slice(0, 7);
   const daysInMonth = new Date(
     Number(month.slice(0, 4)),
@@ -471,13 +617,7 @@ export function spendingPace(
       row.kind === "expense" &&
       (!row.accountId || !creditIds.has(row.accountId)),
   );
-  const openInvoices = openCreditInvoices(
-    data,
-    month,
-    category,
-    isCurrent,
-    isPast,
-  );
+  const openInvoices = openCreditInvoices(data, month, category, today);
   const cashSpentToDate = cashExpenses
     .filter((row) => row.date <= cutoff && row.status === "paid")
     .reduce((total, row) => total + row.amount, 0);
@@ -514,25 +654,19 @@ export function spendingPace(
   // Visor original: limite = renda (já entrada / prevista) − guardar.
   const incomeSignal = forecastIncome > 0 ? forecastIncome : incomeMonth;
   const incomeBasedLimit = Math.max(0, incomeSignal - monthlySavings);
-  const monthlyLimit =
-    incomeBasedLimit > 0
-      ? incomeBasedLimit
-      : typedTeto;
+  const monthlyLimit = incomeBasedLimit > 0 ? incomeBasedLimit : typedTeto;
   const remaining = monthlyLimit - spentToDate - foodHold;
-  const daysLeft =
-    isCurrent
-      ? Math.max(1, daysInMonth - todayDay + 1)
-      : isPast
-        ? 1
-        : daysInMonth;
+  const daysLeft = isCurrent
+    ? Math.max(1, daysInMonth - todayDay + 1)
+    : isPast
+      ? 1
+      : daysInMonth;
   const dailyAllowance = Math.round(remaining / daysLeft);
   const avgDailyCash = cashSpentToDate / Math.max(1, todayDay);
-  const projectedRaw =
-    openInvoices + Math.round(avgDailyCash * daysInMonth);
+  const projectedRaw = openInvoices + Math.round(avgDailyCash * daysInMonth);
   const projectedEndSpend = projectedRaw + foodHold;
   const projectedSurplus = monthlyLimit - projectedEndSpend;
-  const projectedSurplus3m =
-    (projectedSurplus + monthlySavings) * 3;
+  const projectedSurplus3m = (projectedSurplus + monthlySavings) * 3;
   const paceDelta = Math.round(
     (monthlyLimit * todayDay) / daysInMonth - spentToDate,
   );
@@ -568,12 +702,7 @@ export function spendingPace(
     0,
   ).getDate();
   const compareDay = Math.min(todayDay, previousDays);
-  const currentCats = expenseByCategoryUntil(
-    data,
-    month,
-    compareDay,
-    category,
-  );
+  const currentCats = expenseByCategoryUntil(data, month, compareDay, category);
   const previousCats = expenseByCategoryUntil(
     data,
     previousMonth,
@@ -586,10 +715,7 @@ export function spendingPace(
     const delta =
       (currentCats.get(categoryName) || 0) -
       (previousCats.get(categoryName) || 0);
-    if (
-      !categoryShift ||
-      Math.abs(delta) > Math.abs(categoryShift.delta)
-    ) {
+    if (!categoryShift || Math.abs(delta) > Math.abs(categoryShift.delta)) {
       categoryShift = { category: categoryName, delta };
     }
   }

@@ -42,7 +42,7 @@ test("criar, filtrar, editar e excluir lançamento com persistência", async ({
   await page.getByRole("button", { name: "Confirmar exclusão" }).click();
   await expect(page.getByText("Nenhum lançamento encontrado")).toBeVisible();
 });
-test("metas e grupos gravam no modo pessoal", async ({ page }) => {
+test("metas gravam no modo pessoal", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Saldo previsto")).toBeVisible();
   await page.getByRole("button", { name: "Metas", exact: true }).click();
@@ -65,14 +65,6 @@ test("metas e grupos gravam no modo pessoal", async ({ page }) => {
   await expect(page.getByText("20%")).toBeVisible();
   await page.getByRole("button", { name: "Lançamentos", exact: true }).click();
   await expect(page.getByText("Nenhum lançamento encontrado")).toBeVisible();
-  await page.getByRole("button", { name: "Grupos", exact: true }).click();
-  await page.getByRole("button", { name: "Criar grupo" }).click();
-  await page.getByLabel("Nome do grupo").fill("Viagens de teste");
-  await page.getByLabel("Orçamento mensal (R$)").fill("500,00");
-  await page.getByRole("button", { name: "Salvar", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Viagens de teste" }),
-  ).toBeVisible();
 });
 test("navegação mobile, tema, privacidade e telas sem erro de execução", async ({
   page,

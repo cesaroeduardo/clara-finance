@@ -21,7 +21,7 @@ export type DetectedRecurring = {
   amount: number;
   dayOfMonth: number;
   category: string;
-  groupId: string;
+
   accountId: string | null;
   installmentCurrent: number | null;
   installmentTotal: number | null;
@@ -35,7 +35,7 @@ export type RecurringInstance = {
   recurringId: string;
   description: string;
   category: string;
-  groupId: string;
+
   accountId: string | null;
   amount: number;
   date: string;
@@ -81,8 +81,7 @@ export type RecurringCycleSummary = {
   installments: RecurringInstance[];
 };
 
-const installmentPattern =
-  /(?:parc(?:ela)?\.?\s*)?(\d{1,3})\s*\/\s*(\d{1,3})/i;
+const installmentPattern = /(?:parc(?:ela)?\.?\s*)?(\d{1,3})\s*\/\s*(\d{1,3})/i;
 
 function monthFromDate(date: string) {
   return date.slice(0, 7);
@@ -145,7 +144,10 @@ export function normalizeMatchKey(description: string) {
     .replace(/\p{M}/gu, "")
     .toLocaleLowerCase("pt-BR")
     .replace(installmentPattern, " ")
-    .replace(/\b(?:parc(?:ela)?s?|compra|pagamento|debito|credito|fatura)\b/gi, " ")
+    .replace(
+      /\b(?:parc(?:ela)?s?|compra|pagamento|debito|credito|fatura)\b/gi,
+      " ",
+    )
     .replace(/\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/g, " ")
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
@@ -277,16 +279,20 @@ function detectInstallments(transactions: Transaction[]): DetectedRecurring[] {
     const dayOfMonth = Number(latest.date.slice(8, 10));
     const latestMonth = monthFromDate(latest.date);
     const startMonth = shiftMonth(latestMonth, -(installment.current - 1));
-    const endMonth = shiftMonth(latestMonth, installment.total - installment.current);
+    const endMonth = shiftMonth(
+      latestMonth,
+      installment.total - installment.current,
+    );
     detected.push({
       kind: group.kind,
       type: "installment",
-      description: latest.description.replace(installmentPattern, "").trim() ||
+      description:
+        latest.description.replace(installmentPattern, "").trim() ||
         latest.description,
       amount,
       dayOfMonth,
       category: latest.category,
-      groupId: latest.groupId,
+
       accountId: latest.accountId,
       installmentCurrent: installment.current,
       installmentTotal: installment.total,
@@ -348,7 +354,7 @@ function detectFixed(transactions: Transaction[]): DetectedRecurring[] {
       amount,
       dayOfMonth,
       category: latest.category,
-      groupId: latest.groupId,
+
       accountId: latest.accountId,
       installmentCurrent: null,
       installmentTotal: null,
@@ -375,7 +381,7 @@ function mapRecurringRow(row: Record<string, unknown>): Recurring {
     dayOfMonth: Number(row.day_of_month),
     frequency: "monthly",
     category: String(row.category),
-    groupId: String(row.group_id),
+
     accountId: (row.account_id as string | null) ?? null,
     installmentCurrent:
       row.installment_current == null ? null : Number(row.installment_current),
@@ -395,7 +401,7 @@ function mapRecurringRow(row: Record<string, unknown>): Recurring {
 export function listRecurrings(database: Database.Database, mode: Mode) {
   const rows = database
     .prepare(
-      `SELECT id,kind,type,description,amount,day_of_month,frequency,category,group_id,
+      `SELECT id,kind,type,description,amount,day_of_month,frequency,category,
               account_id,installment_current,installment_total,start_date,end_date,source,
               match_key,ignored,active,user_edited,currency
        FROM recurrings WHERE mode=? ORDER BY day_of_month, description`,
@@ -407,7 +413,7 @@ export function listRecurrings(database: Database.Database, mode: Mode) {
 export function reconcileRecurrings(database: Database.Database, mode: Mode) {
   const transactions = database
     .prepare(
-      `SELECT id,description,amount,kind,date,status,group_id AS groupId,category,
+      `SELECT id,description,amount,kind,date,status,category,
               account_id AS accountId,source,currency,
               installment_number AS installmentNumber,
               installment_total AS installmentTotal
@@ -424,13 +430,10 @@ export function reconcileRecurrings(database: Database.Database, mode: Mode) {
   );
   const seen = new Set<string>();
   const insert = database.prepare(
-    `INSERT INTO recurrings(
-      id,mode,kind,type,description,amount,day_of_month,frequency,category,group_id,account_id,
-      installment_current,installment_total,start_date,end_date,source,match_key,ignored,active,user_edited,currency
-    ) VALUES(?,?,?,?,?,?,?,'monthly',?,?,?,?,?,?,?,'detected',?,0,1,0,?)`,
+    `INSERT INTO recurrings(id,mode,kind,type,description,amount,day_of_month,frequency,category,account_id,installment_current,installment_total,start_date,end_date,source,match_key,ignored,active,user_edited,currency) VALUES(?,?,?,?,?,?,?,'monthly',?,?,?,?,?,?,'detected',?,0,1,0,?)`,
   );
   const update = database.prepare(
-    `UPDATE recurrings SET description=?,amount=?,day_of_month=?,category=?,group_id=?,account_id=?,
+    `UPDATE recurrings SET description=?,amount=?,day_of_month=?,category=?,account_id=?,
       installment_current=?,installment_total=?,start_date=?,end_date=?,active=1
      WHERE id=? AND mode=? AND source='detected' AND user_edited=0 AND ignored=0`,
   );
@@ -451,7 +454,7 @@ export function reconcileRecurrings(database: Database.Database, mode: Mode) {
           row.amount,
           row.dayOfMonth,
           row.category,
-          row.groupId,
+
           row.accountId,
           row.installmentCurrent,
           row.installmentTotal,
@@ -478,7 +481,7 @@ export function reconcileRecurrings(database: Database.Database, mode: Mode) {
         row.amount,
         row.dayOfMonth,
         row.category,
-        row.groupId,
+
         row.accountId,
         row.installmentCurrent,
         row.installmentTotal,
@@ -511,7 +514,10 @@ function findMatch(
     if (row.kind !== recurring.kind) return false;
     if (monthFromDate(row.date) !== month) return false;
     if (normalizeMatchKey(row.description) !== recurring.matchKey) return false;
-    if (Math.abs(row.amount - recurring.amount) / Math.max(recurring.amount, 1) > 0.2)
+    if (
+      Math.abs(row.amount - recurring.amount) / Math.max(recurring.amount, 1) >
+      0.2
+    )
       return false;
     if (expectedInstallment == null) return true;
     const parsed = parseInstallment(
@@ -573,7 +579,7 @@ function buildInstances(
       recurringId: recurring.id,
       description: recurring.description,
       category: recurring.category,
-      groupId: recurring.groupId,
+
       accountId: matched?.accountId ?? recurring.accountId,
       amount: matched?.amount ?? recurring.amount,
       date,
@@ -680,7 +686,10 @@ export function recurringCycle(
   return {
     kind,
     month,
-    remaining: kind === "expense" ? remaining : remainingItems.reduce((sum, row) => sum + row.amount, 0),
+    remaining:
+      kind === "expense"
+        ? remaining
+        : remainingItems.reduce((sum, row) => sum + row.amount, 0),
     remainingCount: remainingItems.length,
     fixedTotal,
     installmentTotal,

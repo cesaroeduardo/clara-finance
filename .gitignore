@@ -42,8 +42,31 @@ next-env.d.ts
 
 # Dados financeiros e arquivos locais
 /data/
+*.legacy-category-rules.json
 /work/
 /test-results/
 /playwright-report/
 !.env.example
 /.reanimate/
+
+# Conteudo privado, inclusive fora de data/
+.cursor/
+*.log
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.db
+*.db-*
+*.sql
+*.dump
+*.bak
+*.backup
+*.csv
+*.tsv
+*.ofx
+*.qfx
+*.qif
+*.legacy-merchants.json
+exports/
+backups/

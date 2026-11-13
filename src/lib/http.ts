@@ -9,11 +9,29 @@ export class AppError extends Error {
     super(message);
   }
 }
+/** Loopback, rede privada (RFC1918) ou nome local (.lan / PC da LAN). */
+export function isLocalNetworkHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1")
+    return true;
+  if (process.env.ALLOW_LAN_ACCESS !== "true") return false;
+  if (/^10(?:\.\d{1,3}){3}$/.test(host)) return true;
+  if (/^192\.168(?:\.\d{1,3}){2}$/.test(host)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}$/.test(host)) return true;
+  if (/\.(lan|local|home|internal|localdomain)$/.test(host)) return true;
+  // Nome curto da máquina na LAN (NetBIOS / mDNS)
+  if (/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(host)) return true;
+  return false;
+}
+
 export function modeOf(request: NextRequest): Mode {
   const host = request.headers.get("host") || request.nextUrl.host;
   const hostname = new URL(`http://${host}`).hostname;
-  if (!["localhost", "127.0.0.1", "[::1]"].includes(hostname))
-    throw new AppError("Este aplicativo aceita apenas acesso local.", 403);
+  if (!isLocalNetworkHost(hostname))
+    throw new AppError(
+      "Este aplicativo aceita apenas acesso na rede local.",
+      403,
+    );
   const mode = request.nextUrl.searchParams.get("mode") || "personal";
   if (mode !== "personal" && mode !== "demo")
     throw new AppError("Modo inválido.");
