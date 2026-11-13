@@ -59,6 +59,7 @@ import {
 import { FieldSelect } from "@/components/ui/field-select";
 import { CategoryImage, FinanceIcon, Illustration } from "./finance-icons";
 import { InstitutionLogo } from "./institution-logo";
+import { TransactionAvatar } from "./transaction-avatar";
 import { MerchantLogo, useMerchantLogoUrl } from "./merchant-logo";
 import { MarketTickers } from "./market-tickers";
 import { PrivacyContext } from "./finance-privacy";
@@ -2502,7 +2503,6 @@ function TransactionTable({
   onSort?: (column: TransactionSortColumn) => void;
   compact?: boolean;
 }) {
-  const merchantLogoUrl = useMerchantLogoUrl();
   return (
     <div
       className={`table-scroll${!compact ? " transactions-responsive" : ""}`}
@@ -2604,8 +2604,7 @@ function TransactionTable({
                 categoryName,
                 0,
                 data.categories,
-              ),
-              hasMerchantLogo = Boolean(merchantLogoUrl(row.description));
+              );
             return (
               <ContextMenu key={row.id}>
                 <ContextMenuTrigger render={<tr />}>
@@ -2620,28 +2619,10 @@ function TransactionTable({
                       }
                       title={row.description}
                     >
-                      <span
-                        className={`transaction-symbol${hasMerchantLogo || categoryImage ? " has-image" : ""}${hasMerchantLogo ? " has-merchant" : ""}`}
-                        style={
-                          hasMerchantLogo
-                            ? undefined
-                            : {
-                                color: categoryColor,
-                                background: `color-mix(in srgb, ${categoryColor} 16%, transparent)`,
-                              }
-                        }
-                      >
-                        {hasMerchantLogo ? (
-                          <MerchantLogo
-                            description={row.description}
-                            size={31}
-                          />
-                        ) : categoryImage ? (
-                          <CategoryImage name={categoryImage} size={28} />
-                        ) : (
-                          <FinanceIcon name="layers" size={17} />
-                        )}
-                      </span>
+                      <TransactionAvatar
+                        transaction={row}
+                        categories={data.categories}
+                      />
                       <span className="transaction-name-text">
                         <strong>{row.description}</strong>
                         {compact && account ? (

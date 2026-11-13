@@ -37,6 +37,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { FormState } from "./finance-form";
+import { TransactionAvatar } from "./transaction-avatar";
+import type { FinanceData } from "@/lib/types";
+import { filterTransactions } from "@/lib/analytics";
+import { dateLabel, money } from "@/lib/format";
 
 type AppView =
   | "dashboard"
@@ -47,7 +51,8 @@ type AppView =
   | "categories"
   | "accounts";
 
-export type ShortcutPart = { type: "key"; value: string } | { type: "text"; value: string };
+export type ShortcutPart =
+  { type: "key"; value: string } | { type: "text"; value: string };
 
 export function Keynodes({ parts }: { parts: ShortcutPart[] }) {
   return (
@@ -90,12 +95,15 @@ type CommandItem = {
   section: string;
   label: string;
   keywords?: string;
+  detail?: string;
+  amount?: string;
   icon: ReactNode;
   shortcut?: ShortcutPart[];
   run: () => void;
 };
 
 type CommandBarProps = {
+  data: FinanceData | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dark: boolean;
@@ -128,6 +136,7 @@ function useIsMac() {
 }
 
 export function FinanceCommandBar({
+  data,
   open,
   onOpenChange,
   dark,
@@ -292,7 +301,12 @@ export function FinanceCommandBar({
         section: "Ações",
         label: syncing ? "Sincronizando…" : "Sincronizar",
         keywords: "atualizar pluggy refresh",
-        icon: <ArrowsClockwise size={16} className={syncing ? "animate-spin" : ""} />,
+        icon: (
+          <ArrowsClockwise
+            size={16}
+            className={syncing ? "animate-spin" : ""}
+          />
+        ),
         shortcut: mod(isMac ? "⌘" : "Ctrl", "."),
         run: () => {
           if (!syncing) run(sync);
@@ -366,7 +380,11 @@ export function FinanceCommandBar({
         keywords: "documentacao suporte",
         icon: <Question size={16} />,
         run: () => {
-          window.open("https://meu.pluggy.ai/api-guide", "_blank", "noreferrer");
+          window.open(
+            "https://meu.pluggy.ai/api-guide",
+            "_blank",
+            "noreferrer",
+          );
           onOpenChange(false);
         },
       },
@@ -389,15 +407,42 @@ export function FinanceCommandBar({
   const filtered = useMemo(() => {
     const needle = normalize(query);
     if (!needle) return commands;
-    return commands.filter((item) =>
-      normalize(`${item.label} ${item.section} ${item.keywords || ""}`).includes(
-        needle,
-      ),
+    const matchingCommands = commands.filter((item) =>
+      normalize(
+        `${item.label} ${item.section} ${item.keywords || ""}`,
+      ).includes(needle),
     );
-  }, [commands, query]);
+    const matchingTransactions: CommandItem[] = (data?.transactions || [])
+      .filter(
+        (row) =>
+          normalize(
+            `${row.description} ${row.category || "Sem categoria"}`,
+          ).includes(needle) ||
+          filterTransactions([row], query, "all", "all").length > 0,
+      )
+      .sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id))
+      .slice(0, 20)
+      .map((row) => ({
+        id: `transaction-${row.id}`,
+        section: "Lançamentos",
+        label: row.description,
+        detail: `${dateLabel(row.date, { year: true })} · ${row.category || "Sem categoria"}`,
+        amount: hidden
+          ? "••••"
+          : `${row.kind === "expense" ? "− " : row.kind === "income" ? "+ " : ""}${money(row.amount, row.currency)}`,
+        icon: (
+          <TransactionAvatar transaction={row} categories={data?.categories} />
+        ),
+        run: () => {
+          onOpenChange(false);
+          openForm({ resource: "transactions", record: { ...row } });
+        },
+      }));
+    return [...matchingTransactions, ...matchingCommands];
+  }, [commands, query, data, hidden, onOpenChange, openForm]);
 
   const sections = useMemo(() => {
-    const order = ["Páginas", "Criar", "Ações"];
+    const order = ["Lançamentos", "Páginas", "Criar", "Ações"];
     return order
       .map((section) => ({
         section,
@@ -441,7 +486,7 @@ export function FinanceCommandBar({
       >
         <DialogTitle className="sr-only">Paleta de comandos</DialogTitle>
         <DialogDescription className="sr-only">
-          Busque páginas e ações do app
+          Busque lançamentos, páginas e ações do app
         </DialogDescription>
         <div className="command-bar-input-row">
           <MagnifyingGlass size={16} aria-hidden="true" />
@@ -462,7 +507,9 @@ export function FinanceCommandBar({
               if (event.key === "ArrowUp") {
                 event.preventDefault();
                 if (!flat.length) return;
-                setActive((current) => (current - 1 + flat.length) % flat.length);
+                setActive(
+                  (current) => (current - 1 + flat.length) % flat.length,
+                );
                 return;
               }
               if (event.key === "Enter") {
@@ -470,7 +517,7 @@ export function FinanceCommandBar({
                 flat[active]?.run();
               }
             }}
-            placeholder="Digite um comando ou busque…"
+            placeholder="Buscar lançamentos, páginas ou ações…"
             aria-autocomplete="list"
             aria-controls={listId}
             aria-activedescendant={
@@ -502,9 +549,29 @@ export function FinanceCommandBar({
                         onMouseEnter={() => setActive(index)}
                         onClick={() => item.run()}
                       >
-                        <span className="command-bar-item-icon">{item.icon}</span>
-                        <span className="command-bar-item-label">{item.label}</span>
-                        {item.shortcut ? <Keynodes parts={item.shortcut} /> : null}
+                        <span
+                          className={`command-bar-item-icon${item.section === "Lançamentos" ? " command-bar-item-avatar" : ""}`}
+                        >
+                          {item.icon}
+                        </span>
+                        <span className="command-bar-item-label">
+                          <span className="command-bar-item-title">
+                            {item.label}
+                          </span>
+                          {item.detail && (
+                            <small className="command-bar-item-detail">
+                              {item.detail}
+                            </small>
+                          )}
+                        </span>
+                        {item.amount && (
+                          <span className="command-bar-item-amount">
+                            {item.amount}
+                          </span>
+                        )}
+                        {item.shortcut ? (
+                          <Keynodes parts={item.shortcut} />
+                        ) : null}
                       </button>
                     );
                   })}

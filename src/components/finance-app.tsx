@@ -776,6 +776,7 @@ export function FinanceApp() {
             />
           )}
           <FinanceCommandBar
+            data={data?.mode === mode ? data : null}
             open={commandOpen}
             onOpenChange={setCommandOpen}
             dark={dark}

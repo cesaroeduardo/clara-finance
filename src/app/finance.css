@@ -3890,8 +3890,8 @@ h1 {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 36px;
-  padding: 0 10px;
+  min-height: 44px;
+  padding: 10px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -4395,4 +4395,26 @@ h1 {
     height: 32px;
     opacity: 1;
   }
+}
+
+.command-bar-item-title,
+.command-bar-item-detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.command-bar-item-detail {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+.command-bar-item-amount {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.command-bar-item-avatar {
+  width: 31px;
 }
