@@ -107,30 +107,37 @@ export function MotionSegmentedControl({
   onChange,
   options,
   label,
+  className,
 }: {
   value: string;
   onChange: (value: string) => void;
-  options: readonly (readonly [string, string])[];
+  options: readonly (readonly [string, React.ReactNode, string?])[];
   label: string;
+  className?: string;
 }) {
   const id = useId();
   const reduced = useReducedMotion();
   return (
     <LayoutGroup id={id}>
       <SegmentedControl
-        className="type-switch motion-segments"
+        className={
+          className
+            ? `type-switch motion-segments ${className}`
+            : "type-switch motion-segments"
+        }
         aria-label={label}
         value={value}
         onValueChange={(next) => {
           if (next !== null) onChange(next);
         }}
       >
-        {options.map(([option, text]) => (
+        {options.map(([option, content, optionLabel]) => (
           <SegmentedControlItem
             value={option}
             key={option}
             type="button"
             data-active={value === option}
+            aria-label={optionLabel}
           >
             {value === option && (
               <m.span
@@ -143,7 +150,7 @@ export function MotionSegmentedControl({
                 }}
               />
             )}
-            <span>{text}</span>
+            <span>{content}</span>
           </SegmentedControlItem>
         ))}
       </SegmentedControl>

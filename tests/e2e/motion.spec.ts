@@ -63,7 +63,7 @@ test("ocultação de valores é imediata e movimento reduzido é respeitado", as
   await expect(
     page.getByRole("heading", { name: "Você ainda pode gastar" }),
   ).toBeVisible();
-  const forecast = page.locator(".home-forecast-amount .amount").first();
+  const forecast = page.locator(".budget-gauge-amount .amount").first();
   await expect(forecast).toBeVisible();
   await expect(forecast).not.toHaveText("");
   await expect(page.locator(".page-enter")).toHaveClass(/is-shown/);
@@ -74,7 +74,7 @@ test("ocultação de valores é imediata e movimento reduzido é respeitado", as
     ),
   ).toBe(true);
   await expect(
-    page.locator(".home-forecast-amount .amount").first(),
+    page.locator(".budget-gauge-amount .amount").first(),
   ).toHaveText("••••••");
   const icon = page.locator('[aria-label="Mostrar valores"] .t-icon').first();
   expect(
@@ -106,7 +106,7 @@ test("entrada de página monta reel no saldo e troca de view sem erro", async ({
   await expect(
     page.getByRole("heading", { name: "Você ainda pode gastar" }),
   ).toBeVisible();
-  const reel = page.locator(".home-forecast-amount .t-reel");
+  const reel = page.locator(".budget-gauge-amount .t-reel");
   await expect(reel).toBeVisible();
   await expect(reel.locator(".sr-only")).toContainText("R$");
   await expect(page.locator(".page-enter.is-shown")).toHaveCount(1);

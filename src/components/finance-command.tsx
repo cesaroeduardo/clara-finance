@@ -10,6 +10,7 @@ import {
   CalendarDots,
   CaretLeft,
   CaretRight,
+  ChatCircle,
   Eye,
   EyeSlash,
   MagnifyingGlass,
@@ -51,7 +52,8 @@ type AppView =
   | "investments"
   | "goals"
   | "categories"
-  | "accounts";
+  | "accounts"
+  | "clara";
 
 function key(...values: string[]): ShortcutPart[] {
   return values.flatMap((value, index) =>
@@ -185,6 +187,15 @@ export function FinanceCommandBar({
         icon: <Target size={16} />,
         shortcut: key("G", "M"),
         run: () => go("goals"),
+      },
+      {
+        id: "nav-clara",
+        section: "Páginas",
+        label: "Agente",
+        keywords: "clara agente assistente chat duvidas contas",
+        icon: <ChatCircle size={16} />,
+        shortcut: key("G", "K"),
+        run: () => go("clara"),
       },
       {
         id: "nav-accounts",

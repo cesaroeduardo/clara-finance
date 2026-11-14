@@ -6,6 +6,7 @@ import { ShellHeader } from "@/components/ui/surface";
 import { FinanceSurface } from "@/components/ui/finance-surface";
 import { StatCard } from "@/components/ui/stat-card";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { ScrollFade } from "@/components/ui/scroll-fade";
 import { GoalContextMenu } from "./goal-context-menu";
 import { GoalDescription } from "./goal-description";
 import { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -16,42 +17,37 @@ import {
   ArrowUp,
   ArrowUpRight,
   ArrowsClockwise,
+  ArrowsLeftRight,
   Bank,
   CalendarDots,
   CaretLeft,
   CaretRight,
   Check,
+  CheckCircle,
+  Clock,
   CreditCard,
   ChartPieSlice,
   DownloadSimple,
-  Info,
   MagnifyingGlass,
+  Lightning,
   PencilSimple,
   Plant,
   Plus,
   ShieldCheck,
+  Warning,
   Wallet,
   X,
 } from "@phosphor-icons/react";
-import {
-  Area,
-  AreaChart,
-  ComposedChart,
-  Line,
-  ReferenceDot,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { ChartCard } from "@/components/ui/chart-card";
+import { BudgetGauge } from "@/components/ui/budget-gauge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Button, IconButton, buttonVariants } from "@/components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -129,38 +125,6 @@ function shortMonthLabel(month: string) {
   return new Intl.DateTimeFormat("pt-BR", { month: "short" })
     .format(new Date(`${month}-15T12:00:00`))
     .replace(".", "");
-}
-
-function donutPoint(cx: number, cy: number, radius: number, angle: number) {
-  const radians = ((angle - 90) * Math.PI) / 180;
-  return {
-    x: cx + radius * Math.cos(radians),
-    y: cy + radius * Math.sin(radians),
-  };
-}
-
-function donutSlicePath(
-  cx: number,
-  cy: number,
-  outer: number,
-  inner: number,
-  startPct: number,
-  endPct: number,
-) {
-  const start = startPct * 3.6;
-  const end = Math.min(endPct * 3.6, start + 359.999);
-  const large = end - start > 180 ? 1 : 0;
-  const a = donutPoint(cx, cy, outer, start);
-  const b = donutPoint(cx, cy, outer, end);
-  const c = donutPoint(cx, cy, inner, end);
-  const d = donutPoint(cx, cy, inner, start);
-  return [
-    `M ${a.x} ${a.y}`,
-    `A ${outer} ${outer} 0 ${large} 1 ${b.x} ${b.y}`,
-    `L ${c.x} ${c.y}`,
-    `A ${inner} ${inner} 0 ${large} 0 ${d.x} ${d.y}`,
-    "Z",
-  ].join(" ");
 }
 
 type TransactionFilters = {
@@ -265,64 +229,70 @@ function TextLink({
     </button>
   );
 }
-function StatusGlyph({ tone }: { tone: "success" | "warning" | "muted" }) {
-  if (tone === "muted") {
-    return (
-      <svg className="status-glyph" viewBox="0 0 16 16" aria-hidden>
-        <circle
-          cx="8"
-          cy="8"
-          r="6.25"
-          fill="none"
-          stroke="currentColor"
-          strokeDasharray="2.2 2.1"
-          strokeWidth="1.25"
-        />
-      </svg>
-    );
-  }
+function SignalTag({
+  tone,
+  icon,
+  children,
+}: {
+  tone: "positive" | "negative" | "warning" | "muted";
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const pillTone =
+    tone === "positive"
+      ? "positive"
+      : tone === "negative"
+        ? "negative"
+        : tone === "warning"
+          ? "warning"
+          : "neutral";
+  const badgeMod =
+    tone === "negative"
+      ? " negative"
+      : tone === "warning"
+        ? " warning"
+        : tone === "muted"
+          ? " muted"
+          : "";
   return (
-    <svg className="status-glyph" viewBox="0 0 16 16" aria-hidden>
-      <circle cx="8" cy="8" r="7" fill="currentColor" />
-      <path
-        d="M4 9.4 6.3 7.1 8.1 8.7 12 4.7"
-        fill="none"
-        strokeWidth="1.45"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <StatusPill
+      size="sm"
+      tone={pillTone}
+      className={`home-growth-badge${badgeMod}`}
+    >
+      <i className="home-growth-glyph" aria-hidden="true">
+        {icon}
+      </i>
+      {children}
+    </StatusPill>
   );
 }
 
 function StatusTag({
   tone,
+  icon,
   children,
 }: {
   tone: "success" | "warning" | "muted";
+  icon?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const className =
-    tone === "success"
-      ? "status-pill paid"
-      : tone === "muted"
-        ? "status-pill muted"
-        : "status-pill";
   return (
-    <StatusPill
-      size="sm"
+    <SignalTag
       tone={
-        tone === "success"
-          ? "positive"
-          : tone === "warning"
-            ? "warning"
-            : "neutral"
+        tone === "success" ? "positive" : tone === "warning" ? "warning" : "muted"
       }
-      className={className}
+      icon={
+        icon ??
+        (tone === "success" ? (
+          <Check size={10} weight="bold" />
+        ) : (
+          <Clock size={10} weight="bold" />
+        ))
+      }
     >
-      <StatusGlyph tone={tone} />
       {children}
-    </StatusPill>
+    </SignalTag>
   );
 }
 
@@ -335,20 +305,18 @@ function GrowthTag({
 }) {
   const down = value < 0;
   return (
-    <StatusPill
-      size="sm"
+    <SignalTag
       tone={down ? "negative" : "positive"}
-      className={`home-growth-badge${down ? " negative" : ""}`}
-    >
-      <i className="home-growth-glyph" aria-hidden="true">
-        {down ? (
+      icon={
+        down ? (
           <ArrowDown size={10} weight="bold" />
         ) : (
           <ArrowUp size={10} weight="bold" />
-        )}
-      </i>
+        )
+      }
+    >
       {children}
-    </StatusPill>
+    </SignalTag>
   );
 }
 
@@ -388,10 +356,6 @@ export function DashboardView(props: Props) {
   // Totais e distribuição: intervalo do período. Ritmo/plano: mês âncora.
   const stats = summarizePeriod(scoped, period, "all");
   const pace = spendingPace(scoped, month, "all");
-  const hidden = useContext(PrivacyContext);
-  const reducedMotion = useReducedMotion();
-  const [insightIndex, setInsightIndex] = useState(0);
-  const [insightDir, setInsightDir] = useState(1);
   const confirmedIncome = stats.records
     .filter((row) => row.status === "paid" && row.kind === "income")
     .reduce((sum, row) => sum + row.amount, 0);
@@ -424,68 +388,88 @@ export function DashboardView(props: Props) {
     });
   const currentMonth = localDate().slice(0, 7);
   const isPastMonth = month < currentMonth;
-  const insightKey = `${month}:${isPastMonth}`;
-  const [insightPeriod, setInsightPeriod] = useState(insightKey);
-  if (insightPeriod !== insightKey) {
-    setInsightPeriod(insightKey);
-    setInsightIndex(0);
-  }
   const monthResult = stats.balance;
   const monthPositive = monthResult >= 0;
   const canStillSpend = pace.remaining >= 0;
   const paceStroke = canStillSpend ? "var(--success)" : "var(--destructive)";
-  const paceFill = paceStroke;
-  const resultStroke = monthPositive ? "var(--success)" : "var(--destructive)";
-  const forecastGlowTone = isPastMonth
-    ? monthPositive
-      ? "positive"
-      : "negative"
-    : pace.empty
-      ? null
-      : canStillSpend
+  const forecastGlowTone = pace.empty
+    ? isPastMonth
+      ? monthPositive
         ? "positive"
-        : "negative";
-  const todayPoint = pace.series.find((point) => point.day === pace.todayDay);
-  const resultFlow = stats.flow.map((point) => ({
-    day: point.day,
-    result: point.income - point.expenses,
-  }));
+        : "negative"
+      : null
+    : canStillSpend
+      ? "positive"
+      : "negative";
+  const settled = stats.records.filter(
+    (row) => row.status === "paid" && row.kind !== "transfer",
+  );
+  const bounds = periodDateBounds(period);
+  const flowDates = [
+    ...new Set([
+      bounds?.from ?? settled[0]?.date ?? `${month}-01`,
+      ...settled.map((row) => row.date),
+      bounds?.to && bounds.to < localDate() ? bounds.to : localDate(),
+    ]),
+  ].sort();
+  const cashByDate = new Map<string, { income: number; expenses: number }>();
+  for (const row of settled) {
+    const cash = cashByDate.get(row.date) ?? { income: 0, expenses: 0 };
+    if (row.kind === "income") cash.income += row.amount;
+    else if (row.kind === "expense") cash.expenses += row.amount;
+    cashByDate.set(row.date, cash);
+  }
+  const settledFlow: { date: string; income: number; expenses: number }[] = [];
+  for (const date of flowDates) {
+    const cash = cashByDate.get(date);
+    const previous = settledFlow.at(-1);
+    settledFlow.push({
+      date,
+      income: (previous?.income ?? 0) + (cash?.income ?? 0),
+      expenses: (previous?.expenses ?? 0) + (cash?.expenses ?? 0),
+    });
+  }
   const shiftDelta = pace.categoryShift?.delta;
   const shiftCategory = pace.categoryShift?.category;
-  const shiftInsight =
-    shiftDelta == null || shiftCategory == null
-      ? {
-          id: "shift",
-          title: "Mudança nos gastos",
-          body: <>Sem variação relevante por categoria no período.</>,
-        }
-      : {
-          id: "shift",
-          title: "Mudança nos gastos",
-          body: (
-            <>
-              Você gastou{" "}
-              <strong>
-                <Amount value={Math.abs(shiftDelta)} motion="reel" />{" "}
-                {shiftDelta >= 0 ? "a mais" : "a menos"}
-              </strong>{" "}
-              em {shiftCategory} este mês vs. o mesmo período do mês passado.
-            </>
-          ),
-        };
+  const reducedMotion = useReducedMotion();
+  const [insightIndex, setInsightIndex] = useState(0);
+  const [insightDir, setInsightDir] = useState(1);
+  const shiftInsight = {
+    id: "shift",
+    title: "Mudança nos gastos",
+    tone:
+      shiftDelta == null
+        ? "is-neutral"
+        : shiftDelta > 0
+          ? "is-warning"
+          : "is-positive",
+    status:
+      shiftDelta == null ? "estável" : shiftDelta > 0 ? "acima" : "abaixo",
+    icon:
+      shiftDelta == null ? ArrowsLeftRight : shiftDelta > 0 ? ArrowUp : ArrowDown,
+    body:
+      shiftDelta == null || shiftCategory == null ? (
+        <>Sem variação relevante por categoria.</>
+      ) : (
+        <>
+          <Amount value={Math.abs(shiftDelta)} />{" "}
+          {shiftDelta >= 0 ? "a mais" : "a menos"} em {shiftCategory} vs. mês
+          passado.
+        </>
+      ),
+  };
   const insights = isPastMonth
     ? [
         {
           id: "result",
           title: "Resultado do mês",
+          tone: monthPositive ? "is-positive" : "is-negative",
+          status: monthPositive ? "positivo" : "negativo",
+          icon: monthPositive ? ArrowUp : ArrowDown,
           body: (
             <>
-              O mês fechou{" "}
-              <strong>
-                {monthPositive ? "positivo" : "negativo"} em{" "}
-                <Amount value={Math.abs(monthResult)} motion="reel" />
-              </strong>
-              . Entradas <Amount value={stats.income} /> · saídas{" "}
+              <Amount value={Math.abs(monthResult)} /> · entradas{" "}
+              <Amount value={stats.income} /> · saídas{" "}
               <Amount value={stats.expenses} />.
             </>
           ),
@@ -494,17 +478,33 @@ export function DashboardView(props: Props) {
         {
           id: "limit",
           title: "Uso do teto",
+          tone:
+            pace.monthlyLimit <= 0
+              ? "is-neutral"
+              : pace.remaining < 0
+                ? "is-negative"
+                : "is-positive",
+          status:
+            pace.monthlyLimit <= 0
+              ? "sem teto"
+              : `${pace.limitUsedPercent}%`,
+          icon: Wallet,
           body:
             pace.monthlyLimit > 0 ? (
-              <>
-                Você usou{" "}
-                <strong>
-                  <AnimatedLabel value={`${pace.limitUsedPercent}%`} />
-                </strong>{" "}
-                do teto de <Amount value={pace.monthlyLimit} />.
-              </>
+              pace.remaining >= 0 ? (
+                <>
+                  <AnimatedLabel value={`${pace.limitUsedPercent}%`} /> de{" "}
+                  <Amount value={pace.monthlyLimit} /> · sobrou{" "}
+                  <Amount value={pace.remaining} />.
+                </>
+              ) : (
+                <>
+                  <AnimatedLabel value={`${pace.limitUsedPercent}%`} /> de{" "}
+                  <Amount value={pace.monthlyLimit} /> · limite ultrapassado.
+                </>
+              )
             ) : (
-              <>Sem teto definido para esse mês.</>
+              <>Sem teto definido neste mês.</>
             ),
         },
       ]
@@ -512,54 +512,67 @@ export function DashboardView(props: Props) {
         {
           id: "pace",
           title: "Ritmo de gastos",
-          body: (
-            <>
-              Você usou{" "}
-              <strong>
-                <AnimatedLabel value={`${pace.limitUsedPercent}%`} />
-              </strong>{" "}
-              do limite. No ritmo atual, pode gastar até{" "}
-              <strong>
-                <Amount value={pace.dailyAllowance} motion="reel" />
-              </strong>{" "}
-              por dia até o fim do mês.
-            </>
-          ),
+          tone:
+            pace.remaining < 0
+              ? "is-negative"
+              : pace.paceDelta < 0
+                ? "is-warning"
+                : "is-positive",
+          status:
+            pace.remaining < 0
+              ? "excedido"
+              : pace.paceDelta < 0
+                ? "acima"
+                : "no ritmo",
+          icon: Lightning,
+          body:
+            pace.remaining < 0 ? (
+              <>
+                <PrivateValue as="span">
+                  {pace.limitUsedPercent}% do limite
+                </PrivateValue>{" "}
+                · ultrapassado.
+              </>
+            ) : (
+              <>
+                <PrivateValue as="span">
+                  {pace.limitUsedPercent}% do limite
+                </PrivateValue>{" "}
+                · até <Amount value={pace.dailyAllowance} />/dia.
+              </>
+            ),
         },
         shiftInsight,
         {
           id: "projection",
           title: "Renda e sobra",
+          tone:
+            pace.forecastIncome <= 0
+              ? "is-neutral"
+              : pace.forecastResult >= 0
+                ? "is-positive"
+                : "is-negative",
+          status:
+            pace.forecastIncome <= 0
+              ? "sem previsão"
+              : pace.forecastResult >= 0
+                ? "com sobra"
+                : "no vermelho",
+          icon: Wallet,
           body:
             pace.forecastIncome > 0 ? (
               <>
-                Renda prevista do CNPJ <Amount value={pace.forecastIncome} />
-                {pace.salaryReceived + pace.freelanceReceived > 0 ? (
-                  <>
-                    {" "}
-                    (já entrou{" "}
-                    <Amount
-                      value={pace.salaryReceived + pace.freelanceReceived}
-                    />
-                    )
-                  </>
-                ) : null}
-                . Depois do gasto e da meta de guardar, o mês tende a fechar{" "}
-                <strong>
-                  {pace.forecastResult >= 0 ? "positivo" : "negativo"} em{" "}
-                  <Amount value={Math.abs(pace.forecastResult)} motion="reel" />
-                </strong>
-                .
+                Renda <Amount value={pace.forecastIncome} /> · fecha{" "}
+                {pace.forecastResult >= 0 ? "+" : "−"}
+                <Amount value={Math.abs(pace.forecastResult)} />.
               </>
             ) : (
-              <>
-                Defina salário e freelas no planejamento para fechar a previsão
-                com a renda do CNPJ.
-              </>
+              <>Defina a renda no planejamento.</>
             ),
         },
       ];
   const activeInsight = insights[insightIndex] ?? insights[0];
+  const ActiveInsightIcon = activeInsight.icon;
   const showPrevInsight = () => {
     setInsightDir(-1);
     setInsightIndex((index) => (index + insights.length - 1) % insights.length);
@@ -569,31 +582,38 @@ export function DashboardView(props: Props) {
     setInsightIndex((index) => (index + 1) % insights.length);
   };
   useEffect(() => {
-    const blocked = isPastMonth ? false : pace.empty;
-    if (blocked || insights.length < 2) return;
-    const timer = window.setInterval(() => {
-      setInsightDir(1);
-      setInsightIndex((index) => (index + 1) % insights.length);
-    }, 7000);
-    return () => window.clearInterval(timer);
-  }, [pace.empty, insights.length, insightIndex, isPastMonth]);
+    setInsightIndex(0);
+  }, [month, isPastMonth]);
   const insightSlide = {
     enter: (direction: number) => ({
       opacity: 0,
-      x: reducedMotion ? 0 : direction * 14,
-      filter: reducedMotion ? "blur(0px)" : "blur(3px)",
+      x: reducedMotion ? 0 : direction * 12,
     }),
-    center: {
-      opacity: 1,
-      x: 0,
-      filter: "blur(0px)",
-    },
+    center: { opacity: 1, x: 0 },
     exit: (direction: number) => ({
       opacity: 0,
-      x: reducedMotion ? 0 : direction * -10,
-      filter: reducedMotion ? "blur(0px)" : "blur(2px)",
+      x: reducedMotion ? 0 : direction * -12,
     }),
   };
+  const paceExplanation = (
+    <div className="dashboard-info-copy">
+      <strong>{isPastMonth ? "Resultado do mês" : "Limite do mês"}</strong>
+      <p>
+        Limite: <Amount value={pace.monthlyLimit} />. Renda prevista ou
+        recebida, menos o valor a guardar.
+      </p>
+      <p>
+        O gasto considera despesas pagas e a fatura aberta do cartão. A reserva
+        de alimentação reduz o disponível, sem contar como gasto.
+      </p>
+      {isPastMonth ? (
+        <p>
+          Entradas do mês: <Amount value={stats.income} />. Saídas:{" "}
+          <Amount value={stats.expenses} />.
+        </p>
+      ) : null}
+    </div>
+  );
 
   return (
     <div className="home-grid">
@@ -601,53 +621,6 @@ export function DashboardView(props: Props) {
         <FinanceSurface
           render={<section />}
           className={`finance-card home-forecast${forecastGlowTone ? ` is-${forecastGlowTone}` : ""}`}
-          header={
-            <ShellHeader
-              as="h2"
-              icon={Wallet}
-              title={
-                <>
-                  {" "}
-                  {isPastMonth
-                    ? "Resultado do mês"
-                    : "Você ainda pode gastar"}{" "}
-                </>
-              }
-              aside={
-                <>
-                  {" "}
-                  <div className="home-pace-heading-actions">
-                    <span
-                      title={
-                        isPastMonth
-                          ? "Entradas menos saídas do mês selecionado."
-                          : "Limite = renda do CNPJ (previsto ou já entrada) − guardar. Ritmo = despesas pagas no banco + fatura aberta do cartão. Reserva de alimentação só reduz o que ainda pode gastar, sem contar como gasto."
-                      }
-                    >
-                      <Info
-                        size={14}
-                        aria-label={
-                          isPastMonth
-                            ? "Cálculo do resultado do mês"
-                            : "Cálculo do quanto ainda pode gastar"
-                        }
-                      />
-                    </span>
-                    {!isPastMonth && (
-                      <button
-                        type="button"
-                        className="home-pace-edit"
-                        aria-label="Editar planejamento"
-                        onClick={openPlan}
-                      >
-                        <PencilSimple size={14} />
-                      </button>
-                    )}
-                  </div>{" "}
-                </>
-              }
-            />
-          }
         >
           {forecastGlowTone && (
             <div className="home-forecast-glow" aria-hidden="true">
@@ -656,6 +629,29 @@ export function DashboardView(props: Props) {
             </div>
           )}
           <div className="home-forecast-body">
+            <div className="home-card-heading">
+              <h2>
+                {isPastMonth ? "Resultado do mês" : "Você ainda pode gastar"}
+              </h2>
+              <div className="home-pace-heading-actions">
+                <InfoTooltip
+                  label={
+                    isPastMonth
+                      ? "Cálculo do resultado do mês"
+                      : "Cálculo do quanto ainda pode gastar"
+                  }
+                  content={paceExplanation}
+                />
+                <IconButton
+                  icon={PencilSimple}
+                  label="Editar planejamento"
+                  size="icon-sm"
+                  variant="quiet"
+                  onClick={openPlan}
+                />
+              </div>
+            </div>
+
             {!isPastMonth && pace.empty ? (
               <div className="home-pace-empty">
                 <p>
@@ -665,358 +661,189 @@ export function DashboardView(props: Props) {
                   Planejamento
                 </Button>
               </div>
-            ) : isPastMonth ? (
-              <>
-                <div className="home-amount home-forecast-amount home-pace-amount">
+            ) : pace.empty ? (
+              <div className="budget-past-result">
+                <strong className="home-amount">
                   <Amount value={monthResult} motion="reel" />
-                </div>
-                <div
-                  className="home-chart home-pace-chart"
-                  role="img"
-                  aria-label="Resultado acumulado do mês"
-                >
-                  <span
-                    className={`home-pace-pill ${monthPositive ? "" : "over"}`.trim()}
-                  >
-                    {monthPositive ? "Positivo" : "Negativo"}
-                  </span>
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <ComposedChart
-                      data={resultFlow}
-                      accessibilityLayer={!hidden}
-                      margin={{ top: 28, right: 0, bottom: 0, left: 0 }}
-                    >
-                      <defs>
-                        <linearGradient
-                          id="home-result-fill"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor={resultStroke}
-                            stopOpacity={0.18}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor={resultStroke}
-                            stopOpacity={0}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <XAxis
-                        dataKey="day"
-                        hide
-                        domain={[1, resultFlow.length]}
-                      />
-                      <YAxis hide domain={["auto", "auto"]} />
-                      <ReferenceLine
-                        y={0}
-                        stroke="var(--border)"
-                        strokeDasharray="3 3"
-                      />
-                      {!hidden && (
-                        <Tooltip
-                          formatter={(value) => {
-                            if (value == null) return [null, ""];
-                            return [money(Number(value) * 100), "Resultado"];
-                          }}
-                          labelFormatter={(day) => `Dia ${day}`}
-                          contentStyle={{
-                            borderRadius: 8,
-                            border: "1px solid var(--border)",
-                            fontSize: 11,
-                            background: "var(--popover)",
-                            color: "var(--foreground)",
-                          }}
-                        />
-                      )}
-                      <Area
-                        dataKey="result"
-                        type="monotone"
-                        stroke="none"
-                        fill="url(#home-result-fill)"
-                        isAnimationActive={!hidden && !reducedMotion}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                      <Line
-                        dataKey="result"
-                        type="monotone"
-                        stroke={resultStroke}
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={!hidden && !reducedMotion}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                      {resultFlow.length > 0 && (
-                        <ReferenceDot
-                          x={resultFlow.at(-1)!.day}
-                          y={resultFlow.at(-1)!.result}
-                          r={4}
-                          fill={resultStroke}
-                          stroke="var(--card)"
-                          strokeWidth={2}
-                        />
-                      )}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="home-chart-dates">
-                  <span>01</span>
-                  <span>{String(resultFlow.length).padStart(2, "0")}</span>
-                </div>
-              </>
+                </strong>
+              </div>
             ) : (
-              <>
-                <div className="home-amount home-forecast-amount home-pace-amount">
-                  <Amount value={pace.remaining} motion="reel" />
-                  <span className="home-pace-limit">
-                    / <Amount value={pace.monthlyLimit} />
-                  </span>
-                </div>
-                <div
-                  className="home-chart home-pace-chart"
-                  role="img"
-                  aria-label="Ritmo ideal e gasto acumulado do mês"
+              <div className="budget-overview">
+                <BudgetGauge
+                  value={
+                    pace.monthlyLimit > 0
+                      ? pace.remaining / pace.monthlyLimit
+                      : 0
+                  }
+                  color={paceStroke}
                 >
-                  <span
-                    className={`home-pace-pill ${canStillSpend ? "" : "over"}`.trim()}
-                  >
-                    <Amount value={pace.dailyAllowance} motion="reel" />
-                    /dia
+                  <span className="budget-gauge-label">
+                    {canStillSpend
+                      ? isPastMonth
+                        ? "Sobrou"
+                        : "Disponível"
+                      : "Limite excedido"}
                   </span>
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <ComposedChart
-                      data={pace.series}
-                      accessibilityLayer={!hidden}
-                      margin={{ top: 28, right: 0, bottom: 0, left: 0 }}
-                    >
-                      <defs>
-                        <linearGradient
-                          id="home-pace-fill"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor={paceFill}
-                            stopOpacity={0.18}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor={paceFill}
-                            stopOpacity={0}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <XAxis
-                        dataKey="day"
-                        hide
-                        domain={[1, pace.daysInMonth]}
-                      />
-                      <YAxis hide domain={[0, "auto"]} />
-                      {!hidden && (
-                        <Tooltip
-                          formatter={(value, name) => {
-                            if (value == null) return [null, ""];
-                            const label =
-                              name === "ideal" ? "Ritmo ideal" : "Gasto";
-                            return [money(Number(value) * 100), label];
-                          }}
-                          labelFormatter={(day) => `Dia ${day}`}
-                          contentStyle={{
-                            borderRadius: 8,
-                            border: "1px solid var(--border)",
-                            fontSize: 11,
-                            background: "var(--popover)",
-                            color: "var(--foreground)",
-                          }}
-                        />
-                      )}
-                      <Area
-                        dataKey="actual"
-                        type="monotone"
-                        stroke="none"
-                        fill="url(#home-pace-fill)"
-                        connectNulls={false}
-                        isAnimationActive={!hidden && !reducedMotion}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                      <Line
-                        dataKey="ideal"
-                        type="linear"
-                        stroke="var(--chart-2)"
-                        strokeWidth={1.5}
-                        strokeDasharray="4 4"
-                        dot={false}
-                        connectNulls={false}
-                        isAnimationActive={!hidden && !reducedMotion}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                      <Line
-                        dataKey="actual"
-                        type="monotone"
-                        stroke={paceStroke}
-                        strokeWidth={2}
-                        dot={false}
-                        connectNulls={false}
-                        isAnimationActive={!hidden && !reducedMotion}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      />
-                      {todayPoint?.actual != null && (
-                        <ReferenceDot
-                          x={todayPoint.day}
-                          y={todayPoint.actual}
-                          r={4}
-                          fill={paceStroke}
-                          stroke="var(--card)"
-                          strokeWidth={2}
-                        />
-                      )}
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                  <strong className="budget-gauge-amount">
+                    <Amount value={Math.abs(pace.remaining)} motion="reel" />
+                  </strong>
+                  <span className="budget-gauge-limit">
+                    de <Amount value={pace.monthlyLimit} />
+                  </span>
+                </BudgetGauge>
+                <div className="budget-facts">
+                  {isPastMonth ? (
+                    <>
+                      <div className="budget-fact">
+                        <CalendarDots size={16} />
+                        <div>
+                          <strong>{pace.daysInMonth} dias</strong>
+                          <span>mês encerrado</span>
+                        </div>
+                      </div>
+                      <div className="budget-fact">
+                        <ArrowUpRight size={16} />
+                        <div>
+                          <strong>
+                            <Amount value={pace.spentToDate} />
+                          </strong>
+                          <span>gasto no mês</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="budget-fact">
+                        <CalendarDots size={16} />
+                        <div>
+                          <strong>
+                            {pace.daysLeft}{" "}
+                            {pace.daysLeft === 1 ? "dia" : "dias"}
+                          </strong>
+                          <span>até o fim do mês</span>
+                        </div>
+                      </div>
+                      <div className="budget-fact">
+                        <ArrowUpRight size={16} />
+                        <div>
+                          <strong>
+                            <Amount value={pace.dailyAllowance} />
+                            /dia
+                          </strong>
+                          <span>disponível por dia</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="home-chart-dates">
-                  <span>01</span>
-                  <span>{String(pace.daysInMonth).padStart(2, "0")}</span>
-                </div>
-              </>
+              </div>
             )}
           </div>
-          <div className="home-forecast-footer home-pace-insights">
-            <div className="home-pace-insight-head">
-              <span className="home-pace-insight-title">
-                <AnimatePresence
-                  mode="wait"
-                  initial={false}
-                  custom={insightDir}
-                >
-                  <m.span
-                    key={
-                      !isPastMonth && pace.empty ? "empty" : activeInsight.id
-                    }
-                    className="home-pace-insight-title-value"
-                    custom={insightDir}
-                    variants={insightSlide}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{
-                      duration: reducedMotion ? 0 : 0.22,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                  >
-                    {!isPastMonth && pace.empty
-                      ? "Ritmo de gastos"
-                      : activeInsight.title}
-                  </m.span>
-                </AnimatePresence>
-              </span>
-            </div>
-            <div className="home-pace-insight-body" aria-live="polite">
+          {(!pace.empty || isPastMonth) && activeInsight && (
+            <div
+              className={`budget-pace budget-insight ${activeInsight.tone}`}
+              role="group"
+              aria-roledescription="carrossel"
+              aria-label="Insights do mês"
+            >
               <AnimatePresence mode="wait" initial={false} custom={insightDir}>
-                <m.p
-                  key={!isPastMonth && pace.empty ? "empty" : activeInsight.id}
-                  className="home-pace-insight-copy"
+                <m.div
+                  key={activeInsight.id}
+                  className="budget-insight-slide"
                   custom={insightDir}
                   variants={insightSlide}
                   initial="enter"
                   animate="center"
                   exit="exit"
                   transition={{
-                    duration: reducedMotion ? 0 : 0.24,
+                    duration: reducedMotion ? 0 : 0.2,
                     ease: [0.22, 1, 0.36, 1],
                   }}
                 >
-                  {!isPastMonth && pace.empty ? (
-                    <>
-                      Defina salário/freelas no planejamento para ver o ritmo.
-                    </>
-                  ) : (
-                    activeInsight.body
-                  )}
-                </m.p>
-              </AnimatePresence>
-            </div>
-            <div className="home-pace-insight-nav">
-              <button
-                type="button"
-                aria-label="Insight anterior"
-                onClick={showPrevInsight}
-                disabled={!isPastMonth && pace.empty}
-              >
-                <CaretLeft size={14} />
-              </button>
-              <div className="home-pace-insight-dots" aria-hidden="true">
-                {insights.map((insight, index) => (
                   <button
-                    key={insight.id}
                     type="button"
-                    className="home-pace-insight-dot"
-                    aria-label={`Ver ${insight.title}`}
-                    aria-current={index === insightIndex}
-                    disabled={!isPastMonth && pace.empty}
-                    onClick={() => {
-                      setInsightDir(index > insightIndex ? 1 : -1);
-                      setInsightIndex(index);
-                    }}
+                    className="budget-insight-main"
+                    onClick={openPlan}
+                    aria-label={`${activeInsight.title}. Abrir planejamento`}
                   >
-                    {index === insightIndex && (
-                      <m.span
-                        layoutId="pace-insight-dot"
-                        className="home-pace-insight-dot-active"
-                        transition={{
-                          duration: reducedMotion ? 0 : 0.25,
-                          ease: [0.22, 1, 0.36, 1],
-                        }}
-                      />
-                    )}
+                    <span className="budget-pace-icon" aria-hidden="true">
+                      <ActiveInsightIcon size={17} weight="fill" />
+                    </span>
+                    <span className="budget-pace-copy">
+                      <strong>
+                        {activeInsight.title}{" "}
+                        <span>{activeInsight.status}</span>
+                      </strong>
+                      <span>{activeInsight.body}</span>
+                    </span>
                   </button>
-                ))}
+                </m.div>
+              </AnimatePresence>
+              <div className="budget-insight-nav">
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Insight anterior"
+                  onClick={showPrevInsight}
+                >
+                  <CaretLeft size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Próximo insight"
+                  onClick={showNextInsight}
+                >
+                  <CaretRight size={14} />
+                </button>
               </div>
-              <button
-                type="button"
-                aria-label="Próximo insight"
-                onClick={showNextInsight}
-                disabled={!isPastMonth && pace.empty}
-              >
-                <CaretRight size={14} />
-              </button>
             </div>
-          </div>
+          )}
+          {bills.length ? (
+            <Button
+              variant="quiet"
+              className="budget-pace budget-bills is-warning"
+              aria-label="Ver contas a pagar"
+              onClick={() => openTransactions({ type: "expense" })}
+            >
+              <span className="budget-pace-icon" aria-hidden="true">
+                <CalendarDots size={17} weight="fill" />
+              </span>
+              <span className="budget-pace-copy">
+                <strong>
+                  Contas a pagar{" "}
+                  <span>
+                    {bills.length}{" "}
+                    {bills.length === 1 ? "pendente" : "pendentes"}
+                  </span>
+                </strong>
+                <span>
+                  <Amount
+                    value={bills.reduce((sum, row) => sum + row.amount, 0)}
+                    motion="reel"
+                  />
+                  {bills[0] && <span> · {dateLabel(bills[0].date)}</span>}
+                </span>
+              </span>
+              <CaretRight size={15} aria-hidden="true" />
+            </Button>
+          ) : (
+            <div
+              className="budget-pace budget-bills budget-bills-clear is-positive"
+              role="status"
+            >
+              <span className="budget-pace-icon" aria-hidden="true">
+                <CheckCircle size={17} weight="fill" />
+              </span>
+              <span className="budget-pace-copy">
+                <strong>
+                  Contas em dia <span>sem pendências</span>
+                </strong>
+                <span>Nenhuma conta a pagar neste período</span>
+              </span>
+            </div>
+          )}
         </FinanceSurface>
-        <button
-          className="finance-card home-bills-summary"
-          aria-label="Ver contas a pagar"
-          onClick={() => openTransactions({ type: "expense" })}
-        >
-          <span className="home-summary-symbol">
-            <CalendarDots size={18} />
-          </span>
-          <span className="home-summary-copy">
-            <strong>
-              {bills.length}{" "}
-              {bills.length === 1 ? "conta a pagar" : "contas a pagar"}
-            </strong>
-            <span>
-              <Amount
-                value={bills.reduce((sum, row) => sum + row.amount, 0)}
-                motion="reel"
-              />
-              {bills[0] && <span> · {dateLabel(bills[0].date)}</span>}
-            </span>
-          </span>
-          <CaretRight size={17} />
-        </button>
       </div>
 
       <SpendingDistribution
@@ -1054,21 +881,52 @@ export function DashboardView(props: Props) {
             />
           }
         >
-          <div className="home-value-line">
-            <strong className="home-amount">
-              <Amount value={confirmedResult} motion="reel" />
-            </strong>
-            {resultDeltaPercent != null && (
-              <GrowthTag value={resultDelta}>
-                <PrivateValue as="span" className="amount">
-                  {`${Math.abs(resultDeltaPercent).toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`}
-                </PrivateValue>
-              </GrowthTag>
-            )}
+          <div className="home-result-overview">
+            <div className="home-result-headline">
+              {" "}
+              <div className="home-value-line">
+                <strong className="home-amount">
+                  <Amount value={confirmedResult} motion="reel" />
+                </strong>
+                {resultDeltaPercent != null && (
+                  <GrowthTag value={resultDelta}>
+                    <PrivateValue as="span" className="amount">
+                      {`${Math.abs(resultDeltaPercent).toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`}
+                    </PrivateValue>
+                  </GrowthTag>
+                )}
+              </div>
+              <p className="home-result-compare">
+                vs <Amount value={previousResult} /> mês anterior
+              </p>
+            </div>
+            <ChartCard
+              embedded
+              sparkline
+              legend={false}
+              height={82}
+              type="area"
+              title="Entradas e saídas acumuladas"
+              format={money}
+              data={{
+                labels: settledFlow.map((point) => dateLabel(point.date)),
+                series: [
+                  {
+                    id: "income",
+                    label: "Entradas",
+                    values: settledFlow.map((point) => point.income),
+                    color: "var(--success)",
+                  },
+                  {
+                    id: "expenses",
+                    label: "Saídas",
+                    values: settledFlow.map((point) => point.expenses),
+                    color: "var(--destructive)",
+                  },
+                ],
+              }}
+            />
           </div>
-          <p className="home-result-compare">
-            vs <Amount value={previousResult} /> mês anterior
-          </p>
           <div className="home-result-metrics">
             <div>
               <span>
@@ -1143,65 +1001,27 @@ export function DashboardView(props: Props) {
                   </GrowthTag>
                 )}
               </div>
-              <div
-                className="home-wealth-chart"
-                role="img"
-                aria-label="Evolução do patrimônio nos últimos meses"
-              >
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <AreaChart
-                    data={wealthFlow}
-                    accessibilityLayer={!hidden}
-                    margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
-                  >
-                    <defs>
-                      <linearGradient
-                        id="home-wealth-gradient"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="0%"
-                          stopColor="var(--success)"
-                          stopOpacity={0.18}
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor="var(--success)"
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="month" hide />
-                    <YAxis hide domain={["auto", "auto"]} />
-                    {!hidden && (
-                      <Tooltip
-                        formatter={(value) => [
-                          money(Number(value) * 100),
-                          "Patrimônio",
-                        ]}
-                        labelFormatter={(label) => monthLabel(String(label))}
-                        contentStyle={{
-                          borderRadius: 8,
-                          border: "1px solid var(--border)",
-                          fontSize: 11,
-                          background: "var(--popover)",
-                          color: "var(--foreground)",
-                        }}
-                      />
-                    )}
-                    <Area
-                      dataKey="value"
-                      type="monotone"
-                      isAnimationActive={false}
-                      stroke="var(--success)"
-                      strokeWidth={2}
-                      fill="url(#home-wealth-gradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div className="home-wealth-chart">
+                <ChartCard
+                  embedded
+                  sparkline
+                  legend={false}
+                  height={125}
+                  type="area"
+                  title="Evolução do patrimônio"
+                  format={(value) => money(value * 100)}
+                  data={{
+                    labels: wealthFlow.map((point) => monthLabel(point.month)),
+                    series: [
+                      {
+                        id: "wealth",
+                        label: "Patrimônio",
+                        values: wealthFlow.map((point) => point.value),
+                        color: "var(--success)",
+                      },
+                    ],
+                  }}
+                />
               </div>
               <div className="home-card-footer">
                 <span>
@@ -1347,11 +1167,7 @@ function SpendingDistribution({
       render={<section />}
       className="finance-card home-distribution"
       header={
-        <ShellHeader
-          as="h2"
-          icon={ChartPieSlice}
-          title="Distribuição dos gastos"
-        />
+        <ShellHeader as="h2" icon={ChartPieSlice} title="Distribuição dos gastos" />
       }
     >
       <div
@@ -1360,22 +1176,28 @@ function SpendingDistribution({
       >
         <div className={`home-donut${filteringId ? " is-filtering" : ""}`}>
           {slices.length ? (
-            <svg
-              className="home-donut-svg"
-              viewBox="0 0 100 100"
-              aria-hidden="true"
-            >
-              {slices.map((item) => (
-                <path
-                  key={item.id}
-                  className={`home-donut-slice${filteringId === item.id ? " is-hovered" : ""}`}
-                  d={donutSlicePath(50, 50, 48, 33, item.start, item.end)}
-                  fill={`color-mix(in srgb, ${item.color} 42%, var(--card))`}
-                  onMouseEnter={() => setHoveredId(item.id)}
-                  onClick={() => selectItem(item)}
-                />
-              ))}
-            </svg>
+            <ChartCard
+              embedded
+              legend={false}
+              type="donut"
+              height={280}
+              title="Distribuição por categoria"
+              showDonutValue={false}
+              format={money}
+              onSelect={(index) => setHoveredId(slices[index]?.id ?? null)}
+              onActivate={(index) => {
+                if (items[index]) selectItem(items[index]);
+              }}
+              data={{
+                labels: ["Gastos"],
+                series: slices.map((item) => ({
+                  id: item.id,
+                  label: item.name,
+                  values: [item.spent],
+                  color: `color-mix(in srgb, ${item.color} 45%, transparent)`,
+                })),
+              }}
+            />
           ) : (
             <div className="home-donut-empty" />
           )}
@@ -1389,47 +1211,61 @@ function SpendingDistribution({
             </strong>
           </div>
         </div>
-        <div
-          className={`home-spending-list${filteringId ? " is-filtering" : ""}`}
+        <ScrollFade
+          className="home-spending-scroll"
+          contentClassName={`home-spending-list${filteringId ? " is-filtering" : ""}`}
         >
           {items.length ? (
-            items.map((item) => (
-              <button
-                type="button"
-                className={`home-spending-row${filteringId === item.id ? " is-hovered" : ""}${activeId === item.id ? " is-selected" : ""}`}
-                key={item.id}
-                aria-pressed={activeId === item.id}
-                onMouseEnter={() => setHoveredId(item.id)}
-                onClick={() => selectItem(item)}
-              >
-                <span
-                  className={`home-category-icon${item.image ? " has-image" : ""}`}
-                  style={{
-                    color: item.color,
-                    background: `color-mix(in srgb, ${item.color} 16%, transparent)`,
-                  }}
+            items.map((item) => {
+              const share = Math.round((item.spent / total) * 100);
+              const tileTone = `color-mix(in srgb, ${item.color} 16%, transparent)`;
+              const barTone = `color-mix(in srgb, ${item.color} 45%, transparent)`;
+              return (
+                <button
+                  type="button"
+                  className={`home-spending-row${filteringId === item.id ? " is-hovered" : ""}${activeId === item.id ? " is-selected" : ""}`}
+                  key={item.id}
+                  aria-pressed={activeId === item.id}
+                  onMouseEnter={() => setHoveredId(item.id)}
+                  onClick={() => selectItem(item)}
                 >
-                  {item.image ? (
-                    <CategoryImage name={item.image} size={28} />
-                  ) : (
-                    <FinanceIcon name={item.icon} size={15} />
-                  )}
-                </span>
-                <strong>{item.name}</strong>
-                <span className="home-percentage">
-                  {Math.round((item.spent / total) * 100)}%
-                </span>
-                <span className="home-category-amount">
-                  <Amount value={item.spent} />
-                </span>
-              </button>
-            ))
+                  <span className="home-spending-label">
+                    <span
+                      className={`home-category-icon${item.image ? " has-image" : ""}`}
+                      style={{
+                        color: item.color,
+                        background: tileTone,
+                      }}
+                    >
+                      {item.image ? (
+                        <CategoryImage name={item.image} size={28} />
+                      ) : (
+                        <FinanceIcon name={item.icon} size={15} />
+                      )}
+                    </span>
+                    <strong>{item.name}</strong>
+                  </span>
+                  <span className="home-percentage">{share}%</span>
+                  <ProgressBar
+                    value={share}
+                    color={barTone}
+                    size="md"
+                    label={`Participação de ${item.name}`}
+                    valueText={`${share}%`}
+                    className="home-spending-bar"
+                  />
+                  <span className="home-category-amount">
+                    <Amount value={item.spent} />
+                  </span>
+                </button>
+              );
+            })
           ) : (
             <div className="home-empty">
               <span>Sem saídas no período</span>
             </div>
           )}
-        </div>
+        </ScrollFade>
       </div>
     </FinanceSurface>
   );
@@ -1455,7 +1291,10 @@ function CreditCardsCard({
   const reduced = useReducedMotion();
   const trackRef = useRef<HTMLDivElement>(null);
   const scrollTimerRef = useRef(0);
+  const programmaticClearRef = useRef(0);
   const programmaticScrollRef = useRef<number | null>(null);
+  const activeIndexRef = useRef(0);
+  const goToRef = useRef<(next: number) => void>(() => {});
   const dragRef = useRef({
     id: null as number | null,
     startX: 0,
@@ -1465,6 +1304,7 @@ function CreditCardsCard({
     cardIndex: -1,
   });
   const activeIndex = Math.min(index, Math.max(0, cards.length - 1));
+  activeIndexRef.current = activeIndex;
   const active = cards[activeIndex];
   const today = localDate();
   const forecastMonths = ([-1, 0, 1] as const).map((offset) => {
@@ -1473,11 +1313,13 @@ function CreditCardsCard({
       ? cardInvoiceAmount(data, active.id, key, category, today)
       : 0;
     const monthLabel = shortMonthLabel(key);
+    const currentKey = today.slice(0, 7);
     return {
       key,
-      label: offset === 0 ? monthLabel : `${monthLabel} ${key.slice(2, 4)}`,
+      label: monthLabel,
       amount,
-      open: key === today.slice(0, 7),
+      open: key === currentKey,
+      closed: key < currentKey,
     };
   });
   const selected = forecastMonths[forecastIndex] || forecastMonths[1];
@@ -1506,7 +1348,7 @@ function CreditCardsCard({
           matchesCategoryFilter(row.category, category),
       )
       .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
-      .slice(0, 4);
+      .slice(0, 5);
   }, [active, category, data.transactions, selected.key]);
 
   function nearestCardIndex() {
@@ -1543,10 +1385,20 @@ function CreditCardsCard({
       track.getBoundingClientRect().left +
       track.scrollLeft -
       paddingLeft;
+    const scrollBehavior = behavior ?? (reduced ? "auto" : "smooth");
     programmaticScrollRef.current = next;
+    window.clearTimeout(programmaticClearRef.current);
+    // Mantém o índice escolhido até o scroll terminar; evita o sync
+    // reverter no meio da animação (efeito de "preciso clicar duas vezes").
+    programmaticClearRef.current = window.setTimeout(
+      () => {
+        programmaticScrollRef.current = null;
+      },
+      scrollBehavior === "auto" ? 50 : 450,
+    );
     track.scrollTo({
       left,
-      behavior: behavior ?? (reduced ? "auto" : "smooth"),
+      behavior: scrollBehavior,
     });
   }
 
@@ -1556,23 +1408,25 @@ function CreditCardsCard({
     setForecastIndex(1);
     scrollToCard(clamped);
   }
+  goToRef.current = goTo;
 
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
 
     const sync = () => {
+      // Durante scroll programático o índice já foi definido em goTo.
+      if (programmaticScrollRef.current !== null) return;
       const next = nearestCardIndex();
-      const target = programmaticScrollRef.current;
-      if (target !== null) {
-        if (next === target) programmaticScrollRef.current = null;
-        else return;
-      }
       setIndex((current) => (current === next ? current : next));
     };
 
     const onScrollEnd = () => {
-      programmaticScrollRef.current = null;
+      if (programmaticScrollRef.current !== null) {
+        programmaticScrollRef.current = null;
+        window.clearTimeout(programmaticClearRef.current);
+        return;
+      }
       sync();
     };
     const onScroll = () => {
@@ -1584,6 +1438,7 @@ function CreditCardsCard({
     track.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.clearTimeout(scrollTimerRef.current);
+      window.clearTimeout(programmaticClearRef.current);
       track.removeEventListener("scrollend", onScrollEnd);
       track.removeEventListener("scroll", onScroll);
     };
@@ -1632,24 +1487,32 @@ function CreditCardsCard({
     const finishDrag = (event: PointerEvent) => {
       const drag = dragRef.current;
       if (drag.id !== event.pointerId) return;
-      const { dragging, cardIndex } = drag;
+      const { dragging, cardIndex, startScroll } = drag;
+      const movedFar = Math.abs(track.scrollLeft - startScroll) > dragThreshold;
+      // Micro-movimento não deve engolir o clique no cartão.
+      const realDrag = dragging && movedFar;
       dragRef.current = {
         ...drag,
         id: null,
         dragging: false,
-        suppressClick: dragging,
+        suppressClick: realDrag,
       };
       track.classList.remove("dragging");
       if (track.hasPointerCapture(event.pointerId))
         track.releasePointerCapture(event.pointerId);
-      if (dragging) {
+      if (realDrag) {
         const next = nearestCardIndex();
         setIndex(next);
         setForecastIndex(1);
         scrollToCard(next, reduced ? "auto" : "smooth");
         return;
       }
-      if (cardIndex >= 0) goTo(cardIndex);
+      // Clique limpo: o onClick do botão chama goTo.
+      // Se o pointer capture chegou a ligar, o click pode não chegar — seleciona uma vez aqui.
+      if (dragging && cardIndex >= 0) {
+        dragRef.current.suppressClick = true;
+        goToRef.current(cardIndex);
+      }
     };
 
     track.addEventListener("pointerdown", onPointerDown);
@@ -1675,9 +1538,7 @@ function CreditCardsCard({
         <div className="home-cards-heading">
           <span className="home-muted">
             Fatura de{" "}
-            {new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(
-              new Date(`${selected.key}-15T12:00:00`),
-            )}
+            {`${selected.label.charAt(0).toLocaleUpperCase("pt-BR")}${selected.label.slice(1)}.`}
           </span>
         </div>
         <div className="home-cards-amount-row">
@@ -1704,7 +1565,7 @@ function CreditCardsCard({
                 className="icon-button"
                 aria-label="Cartão anterior"
                 disabled={activeIndex <= 0}
-                onClick={() => goTo(activeIndex - 1)}
+                onClick={() => goTo(activeIndexRef.current - 1)}
               >
                 <CaretLeft size={16} />
               </button>
@@ -1712,7 +1573,7 @@ function CreditCardsCard({
                 className="icon-button"
                 aria-label="Próximo cartão"
                 disabled={activeIndex >= cards.length - 1}
-                onClick={() => goTo(activeIndex + 1)}
+                onClick={() => goTo(activeIndexRef.current + 1)}
               >
                 <CaretRight size={16} />
               </button>
@@ -1754,65 +1615,67 @@ function CreditCardsCard({
               <span>Últimas entradas</span>
             </div>
             {recentCharges.length ? (
-              <ul className="home-cards-entry-list">
-                {recentCharges.map((row) => {
-                  const categoryName = row.category || "Sem categoria";
-                  const categoryImage = imageForCategory(
-                    categoryName,
-                    data.categories,
-                  );
-                  const categoryColor = colorForCategory(
-                    categoryName,
-                    0,
-                    data.categories,
-                  );
-                  const hasMerchantLogo = Boolean(
-                    merchantLogoUrl(row.description),
-                  );
-                  return (
-                    <li key={row.id}>
-                      <button
-                        type="button"
-                        className="home-cards-entry"
-                        onClick={() => navigate("transactions")}
-                      >
-                        <span
-                          className={`home-cards-entry-symbol${hasMerchantLogo || categoryImage ? " has-image" : ""}${hasMerchantLogo ? " has-merchant" : ""}`}
-                          style={
-                            hasMerchantLogo
-                              ? undefined
-                              : {
-                                  color: categoryColor,
-                                  background: `color-mix(in srgb, ${categoryColor} 16%, transparent)`,
-                                }
-                          }
+              <ScrollFade className="home-cards-entries-scroll">
+                <ul className="home-cards-entry-list">
+                  {recentCharges.map((row) => {
+                    const categoryName = row.category || "Sem categoria";
+                    const categoryImage = imageForCategory(
+                      categoryName,
+                      data.categories,
+                    );
+                    const categoryColor = colorForCategory(
+                      categoryName,
+                      0,
+                      data.categories,
+                    );
+                    const hasMerchantLogo = Boolean(
+                      merchantLogoUrl(row.description),
+                    );
+                    return (
+                      <li key={row.id}>
+                        <button
+                          type="button"
+                          className="home-cards-entry"
+                          onClick={() => navigate("transactions")}
                         >
-                          {hasMerchantLogo ? (
-                            <MerchantLogo
-                              description={row.description}
-                              size={22}
-                            />
-                          ) : categoryImage ? (
-                            <CategoryImage name={categoryImage} size={22} />
-                          ) : (
-                            <FinanceIcon name="layers" size={12} />
-                          )}
-                        </span>
-                        <span className="home-cards-entry-copy">
-                          <strong>{row.description}</strong>
-                          <small>
-                            {dateLabel(row.date)}
-                            {row.category ? ` · ${row.category}` : ""}
-                          </small>
-                        </span>
-                        <strong className="home-cards-entry-amount">
-                          <Amount value={row.amount} />
-                        </strong>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                          <span
+                            className={`home-cards-entry-symbol${hasMerchantLogo || categoryImage ? " has-image" : ""}${hasMerchantLogo ? " has-merchant" : ""}`}
+                            style={
+                              hasMerchantLogo
+                                ? undefined
+                                : {
+                                    color: categoryColor,
+                                    background: `color-mix(in srgb, ${categoryColor} 16%, transparent)`,
+                                  }
+                            }
+                          >
+                            {hasMerchantLogo ? (
+                              <MerchantLogo
+                                description={row.description}
+                                size={22}
+                              />
+                            ) : categoryImage ? (
+                              <CategoryImage name={categoryImage} size={22} />
+                            ) : (
+                              <FinanceIcon name="layers" size={12} />
+                            )}
+                          </span>
+                          <span className="home-cards-entry-copy">
+                            <strong>{row.description}</strong>
+                            <small>
+                              {dateLabel(row.date)}
+                              {row.category ? ` · ${row.category}` : ""}
+                            </small>
+                          </span>
+                          <strong className="home-cards-entry-amount">
+                            <Amount value={row.amount} />
+                          </strong>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </ScrollFade>
             ) : (
               <p className="home-cards-entries-empty">
                 Nenhuma entrada neste mês
@@ -2011,6 +1874,7 @@ function ForecastMonths({
     label: string;
     amount: number;
     open: boolean;
+    closed: boolean;
   }[];
   selectedIndex: number;
   onSelect: (index: number) => void;
@@ -2020,10 +1884,10 @@ function ForecastMonths({
   const [chart, setChart] = useState<{
     width: number;
     height: number;
-    top: number;
     centers: number[];
-    lefts: number[];
-    rights: number[];
+    itemLefts: number[];
+    itemRights: number[];
+    plotLefts: number[];
   } | null>(null);
 
   useEffect(() => {
@@ -2039,22 +1903,25 @@ function ForecastMonths({
       ];
       if (!items.length || !plots.length) return;
       const listRect = list.getBoundingClientRect();
-      const plotRect = plots[0].getBoundingClientRect();
+      const plotHeight = Math.max(
+        ...plots.map((plot) => plot.getBoundingClientRect().height),
+      );
       setChart({
         width: listRect.width,
-        height: plotRect.height,
-        top: plotRect.top - listRect.top,
+        height: plotHeight,
         centers: items.map((item) => {
           const rect = item.getBoundingClientRect();
           return rect.left - listRect.left + rect.width / 2;
         }),
-        lefts: items.map(
+        itemLefts: items.map(
           (item) => item.getBoundingClientRect().left - listRect.left,
         ),
-        rights: items.map((item) => {
-          const rect = item.getBoundingClientRect();
-          return rect.right - listRect.left;
-        }),
+        itemRights: items.map(
+          (item) => item.getBoundingClientRect().right - listRect.left,
+        ),
+        plotLefts: plots.map(
+          (plot) => plot.getBoundingClientRect().left - listRect.left,
+        ),
       });
     };
 
@@ -2079,141 +1946,120 @@ function ForecastMonths({
       x,
       y: pointY(amounts[index], chart.height),
     })) ?? [];
-  const first = points[0];
-  const second = points[1];
-  const firstLeft = chart?.lefts[0] ?? 0;
-  const leadIn =
-    chart && first
-      ? second
-        ? {
-            x: firstLeft,
-            y: Math.min(
-              chart.height * 0.88,
-              Math.max(
-                chart.height * 0.12,
-                first.y -
-                  ((second.y - first.y) * (first.x - firstLeft)) /
-                    (second.x - first.x),
-              ),
-            ),
-          }
-        : { x: firstLeft, y: first.y }
-      : null;
   const selected = points[selectedIndex];
-  const previous = selectedIndex > 0 ? points[selectedIndex - 1] : leadIn;
-  const next = points[selectedIndex + 1] ?? null;
-  const selectedLeft = chart?.lefts[selectedIndex] ?? 0;
-  const selectedRight = chart?.rights[selectedIndex] ?? 0;
-  const yAtX = (
-    from: { x: number; y: number } | null,
-    to: { x: number; y: number } | null,
-    x: number,
-    fallback: number,
-  ) => {
-    if (!from || !to || from.x === to.x) return fallback;
-    return from.y + ((to.y - from.y) * (x - from.x)) / (to.x - from.x);
-  };
-  const entryY = yAtX(previous, selected, selectedLeft, selected?.y ?? 0);
-  const exitY = yAtX(selected, next, selectedRight, selected?.y ?? 0);
-  const entry = selected ? { x: selectedLeft, y: entryY } : null;
-  const exit = selected ? { x: selectedRight, y: exitY } : null;
+  const firstEdge =
+    chart && points[0]
+      ? { x: chart.itemLefts[0], y: points[0].y }
+      : null;
+  const lastEdge =
+    chart && points.length
+      ? {
+          x: chart.itemRights[chart.itemRights.length - 1],
+          y: points[points.length - 1].y,
+        }
+      : null;
+  const trendPoints =
+    firstEdge && lastEdge ? [firstEdge, ...points, lastEdge] : points;
+  const trend = trendPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const solidPoints =
-    selectedIndex > 0
-      ? leadIn
-        ? [leadIn, ...points.slice(0, selectedIndex + 1)]
-        : points.slice(0, selectedIndex + 1)
+    firstEdge && selected
+      ? [firstEdge, ...points.slice(0, selectedIndex + 1)]
       : [];
-  const dashedPoints =
-    selectedIndex === 0 && leadIn
-      ? [leadIn, ...points]
-      : points.slice(selectedIndex);
-  const solidTrend = solidPoints
-    .map((point) => `${point.x},${point.y}`)
-    .join(" ");
-  const dashedTrend = dashedPoints
-    .map((point) => `${point.x},${point.y}`)
-    .join(" ");
+  const solid = solidPoints.map((point) => `${point.x},${point.y}`).join(" ");
   const fillPath =
-    chart && selected && entry && exit
+    chart && solidPoints.length > 1
       ? [
-          `M ${entry.x} ${entry.y}`,
-          `L ${selected.x} ${selected.y}`,
-          `L ${exit.x} ${exit.y}`,
-          `L ${exit.x} ${chart.height}`,
-          `L ${entry.x} ${chart.height}`,
+          `M ${solidPoints[0].x} ${chart.height}`,
+          ...solidPoints.map((point) => `L ${point.x} ${point.y}`),
+          `L ${solidPoints[solidPoints.length - 1].x} ${chart.height}`,
           "Z",
         ].join(" ")
       : "";
 
   return (
     <div className="home-cards-forecast-list" ref={listRef}>
-      {chart && points.length > 0 && (
-        <svg
-          className="home-cards-forecast-chart"
-          width={chart.width}
-          height={chart.height}
-          viewBox={`0 0 ${chart.width} ${chart.height}`}
-          style={{ top: chart.top }}
-          aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-              <stop
-                offset="0%"
-                stopColor="var(--foreground)"
-                stopOpacity="0.14"
-              />
-              <stop
-                offset="100%"
-                stopColor="var(--foreground)"
-                stopOpacity="0"
-              />
-            </linearGradient>
-          </defs>
-          {selected && <path d={fillPath} fill={`url(#${fillId})`} />}
-          {dashedPoints.length > 1 && (
-            <polyline
-              className="home-cards-forecast-path is-dashed"
-              fill="none"
-              points={dashedTrend}
-            />
-          )}
-          {solidPoints.length > 1 && (
-            <polyline
-              className="home-cards-forecast-path is-solid"
-              fill="none"
-              points={solidTrend}
-            />
-          )}
-          {points.map((point, index) => {
-            const isSelected = index === selectedIndex;
-            const past = index < selectedIndex;
-            return (
-              <circle
-                key={months[index].key}
-                className={`home-cards-forecast-dot ${isSelected ? "active" : past ? "done" : ""}`}
-                cx={point.x}
-                cy={point.y}
-                r={isSelected ? 5.5 : 5}
-              />
-            );
-          })}
-        </svg>
-      )}
       {months.map((item, itemIndex) => {
         const isSelected = selectedIndex === itemIndex;
+        const clipLeft = chart?.plotLefts[itemIndex] ?? 0;
+        const gradientId = `${fillId}-${itemIndex}`;
         return (
           <button
             key={item.key}
             type="button"
-            className={`home-cards-forecast-item ${isSelected ? "selected" : ""}`}
+            className={`home-cards-forecast-item${isSelected ? " selected" : ""}${item.open ? " is-open" : ""}`}
             onClick={() => onSelect(itemIndex)}
           >
             <span className="home-cards-forecast-head">
               <span className="home-cards-forecast-month">{item.label}</span>
-              {item.open && <span className="home-cards-status">Aberta</span>}
+              {item.open ? (
+                <span className="home-cards-status is-open">Aberta</span>
+              ) : item.closed ? (
+                <span className="home-cards-status">Fechada</span>
+              ) : null}
             </span>
-            <span className="home-cards-forecast-plot" />
+            <span className="home-cards-forecast-plot">
+              {chart && points.length > 0 && (
+                <svg
+                  className="home-cards-forecast-chart"
+                  width={chart.width}
+                  height={chart.height}
+                  viewBox={`0 0 ${chart.width} ${chart.height}`}
+                  style={{ left: -clipLeft }}
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <linearGradient
+                      id={gradientId}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor="var(--forecast-ink, var(--foreground))"
+                        stopOpacity="0.14"
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor="var(--forecast-ink, var(--foreground))"
+                        stopOpacity="0"
+                      />
+                    </linearGradient>
+                  </defs>
+                  {isSelected && fillPath && (
+                    <path d={fillPath} fill={`url(#${gradientId})`} />
+                  )}
+                  {trendPoints.length > 1 && (
+                    <polyline
+                      className="home-cards-forecast-path is-dashed"
+                      fill="none"
+                      points={trend}
+                    />
+                  )}
+                  {isSelected && solidPoints.length > 1 && (
+                    <polyline
+                      className="home-cards-forecast-path is-solid"
+                      fill="none"
+                      points={solid}
+                    />
+                  )}
+                  {points.map((point, index) => {
+                    const active = index === selectedIndex;
+                    const past = index < selectedIndex;
+                    return (
+                      <circle
+                        key={months[index].key}
+                        className={`home-cards-forecast-dot ${active ? "active" : past ? "done" : ""}`}
+                        cx={point.x}
+                        cy={point.y}
+                        r={active ? 5.5 : 5}
+                      />
+                    );
+                  })}
+                </svg>
+              )}
+            </span>
             <strong>
               <Amount value={item.amount} />
             </strong>
@@ -2912,6 +2758,53 @@ export function TransactionsView(props: Props) {
     expenses: sumFiltered("expense"),
     pending: sumFiltered("expense", "pending"),
   };
+  const today = localDate();
+  const flowRows = filtered.filter(
+    (row) => row.currency === "BRL" && row.kind !== "transfer",
+  );
+  const flowDates = [
+    ...new Set([
+      bounds?.from ?? flowRows[0]?.date ?? today,
+      ...flowRows.map((row) => row.date),
+      bounds?.to && bounds.to < today ? bounds.to : today,
+    ]),
+  ].sort();
+  if (flowDates.length === 1) flowDates.push(flowDates[0]!);
+  const cashByDate = new Map<
+    string,
+    { income: number; expenses: number; pending: number }
+  >();
+  for (const row of flowRows) {
+    const cash = cashByDate.get(row.date) ?? {
+      income: 0,
+      expenses: 0,
+      pending: 0,
+    };
+    if (row.kind === "income") cash.income += row.amount;
+    else if (row.kind === "expense") {
+      cash.expenses += row.amount;
+      if (row.status === "pending") cash.pending += row.amount;
+    }
+    cashByDate.set(row.date, cash);
+  }
+  const flowSeries = {
+    labels: flowDates.map((date) => dateLabel(date)),
+    income: [] as number[],
+    expenses: [] as number[],
+    pending: [] as number[],
+  };
+  let incomeTotal = 0,
+    expensesTotal = 0,
+    pendingTotal = 0;
+  for (const date of flowDates) {
+    const cash = cashByDate.get(date);
+    incomeTotal += cash?.income ?? 0;
+    expensesTotal += cash?.expenses ?? 0;
+    pendingTotal += cash?.pending ?? 0;
+    flowSeries.income.push(incomeTotal);
+    flowSeries.expenses.push(expensesTotal);
+    flowSeries.pending.push(pendingTotal);
+  }
   const periodLabel = appPeriod.mode === "all" ? "no total" : "no período";
   const pages = Math.max(1, Math.ceil(filtered.length / 10)),
     currentPage = Math.min(page, pages);
@@ -2962,20 +2855,83 @@ export function TransactionsView(props: Props) {
         <MiniStat
           label={`Entradas ${periodLabel}`}
           value={stats.income}
-          icon={<ArrowDownLeft />}
           color="green"
+          visual={
+            <ChartCard
+              embedded
+              sparkline
+              legend={false}
+              height={56}
+              type="area"
+              title={`Entradas ${periodLabel}`}
+              format={money}
+              data={{
+                labels: flowSeries.labels,
+                series: [
+                  {
+                    id: "income",
+                    label: "Entradas",
+                    values: flowSeries.income,
+                    color: "var(--success)",
+                  },
+                ],
+              }}
+            />
+          }
         />
         <MiniStat
           label={`Saídas ${periodLabel}`}
           value={stats.expenses}
-          icon={<ArrowUpRight />}
           color="neutral"
+          visual={
+            <ChartCard
+              embedded
+              sparkline
+              legend={false}
+              height={56}
+              type="area"
+              title={`Saídas ${periodLabel}`}
+              format={money}
+              data={{
+                labels: flowSeries.labels,
+                series: [
+                  {
+                    id: "expenses",
+                    label: "Saídas",
+                    values: flowSeries.expenses,
+                    color: "var(--destructive)",
+                  },
+                ],
+              }}
+            />
+          }
         />
         <MiniStat
           label="Ainda pendente"
           value={stats.pending}
-          icon={<Wallet />}
           color="amber"
+          visual={
+            <ChartCard
+              embedded
+              sparkline
+              legend={false}
+              height={56}
+              type="area"
+              title="Ainda pendente"
+              format={money}
+              data={{
+                labels: flowSeries.labels,
+                series: [
+                  {
+                    id: "pending",
+                    label: "Pendências",
+                    values: flowSeries.pending,
+                    color: "var(--warning)",
+                  },
+                ],
+              }}
+            />
+          }
         />
       </div>
       <FinanceSurface render={<section />} className="finance-card full-table">
@@ -2983,12 +2939,7 @@ export function TransactionsView(props: Props) {
           title="Lançamentos"
           subtitle={`${filtered.length} registros`}
           action={
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-[10px]"
-              onClick={exportCsv}
-            >
+            <Button variant="outline" size="sm" onClick={exportCsv}>
               <DownloadSimple size={15} />
               Exportar CSV
             </Button>
@@ -3141,12 +3092,14 @@ export function MiniStat({
   label,
   value,
   icon,
+  visual,
   color,
   detail,
 }: {
   label: string;
   value: number;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
+  visual?: React.ReactNode;
   color: string;
   detail?: string;
 }) {
@@ -3155,6 +3108,7 @@ export function MiniStat({
       label={label}
       value={<Amount value={value} motion="reel" />}
       icon={icon}
+      visual={visual}
       tone={color}
       hint={detail}
     />
@@ -3438,69 +3392,75 @@ function GoalDetails({ goal }: { goal: Goal }) {
   const percent = Math.min(100, Math.round((goal.current / goal.target) * 100));
   const remaining = Math.max(0, goal.target - goal.current);
   return (
-    <DialogContent className="finance-dialog goal-details-dialog sm:max-w-[540px] p-7">
-      <div className="goal-details-image">
-        {goal.imageSlug ? (
-          <CategoryImage name={goal.imageSlug} size={180} />
-        ) : (
-          <Illustration name={assetNames[goal.icon] || "target"} />
-        )}
-      </div>
-      <DialogHeader>
-        <div className="goal-details-status" data-completed={goal.completed}>
-          {goal.completed ? "Concluída" : "Em andamento"}
+    <DialogContent className="finance-dialog goal-details-dialog dialog-scrollable sm:max-w-[540px] p-7">
+      <ScrollFade
+        className="dialog-scroll-fade"
+        contentClassName="dialog-scroll-body"
+        color="var(--popover)"
+      >
+        <div className="goal-details-image">
+          {goal.imageSlug ? (
+            <CategoryImage name={goal.imageSlug} size={180} />
+          ) : (
+            <Illustration name={assetNames[goal.icon] || "target"} />
+          )}
         </div>
-        <DialogTitle className="goal-details-title">{goal.name}</DialogTitle>
-      </DialogHeader>
-      <div className="goal-details-values">
-        <div>
-          <span>Valor reservado</span>
-          <strong>
-            <Amount value={goal.current} />
-          </strong>
+        <DialogHeader>
+          <div className="goal-details-status" data-completed={goal.completed}>
+            {goal.completed ? "Concluída" : "Em andamento"}
+          </div>
+          <DialogTitle className="goal-details-title">{goal.name}</DialogTitle>
+        </DialogHeader>
+        <div className="goal-details-values">
+          <div>
+            <span>Valor reservado</span>
+            <strong>
+              <Amount value={goal.current} />
+            </strong>
+          </div>
+          <div>
+            <span>Valor da meta</span>
+            <strong>
+              <Amount value={goal.target} />
+            </strong>
+          </div>
         </div>
-        <div>
-          <span>Valor da meta</span>
-          <strong>
-            <Amount value={goal.target} />
-          </strong>
+        <div className="goal-details-progress">
+          <ProgressBar
+            value={percent}
+            label="Progresso da meta"
+            tone={goal.current / goal.target >= 0.9 ? "positive" : "neutral"}
+            className="progress-track"
+          />
+          <div className="goal-details-progress-label">
+            <span>{percent}%</span>
+            <span>
+              Faltam <Amount value={remaining} />
+            </span>
+          </div>
         </div>
-      </div>
-      <div className="goal-details-progress">
-        <ProgressBar
-          value={percent}
-          label="Progresso da meta"
-          tone={goal.current / goal.target >= 0.9 ? "positive" : "neutral"}
-          className="progress-track"
-        />
-        <div className="goal-details-progress-label">
-          <span>{percent}%</span>
+        <div className="goal-details-deadline">
+          <span>Prazo</span>
           <span>
-            Faltam <Amount value={remaining} />
+            {new Intl.DateTimeFormat("pt-BR", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }).format(new Date(goal.deadline + "T12:00:00"))}
           </span>
         </div>
-      </div>
-      <div className="goal-details-deadline">
-        <span>Prazo</span>
-        <span>
-          {new Intl.DateTimeFormat("pt-BR", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          }).format(new Date(goal.deadline + "T12:00:00"))}
-        </span>
-      </div>
-      <section
-        className="goal-details-description"
-        aria-label="Descrição da meta"
-      >
-        <h3>Descrição</h3>
-        {goal.description ? (
-          <GoalDescription text={goal.description} />
-        ) : (
-          <p className="muted">Sem descrição.</p>
-        )}
-      </section>
+        <section
+          className="goal-details-description"
+          aria-label="Descrição da meta"
+        >
+          <h3>Descrição</h3>
+          {goal.description ? (
+            <GoalDescription text={goal.description} />
+          ) : (
+            <p className="muted">Sem descrição.</p>
+          )}
+        </section>
+      </ScrollFade>
     </DialogContent>
   );
 }
@@ -3867,6 +3827,11 @@ export function AccountsView({
                           : connection.status === "ERROR"
                             ? "warning"
                             : "muted"
+                      }
+                      icon={
+                        connection.status === "ERROR" ? (
+                          <Warning size={10} weight="bold" />
+                        ) : undefined
                       }
                     >
                       {connection.status === "UPDATED"

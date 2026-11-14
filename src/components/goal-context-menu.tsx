@@ -34,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ScrollFade } from "@/components/ui/scroll-fade";
 import { prepareGoalCelebration } from "@/lib/goal-celebration";
 import type { Goal } from "@/lib/types";
 import type { FormState, Mutate } from "./finance-form";
@@ -204,7 +205,11 @@ export function GoalContextMenu({
           className="finance-dialog dialog-fixed-actions goal-delete-dialog sm:max-w-[420px] p-6"
           showCloseButton={false}
         >
-          <div className="dialog-scroll-body">
+          <ScrollFade
+            className="dialog-scroll-fade"
+            contentClassName="dialog-scroll-body"
+            color="var(--popover)"
+          >
             <DialogHeader>
               <DialogTitle>Excluir meta?</DialogTitle>
               <DialogDescription>
@@ -217,7 +222,7 @@ export function GoalContextMenu({
                 {error}
               </p>
             )}
-          </div>
+          </ScrollFade>
           <div className="form-actions">
             <Button
               variant="outline"

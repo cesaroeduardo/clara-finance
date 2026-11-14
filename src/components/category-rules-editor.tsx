@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
+import { ScrollFade } from "./ui/scroll-fade";
 import type { CategoryRule, FinanceData } from "@/lib/types";
 import type { Mutate } from "./finance-form";
 import { CategoryMark } from "./category-mark";
@@ -265,7 +266,11 @@ function RuleDialog({
     >
       <DialogContent className="finance-dialog dialog-fixed-actions sm:max-w-[440px] p-7">
         <form className="finance-form" onSubmit={save}>
-          <div className="dialog-scroll-body">
+          <ScrollFade
+            className="dialog-scroll-fade"
+            contentClassName="dialog-scroll-body"
+            color="var(--popover)"
+          >
             <DialogHeader>
               <DialogTitle>{rule ? "Editar regra" : "Nova regra"}</DialogTitle>
               <DialogDescription>
@@ -340,7 +345,7 @@ function RuleDialog({
                 {error}
               </p>
             )}
-          </div>
+          </ScrollFade>
           <div className="form-actions">
             {rule && (
               <Button

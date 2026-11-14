@@ -1,14 +1,6 @@
 "use client";
-import { PrivateValue } from "./finance-privacy";
 import { useMemo, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { ChartCard } from "./ui/chart-card";
 import { FieldSelect } from "./ui/field-select";
 import {
   MagnifyingGlass,
@@ -286,110 +278,33 @@ export function RecurringView({
               </div>
             </div>
             <div className="recurring-chart">
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart
-                  data={summary.nextCycles}
-                  margin={{ top: 12, right: 8, left: 8, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient
-                      id="recurring-fixed-fill"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="0%"
-                        stopColor="var(--chart-1)"
-                        stopOpacity={0.16}
-                      />
-                      <stop
-                        offset="100%"
-                        stopColor="var(--chart-1)"
-                        stopOpacity={0}
-                      />
-                    </linearGradient>
-                    <linearGradient
-                      id="recurring-installment-fill"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="0%"
-                        stopColor="var(--chart-2)"
-                        stopOpacity={0.12}
-                      />
-                      <stop
-                        offset="100%"
-                        stopColor="var(--chart-2)"
-                        stopOpacity={0}
-                      />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="label"
-                    interval={0}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
-                  />
-                  <YAxis hide />
-                  <Tooltip
-                    cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }}
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const point = payload[0]?.payload as {
-                        label: string;
-                        fixed: number;
-                        installments: number;
-                        total: number;
-                      };
-                      return (
-                        <div className="recurring-tooltip">
-                          <strong>{point.label}</strong>
-                          <p>
-                            Parcelas:{" "}
-                            <PrivateValue as="span" className="amount">
-                              {compactMoney(point.installments)}
-                            </PrivateValue>
-                          </p>
-                          <p>
-                            Contas fixas:{" "}
-                            <PrivateValue as="span" className="amount">
-                              {compactMoney(point.fixed)}
-                            </PrivateValue>
-                          </p>
-                          <p>
-                            Total:{" "}
-                            <PrivateValue as="span" className="amount">
-                              {compactMoney(point.total)}
-                            </PrivateValue>
-                          </p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Area
-                    dataKey="installments"
-                    type="monotone"
-                    stroke="var(--chart-2)"
-                    strokeWidth={1.5}
-                    fill="url(#recurring-installment-fill)"
-                    isAnimationActive={false}
-                  />
-                  <Area
-                    dataKey="fixed"
-                    type="monotone"
-                    stroke="var(--chart-1)"
-                    strokeWidth={2}
-                    fill="url(#recurring-fixed-fill)"
-                    isAnimationActive={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <ChartCard
+                embedded
+                type="area"
+                legend={false}
+                height={220}
+                title="Projeção de recorrências por mês"
+                format={compactMoney}
+                data={{
+                  labels: summary.nextCycles.map((point) => point.label),
+                  series: [
+                    {
+                      id: "installments",
+                      label: "Parcelas",
+                      values: summary.nextCycles.map(
+                        (point) => point.installments,
+                      ),
+                      color: "var(--chart-2)",
+                    },
+                    {
+                      id: "fixed",
+                      label: "Contas fixas",
+                      values: summary.nextCycles.map((point) => point.fixed),
+                      color: "var(--chart-1)",
+                    },
+                  ],
+                }}
+              />
             </div>
           </section>
 

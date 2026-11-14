@@ -15,7 +15,7 @@ O Clara usa UI SDK `0.1.0-beta.1` para os controles e adapta componentes da Tuff
 | Cores                                        | Área e matiz do ColorPicker SDK; hexadecimal de seis dígitos, em maiúsculas, na aplicação                                |
 | Dia do mês, parcelas e prioridade            | NumberInput SDK com limites existentes; campos monetários continuam em centavos no domínio                               |
 | Superfícies, estados e números               | Surface, Status Pill, Empty State, Loader, Loading Skeleton, Progress Bar, Rolling Number e Key Hint adaptados da TuffUI |
-| Tabelas e gráficos                           | Tabelas financeiras e Recharts existentes, com superfícies e indicadores compartilhados                                  |
+| Tabelas e gráficos                           | Tabelas financeiras próprias; Chart Card da TuffUI em SVG/Motion para todos os gráficos                                  |
 | Notificações                                 | Sonner e seu tema existente                                                                                              |
 
 A tabela da TuffUI não substitui a tabela financeira: ordenação, menus, modelo de transações e apresentação móvel continuam no Clara. Logos, imagens de categorias e cartões bancários também permanecem específicos do domínio.
@@ -25,11 +25,21 @@ A tabela da TuffUI não substitui a tabela financeira: ordenação, menus, model
 A primeira entrega preservava as classes antigas e trouxe pouca mudança visível. A camada visual foi corrigida para usar a composição da TuffUI nas telas:
 
 - `FinanceSurface` combina `Shell`, `ShellHeader`, `IconTile` e `Panel`: moldura neutra sem borda, cabeçalho com ícone e conteúdo em uma superfície interna.
+- O primeiro cartão da visão geral mantém o título sem ícone e os botões dentro do gráfico, com a moldura TuffUI. O ritmo de gastos aparece em uma faixa visível acima das contas a pagar; o info explica o limite e a comparação de gastos fica no info da distribuição. Os infos usam a apresentação Tooltip Hint da TuffUI com abertura por teclado, hover e toque, Escape e posicionamento do SDK. O carrossel de insights foi removido.
 - Dashboard, tabelas, contas e investimentos usam essa composição. `StatCard`, adaptado do Stat Grid, organiza rótulo, ícone e valor nos resumos.
-- Botões usam a forma arredondada de Action Button, mantendo a primária preta/branca. Formulários têm campos preenchidos e seletores de fundo neutro.
+- Botões usam Action Button e IconButton da TuffUI, adaptados ao comportamento do SDK e mantendo a primária preta/branca. Formulários têm campos preenchidos e seletores de fundo neutro.
 - `src/app/tuffui.css` contém a apresentação desses componentes depois dos estilos antigos; os seletores são limitados às superfícies e controles adotados. A grade e as regras financeiras permanecem as mesmas.
 - A correção visual também passou pelos 5 testes de componentes no build de produção, incluindo a verificação das superfícies e dos campos.
 - O teste visual verifica as superfícies computadas no navegador, a presença dos cabeçalhos e o preenchimento dos campos, para detectar a volta dos estilos antigos.
+
+## Gráficos e resumo de gastos
+
+- `ChartCard` incorpora o código MIT da TuffUI, com SVG e Motion. O Recharts foi removido após a troca de todos os consumidores. Não foi adicionada outra biblioteca de gráficos.
+- O medidor semicircular usa a proporção disponível/limite, limitada entre 0 e 100% somente no desenho; valores financeiros e limites excedidos continuam sendo exibidos. Os dias restantes e o disponível diário vêm de `spendingPace`. Contas a pagar ficam na parte inferior do mesmo cartão, mantendo a ação de abrir os lançamentos de saída.
+- O resultado tem curvas compactas de entradas e saídas confirmadas no período selecionado. Os últimos pontos correspondem aos totais de receita e gasto exibidos; transferências e pendências não entram nessas curvas.
+- Distribuição por categoria, patrimônio, projeção de faturas, recorrências, cotações e detalhes do mercado usam o mesmo renderer. As cores de categorias permanecem definidas pelo usuário; entradas/saídas usam cores financeiras e as outras séries usam tokens neutros.
+- Adaptações: modo embutido e sparkline, tamanhos responsivos, suporte a séries negativas/zeradas, `m` compatível com LazyMotion strict e movimento reduzido. Setas/Home/End consultam pontos; Escape limpa a consulta; Enter ativa categoria/fatura quando aplicável.
+- Privacidade mascara tooltips, títulos com totais, resumos, tabelas acessíveis e anúncios dos gráficos financeiros. Cotações públicas de mercado continuam visíveis. Os gráficos decorativos de cotação não acrescentam controles dentro dos botões.
 
 ## Contratos e manutenção
 
@@ -50,9 +60,9 @@ A primeira entrega preservava as classes antigas e trouxe pouca mudança visíve
 
 ## Validação
 
-- `npm test`: 62 testes, incluindo interação por APIs SDK e FormData de seletor, inteiro e cor.
-- `npm run test:e2e`: 24 cenários em Chrome; teclado, Escape, menus de contexto, privacidade, datas, imagens, persistência, temas e celular.
-- Build de produção: 8 cenários adicionais de teclado, paleta, períodos, datas, privacidade e celular passaram (`E2E_PRODUCTION=true`, `NEXT_BUILD_DIR=work/next-ui-release`).
+- `npm test`: 64 testes, incluindo interação por APIs SDK e FormData de seletor, inteiro e cor.
+- `npm run test:e2e`: 30 cenários em Chrome; teclado, Escape, menus de contexto, privacidade, datas, imagens, persistência, temas e celular.
+- A adoção dos gráficos também valida a suíte completa no build de produção (`E2E_PRODUCTION=true`, `NEXT_BUILD_DIR=work/next-charts-release`).
 - `npm run typecheck`, `npm run lint` e `npm run build` passaram. O lint mantém avisos existentes de hooks e símbolos não usados, sem erros.
 - Os testes de desenvolvimento usam `work/next-e2e` e SQLite separado, preservando o servidor de desenvolvimento aberto. `NEXT_BUILD_DIR` permite validar outro build; em produção, o padrão continua sendo `.next`.
 - Os testes de nomes/ações do SDK executam uma ponte somente dentro do teste; nenhuma ponte de agentes ou ferramenta remota é exposta pela aplicação.

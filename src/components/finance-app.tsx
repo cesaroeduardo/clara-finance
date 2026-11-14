@@ -8,13 +8,14 @@ import {
   Bank,
   CalendarDots,
   CaretDown,
+  ChatCircle,
   Eye,
   EyeSlash,
   MagnifyingGlass,
   Moon,
   Plant,
   Plus,
-  Question,
+  GithubLogo,
   SquaresFour,
   Sun,
   Tag,
@@ -22,6 +23,7 @@ import {
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ScrollFade } from "@/components/ui/scroll-fade";
 import { categoryFieldOptions } from "@/components/category-mark";
 import { FieldSelect } from "@/components/ui/field-select";
 import {
@@ -31,6 +33,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClaraMark } from "./clara-mark";
+import { ClaraType } from "./clara-type";
+import { ClaraAgentFloat } from "./clara-agent-float";
+import { ClaraAgentView } from "./clara-agent-view";
+import { ClaraAgentVoiceOverlay } from "./clara-agent-voice-overlay";
+import {
+  claraAgentHasStarted,
+  dockClaraAgentToFloat,
+  restoreClaraAgentInline,
+} from "@/lib/clara-chat-session";
 import dynamic from "next/dynamic";
 import type { FormState, Mutate } from "./finance-form";
 const FinanceForm = dynamic(() =>
@@ -44,6 +55,7 @@ import { PrivacyContext } from "./finance-privacy";
 import {
   AnimatedLabel,
   IconSwap,
+  MotionSegmentedControl,
   NavigationIndicator,
   NavAccordion,
   PageEnter,
@@ -72,7 +84,9 @@ import {
   periodLabel,
   shiftAppPeriod,
 } from "@/lib/analytics";
+import { mountClaraAgentTools } from "@/lib/clara-agent-bridge";
 import type { FinanceData } from "@/lib/types";
+import { cn } from "@/lib/utils";
 export type View =
   | "dashboard"
   | "transactions"
@@ -80,7 +94,8 @@ export type View =
   | "investments"
   | "goals"
   | "categories"
-  | "accounts";
+  | "accounts"
+  | "clara";
 const navigationSections = [
   {
     id: "principal",
@@ -91,6 +106,7 @@ const navigationSections = [
       { id: "recurring", label: "Recorrentes", icon: CalendarDots },
       { id: "investments", label: "Investimentos", icon: Plant },
       { id: "goals", label: "Metas", icon: Target },
+      { id: "clara", label: "Agente", icon: ChatCircle },
     ],
   },
   {
@@ -159,6 +175,7 @@ export function FinanceApp() {
         navigationSections.map((section) => [section.id, true]),
       ),
   );
+  useEffect(() => mountClaraAgentTools(), []);
   useEffect(() => {
     const media = window.matchMedia("(max-width: 700px)");
     const navigation = document.getElementById("main-navigation");
@@ -316,6 +333,12 @@ export function FinanceApp() {
     );
   };
   const navigate = (next: View) => {
+    if (view === "clara" && next !== "clara" && claraAgentHasStarted()) {
+      dockClaraAgentToFloat();
+    }
+    if (next === "clara") {
+      restoreClaraAgentInline();
+    }
     openSectionForView(next);
     setView(next);
     setSidebar(false);
@@ -460,9 +483,7 @@ export function FinanceApp() {
                   aria-label="Clara, página inicial"
                 >
                   <ClaraMark className="brand-mark" />
-                  <span>
-                    clara<span className="brand-dot">.</span>
-                  </span>
+                  <ClaraType className="brand-type" />
                 </button>
                 <button
                   className="icon-button privacy-toggle"
@@ -478,7 +499,11 @@ export function FinanceApp() {
               </div>
               <CommandTrigger onOpen={() => setCommandOpen(true)} />
             </div>
-            <div className="sidebar-nav">
+            <ScrollFade
+              className="sidebar-nav-scroll"
+              contentClassName="sidebar-nav"
+              color="var(--background)"
+            >
               {navigationSections.map((section) => {
                 const open = openSections[section.id] ?? true;
                 return (
@@ -495,15 +520,20 @@ export function FinanceApp() {
                     }
                   >
                     {section.items.map(({ id, label, icon: Icon }) => (
-                      <button
+                      <Button
                         key={id}
                         type="button"
+                        variant="quiet"
                         onClick={() => navigate(id)}
-                        className={`nav-item ${view === id ? "active" : ""}`}
+                        className={cn(
+                          "nav-item h-9 w-full justify-start rounded-[12px] px-3 text-xs font-normal shadow-none",
+                          view === id && "active",
+                        )}
+                        aria-label={`Abrir ${label}`}
                         aria-current={view === id ? "page" : undefined}
                       >
                         {view === id && <NavigationIndicator />}
-                        <Icon size={16} />
+                        <Icon size={16} aria-hidden="true" />
                         <span>{label}</span>
                         {id === "goals" && !!data?.goals.length && (
                           <small>{data.goals.length}</small>
@@ -511,7 +541,7 @@ export function FinanceApp() {
                         {id === "categories" && !!data?.categories.length && (
                           <small>{data.categories.length}</small>
                         )}
-                      </button>
+                      </Button>
                     ))}
                   </NavAccordion>
                 );
@@ -526,22 +556,26 @@ export function FinanceApp() {
                   <span>Dados fictícios</span>
                 </button>
               )}
-            </div>
+            </ScrollFade>
             <div className="sidebar-bottom">
-              <button
-                type="button"
-                className="theme-toggle"
-                onClick={() => setDark((v) => !v)}
-                aria-label={dark ? "Usar tema claro" : "Usar tema escuro"}
-              >
-                <span
-                  className="theme-track"
-                  data-theme={dark ? "dark" : "light"}
-                >
-                  <Sun size={13} />
-                  <Moon size={12} />
-                </span>
-              </button>
+              <MotionSegmentedControl
+                className="theme-switch"
+                label="Tema"
+                value={dark ? "dark" : "light"}
+                onChange={(next) => saveTheme(next === "dark" ? "dark" : "light")}
+                options={[
+                  [
+                    "light",
+                    <Sun key="light" size={14} aria-hidden="true" />,
+                    "Claro",
+                  ],
+                  [
+                    "dark",
+                    <Moon key="dark" size={14} aria-hidden="true" />,
+                    "Escuro",
+                  ],
+                ]}
+              />
               <a
                 className="icon-button sidebar-help"
                 href="https://github.com/cesaroeduardo/clara-finance"
@@ -549,12 +583,22 @@ export function FinanceApp() {
                 rel="noreferrer"
                 aria-label="Abrir projeto no GitHub"
               >
-                <Question size={16} />
+                <GithubLogo size={16} />
               </a>
             </div>
           </aside>
-          <div className="app-main">
-            <main className="main-content">
+          <ScrollFade
+            className="app-main"
+            contentClassName="app-main-viewport"
+            color="var(--background)"
+          >
+            <main
+              className={cn(
+                "main-content",
+                view === "clara" && "main-content-agent",
+              )}
+            >
+              {view !== "clara" ? (
               <div
                 className={`page-heading${view === "accounts" || view === "categories" ? " page-heading-organization" : ""}`}
               >
@@ -694,6 +738,7 @@ export function FinanceApp() {
                     </div>
                   )}
               </div>
+              ) : null}
               {error ? (
                 <div className="error-state" role="alert">
                   <h2>Erro ao carregar</h2>
@@ -714,7 +759,13 @@ export function FinanceApp() {
                   </SkeletonGroup>
                 </div>
               ) : (
-                <div className="view-content" key={`${view}-${mode}`}>
+                <div
+                  className={cn(
+                    "view-content",
+                    view === "clara" && "view-content-agent",
+                  )}
+                  key={`${view}-${mode}`}
+                >
                   <PageEnter>
                     {view === "dashboard" ? (
                       <DashboardView {...props} />
@@ -732,6 +783,12 @@ export function FinanceApp() {
                         categoryView={categoryView}
                         onCategoryViewChange={setCategoryView}
                       />
+                    ) : view === "clara" ? (
+                      <ClaraAgentView
+                        data={props.data}
+                        currentView={view}
+                        onNavigate={navigate}
+                      />
                     ) : (
                       <AccountsView
                         {...props}
@@ -746,7 +803,7 @@ export function FinanceApp() {
                 </div>
               )}
             </main>
-          </div>
+          </ScrollFade>
           <nav
             className="mobile-navigation"
             aria-label="Navegação rápida"
@@ -810,6 +867,16 @@ export function FinanceApp() {
               goToCurrentMonth={goToCurrentMonth}
             />
           )}
+          {data ? (
+            <>
+              <ClaraAgentFloat
+                data={data}
+                currentView={view}
+                onNavigate={navigate}
+              />
+              <ClaraAgentVoiceOverlay />
+            </>
+          ) : null}
         </div>
       </MerchantAssetsContext>
     </PrivacyContext>

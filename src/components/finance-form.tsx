@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ScrollFade } from "@/components/ui/scroll-fade";
 import { formatAccountLabel } from "@/lib/accounts";
 import { localDate, monthLabel, parseMoney } from "@/lib/format";
 import { AnimatedLabel, MotionSegmentedControl } from "./finance-motion";
@@ -227,7 +228,11 @@ export function FinanceForm({
     >
       <DialogContent className="finance-dialog dialog-fixed-actions sm:max-w-[480px] p-7">
         <form onSubmit={submit} className="finance-form">
-          <div className="dialog-scroll-body">
+          <ScrollFade
+            className="dialog-scroll-fade"
+            contentClassName="dialog-scroll-body"
+            color="var(--popover)"
+          >
             <DialogHeader>
               <DialogTitle className="text-[24px] font-semibold tracking-tight">
                 {titles[form.resource]}
@@ -790,7 +795,7 @@ export function FinanceForm({
                 {error}
               </p>
             )}
-          </div>
+          </ScrollFade>
           {confirmDelete ? (
             <div className="delete-confirm">
               <p>Excluir este registro? Esta ação não pode ser desfeita.</p>

@@ -1,3 +1,4 @@
+// Appearance adapted from TUFFUI Tooltip · MIT License · Copyright (c) 2026 TUFFUI contributors
 "use client";
 import * as React from "react";
 import * as Primitive from "@ui-sdk/react/tooltip";
@@ -28,7 +29,7 @@ export function TooltipContent({
       side={side}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 inline-flex w-fit max-w-xs items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs text-background outline-none",
+        "tuff-tooltip pointer-events-none z-50 w-max max-w-[min(20rem,calc(100vw-24px))] origin-(--transform-origin) rounded-xl bg-surface-raised px-2.5 py-1.5 text-xs text-foreground outline-none",
         className,
       )}
       {...props}

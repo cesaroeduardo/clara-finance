@@ -61,6 +61,18 @@
       "component": "stat-grid",
       "license": "MIT",
       "sha256": "385334114fee82bb003d0ad6ad45ec8e0448bf2a9cadf627ed216612d3eebfb7"
+    },
+    {
+      "registry": "https://tuffui.com/r/tooltip-hint.json",
+      "component": "tooltip-hint",
+      "license": "MIT",
+      "sha256": "2929e48d2420baf1a4872b25ae937dcb8d1262cb2a2468eab57c708d9343344a"
+    },
+    {
+      "registry": "https://tuffui.com/r/chart-card.json",
+      "component": "chart-card",
+      "license": "MIT",
+      "sha256": "416fb75218728154a691d39ab98d3515e15d704c1674c44631843083502ab406"
     }
   ]
 }

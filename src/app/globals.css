@@ -6,7 +6,6 @@
 @import "./finance.css";
 @import "./motion.css";
 @import "./dashboard.css";
-
 @import "./tuffui.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -65,7 +64,7 @@
 
 :root {
   color-scheme: light;
-  --background: #f2f2f2;
+  --background: #ececec;
   --foreground: #171717;
   --panel: #ffffff;
   --card: #ffffff;
@@ -74,19 +73,19 @@
   --popover-foreground: #171717;
   --primary: #000000;
   --primary-foreground: #ffffff;
-  --secondary: #f0f0f0;
+  --secondary: #e8e8e8;
   --secondary-foreground: #525252;
-  --muted: #f5f5f5;
+  --muted: #ebebeb;
   --muted-foreground: #666666;
-  --accent: #f0f0f0;
+  --accent: #e8e8e8;
   --accent-foreground: #171717;
   --destructive: #c62a32;
   --destructive-soft: #fff0f0;
-  --border: #ebebeb;
-  --input: #e0e0e0;
+  --border: #d9d9d9;
+  --input: #cfcfcf;
   --ring: #737373;
-  --track: #ececec;
-  --chart-grid: #ececec;
+  --track: #e0e0e0;
+  --chart-grid: #e0e0e0;
   --chart-1: #171717;
   --chart-2: #a3a3a3;
   --chart-3: #737373;

@@ -68,7 +68,7 @@ export function listPlanMonths(
   return plans;
 }
 
-const SCHEMA_VERSION = 26;
+const SCHEMA_VERSION = 27;
 const globalDb = globalThis as unknown as {
   financeDb?: Database.Database;
   financeDbSchemaVersion?: number;
@@ -476,7 +476,7 @@ export function db() {
         const status = offset < 0 ? "paid" : "pending";
         insert.run(
           `demo-sicredi-notebook-${month}`,
-          `Notebook ${installment}/8`,
+          `Amazon Notebook ${installment}/8`,
           42000,
           `${month}-04`,
           status,
@@ -486,7 +486,7 @@ export function db() {
         );
         insert.run(
           `demo-sicredi-market-${month}`,
-          "Supermercado",
+          "Carrefour",
           28650 + offset * 1200,
           `${month}-07`,
           status,
@@ -496,7 +496,7 @@ export function db() {
         );
         insert.run(
           `demo-sicredi-fuel-${month}`,
-          "Combustível",
+          "Shell",
           18000 + offset * 300,
           `${month}-11`,
           status,
@@ -506,7 +506,7 @@ export function db() {
         );
         insert.run(
           `demo-sicredi-restaurant-${month}`,
-          "Restaurante",
+          "iFood",
           10000 + offset * 450,
           `${month}-12`,
           status,
@@ -587,7 +587,7 @@ export function db() {
         const status = offset < 0 ? "paid" : "pending";
         insert.run(
           `demo-nubank-phone-${month}`,
-          `Celular ${offset + 5}/10`,
+          `Apple iPhone ${offset + 5}/10`,
           40000,
           `${month}-03`,
           status,
@@ -597,7 +597,7 @@ export function db() {
         );
         insert.run(
           `demo-nubank-sofa-${month}`,
-          `Sofá ${offset + 3}/10`,
+          `Magazine Luiza Sofá ${offset + 3}/10`,
           65000,
           `${month}-06`,
           status,
@@ -607,7 +607,7 @@ export function db() {
         );
         insert.run(
           `demo-nubank-market-${month}`,
-          "Supermercado",
+          "Carrefour",
           48762 + offset * 950,
           `${month}-08`,
           status,
@@ -617,7 +617,7 @@ export function db() {
         );
         insert.run(
           `demo-nubank-streaming-${month}`,
-          "Assinatura de streaming",
+          "Netflix",
           5590,
           `${month}-10`,
           status,
@@ -627,7 +627,7 @@ export function db() {
         );
         insert.run(
           `demo-nubank-travel-${month}`,
-          "Passagem aérea",
+          "LATAM",
           55438 + offset * 1750,
           `${month}-12`,
           status,
@@ -651,6 +651,143 @@ export function db() {
         .run();
       database
         .prepare("INSERT INTO schema_migrations(version) VALUES(26)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=27").get()
+  )
+    database.transaction(() => {
+      const update = database.prepare(
+        "UPDATE transactions SET description=? WHERE mode='demo' AND id=?",
+      );
+      for (const [id, description] of [
+        ["market", "Carrefour"],
+        ["prev-market", "Carrefour"],
+        ["coffee", "Starbucks"],
+        ["electric", "RGE Sul"],
+        ["prev-electric", "RGE Sul"],
+        ["internet", "Unifique"],
+        ["prev-internet", "Unifique"],
+        ["gym", "Spotify"],
+        ["prev-gym", "Spotify"],
+        ["dinner", "Outback"],
+        ["pharmacy", "Droga Raia"],
+        ["sofa", "Magazine Luiza Sofá 1/10"],
+        ["iphone", "Apple iPhone 11/12"],
+        ["prev-iphone", "Apple iPhone 10/12"],
+      ] as const) {
+        update.run(description, `demo-${id}`);
+      }
+      database
+        .prepare(
+          `UPDATE transactions SET category='Assinaturas', amount=2190
+           WHERE mode='demo' AND id IN ('demo-gym','demo-prev-gym')`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET description=replace(description, 'Celular ', 'Apple iPhone ')
+           WHERE mode='demo' AND id LIKE 'demo-nubank-phone-%'`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET description='Magazine Luiza ' || description
+           WHERE mode='demo' AND id LIKE 'demo-nubank-sofa-%'
+             AND description LIKE 'Sofá %'`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET description='Netflix'
+           WHERE mode='demo' AND id LIKE 'demo-nubank-streaming-%'`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET description='LATAM'
+           WHERE mode='demo' AND id LIKE 'demo-nubank-travel-%'`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET description='Carrefour'
+           WHERE mode='demo' AND id LIKE 'demo-nubank-market-%'`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET description=replace(description, 'Notebook ', 'Amazon Notebook ')
+           WHERE mode='demo' AND id LIKE 'demo-sicredi-notebook-%'
+             AND description LIKE 'Notebook %'`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET description='Carrefour'
+           WHERE mode='demo' AND id LIKE 'demo-sicredi-market-%'`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET description='Shell'
+           WHERE mode='demo' AND id LIKE 'demo-sicredi-fuel-%'`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET description='iFood'
+           WHERE mode='demo' AND id LIKE 'demo-sicredi-restaurant-%'`,
+        )
+        .run();
+      const insert = database.prepare(`
+        INSERT OR IGNORE INTO transactions(id,mode,description,amount,kind,date,status,category,account_id,source,currency,installment_number,installment_total)
+        VALUES(?,'demo',?,?,'expense',?,?,?,'demo-nubank','manual','BRL',NULL,NULL)
+      `);
+      const currentMonth = monthKey();
+      const previousMonth = shiftMonth(currentMonth, -1);
+      for (const [id, description, amount, day, category, month] of [
+        ["ifood", "iFood", 6740, "13", "Restaurantes", currentMonth],
+        [
+          "mercadolivre",
+          "Mercado Livre",
+          15990,
+          "14",
+          "Compras",
+          currentMonth,
+        ],
+        ["cursor", "Cursor", 10000, "16", "Assinaturas", currentMonth],
+        ["ride99", "99 App", 1850, "17", "Transporte", currentMonth],
+        [
+          "youtube",
+          "YouTube Premium",
+          3490,
+          "19",
+          "Assinaturas",
+          currentMonth,
+        ],
+        ["amazon", "Amazon", 8990, "21", "Compras", currentMonth],
+        ["prev-ifood", "iFood", 6120, "13", "Restaurantes", previousMonth],
+        [
+          "prev-cursor",
+          "Cursor",
+          10000,
+          "16",
+          "Assinaturas",
+          previousMonth,
+        ],
+      ] as const) {
+        insert.run(
+          `demo-${id}`,
+          description,
+          amount,
+          `${month}-${day}`,
+          "paid",
+          category,
+        );
+      }
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(27)")
         .run();
     })();
   globalDb.financeDb = database;
@@ -840,7 +977,7 @@ function seedDemo(database: Database.Database) {
       ],
       [
         "market",
-        "Mercado Natural",
+        "Carrefour",
         48762,
         "expense",
         "09",
@@ -853,7 +990,7 @@ function seedDemo(database: Database.Database) {
       ],
       [
         "coffee",
-        "Café do Centro",
+        "Starbucks",
         2890,
         "expense",
         "10",
@@ -892,7 +1029,7 @@ function seedDemo(database: Database.Database) {
       ],
       [
         "electric",
-        "Energia elétrica",
+        "RGE Sul",
         42000,
         "expense",
         "12",
@@ -905,7 +1042,7 @@ function seedDemo(database: Database.Database) {
       ],
       [
         "internet",
-        "Internet fibra",
+        "Unifique",
         18000,
         "expense",
         "15",
@@ -918,13 +1055,13 @@ function seedDemo(database: Database.Database) {
       ],
       [
         "gym",
-        "Academia",
-        14990,
+        "Spotify",
+        2190,
         "expense",
         "18",
         "pending",
 
-        "Saúde",
+        "Assinaturas",
         "demo-nubank",
         null,
         null,
@@ -944,7 +1081,7 @@ function seedDemo(database: Database.Database) {
       ],
       [
         "iphone",
-        "iPhone 14 11/12",
+        "Apple iPhone 11/12",
         40000,
         "expense",
         "06",
@@ -957,7 +1094,7 @@ function seedDemo(database: Database.Database) {
       ],
       [
         "sofa",
-        "TokStok Sofá 1/10",
+        "Magazine Luiza Sofá 1/10",
         65000,
         "expense",
         "10",
@@ -970,7 +1107,7 @@ function seedDemo(database: Database.Database) {
       ],
       [
         "dinner",
-        "Jantar com amigos",
+        "Outback",
         18650,
         "expense",
         "07",
@@ -983,13 +1120,91 @@ function seedDemo(database: Database.Database) {
       ],
       [
         "pharmacy",
-        "Farmácia",
+        "Droga Raia",
         9780,
         "expense",
         "06",
         "paid",
 
         "Saúde",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "ifood",
+        "iFood",
+        6740,
+        "expense",
+        "13",
+        "paid",
+
+        "Restaurantes",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "mercadolivre",
+        "Mercado Livre",
+        15990,
+        "expense",
+        "14",
+        "paid",
+
+        "Compras",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "cursor",
+        "Cursor",
+        10000,
+        "expense",
+        "16",
+        "paid",
+
+        "Assinaturas",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "ride99",
+        "99 App",
+        1850,
+        "expense",
+        "17",
+        "paid",
+
+        "Transporte",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "youtube",
+        "YouTube Premium",
+        3490,
+        "expense",
+        "19",
+        "paid",
+
+        "Assinaturas",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "amazon",
+        "Amazon",
+        8990,
+        "expense",
+        "21",
+        "paid",
+
+        "Compras",
         "demo-nubank",
         null,
         null,
@@ -1065,7 +1280,7 @@ function seedDemo(database: Database.Database) {
         installmentNumber != null ? Number(installmentNumber) - 1 : null;
       const prevDesc =
         id === "iphone" && prevInstallment
-          ? `iPhone 14 ${prevInstallment}/12`
+          ? `Apple iPhone ${prevInstallment}/12`
           : desc;
       add.run(
         `demo-prev-${id}`,

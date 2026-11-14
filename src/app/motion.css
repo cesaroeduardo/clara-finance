@@ -6,6 +6,8 @@
   --motion-close: 150ms;
   --motion-icon: 250ms;
   --motion-link: 350ms;
+  --press-scale: 0.99;
+  --press-duration: 150ms;
   --stagger-dur: 500ms;
   --stagger-distance: 12px;
   --stagger-stagger: 40ms;
@@ -241,7 +243,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--accent);
+  background: var(--muted);
   z-index: -1;
   pointer-events: none;
 }
@@ -318,14 +320,41 @@
   }
 }
 [data-slot="button"],
-.icon-button {
-  transition-property: color, background-color, border-color, box-shadow, scale;
-  transition-duration: 150ms;
+.icon-button,
+.nav-item,
+.home-spending-row,
+.home-cards-entry,
+.home-bills-summary:not(.budget-bills-clear),
+.market-ticker,
+.recurring-row,
+.sync-button,
+.sidebar-search,
+.sidebar-demo-status,
+.period-month,
+.period-preset,
+.period-picker-action,
+.motion-segments > button {
+  transition-property: color, background-color, border-color, box-shadow, opacity,
+    scale;
+  transition-duration: var(--press-duration);
   transition-timing-function: var(--motion-ease-out);
 }
 [data-slot="button"]:active:not(:disabled),
-.icon-button:active:not(:disabled) {
-  scale: 0.97;
+.icon-button:active:not(:disabled),
+.nav-item:active,
+.home-spending-row:active,
+.home-cards-entry:active,
+.home-bills-summary:not(.budget-bills-clear):active,
+.market-ticker:active,
+.recurring-row:active,
+.sync-button:active,
+.sidebar-search:active,
+.sidebar-demo-status:active,
+.period-month:active,
+.period-preset:active,
+.period-picker-action:active,
+.motion-segments > button:active {
+  scale: var(--press-scale);
 }
 @media (prefers-reduced-motion: reduce) {
   .t-modal,
@@ -342,11 +371,35 @@
   .motion-segments > button,
   .nav-item,
   [data-slot="button"],
-  .icon-button {
+  .icon-button,
+  .home-spending-row,
+  .home-cards-entry,
+  .home-bills-summary,
+  .market-ticker,
+  .recurring-row,
+  .sync-button,
+  .sidebar-search,
+  .sidebar-demo-status,
+  .period-month,
+  .period-preset,
+  .period-picker-action {
     transition: none !important;
   }
   [data-slot="button"]:active:not(:disabled),
-  .icon-button:active:not(:disabled) {
+  .icon-button:active:not(:disabled),
+  .nav-item:active,
+  .home-spending-row:active,
+  .home-cards-entry:active,
+  .home-bills-summary:active,
+  .market-ticker:active,
+  .recurring-row:active,
+  .sync-button:active,
+  .sidebar-search:active,
+  .sidebar-demo-status:active,
+  .period-month:active,
+  .period-preset:active,
+  .period-picker-action:active,
+  .motion-segments > button:active {
     scale: 1;
   }
   .t-reel-digit {
