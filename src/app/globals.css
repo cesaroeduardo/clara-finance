@@ -1,3 +1,5 @@
+@layer ui-sdk;
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -8,6 +10,14 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-brand: var(--primary);
+  --color-brand-foreground: var(--primary-foreground);
+  --color-surface: var(--background);
+  --color-surface-inset: var(--card);
+  --color-surface-raised: var(--muted);
+  --color-positive: var(--success);
+  --color-negative: var(--destructive);
+  --color-warning: var(--warning);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans), Arial, sans-serif;
@@ -174,5 +184,119 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+.sdk-color-area {
+  position: relative;
+  width: 100%;
+  height: 154px;
+  border-radius: 6px;
+  background: var(--color-area-background);
+  touch-action: none;
+}
+.sdk-color-thumb,
+.sdk-hue-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #0006;
+  translate: -50% -50%;
+  background: var(--color-picker-color);
+}
+.sdk-color-hue {
+  position: relative;
+  height: 12px;
+  margin: 14px 0;
+  border-radius: 999px;
+  background: var(--color-slider-background);
+  touch-action: none;
+}
+.sdk-hue-thumb {
+  top: 50%;
+}
+.sdk-color-thumb:focus-visible,
+.sdk-hue-thumb:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.command-bar-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.command-bar-item[data-highlighted] {
+  background: var(--accent);
+}
+.sdk-calendar-grid {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 2px;
+}
+.sdk-calendar-grid th {
+  color: var(--muted-foreground);
+  text-align: center;
+  font-size: 10px;
+  padding-bottom: 6px;
+}
+.sdk-calendar-grid .period-month {
+  width: 100%;
+  min-height: 30px;
+  height: 30px;
+  padding: 0;
+}
+.sdk-calendar-grid .period-month[data-selected] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.sdk-calendar-grid .period-month[data-outside] {
+  visibility: hidden;
+}
+.sdk-calendar-grid .period-month:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.goal-deadline-panel {
+  max-width: calc(100vw - 24px);
+  max-height: var(--available-height);
+  overflow: auto;
+}
+.clara-select-item[data-highlighted] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.clara-select-item[data-variant="destructive"][data-highlighted] {
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+  color: var(--destructive);
+}
+
+@media (max-width: 600px) {
+  .goal-deadline-panel {
+    flex-direction: column;
+    gap: 10px;
+    width: min(320px, calc(100vw - 24px));
+  }
+  .goal-deadline-panel .period-picker-presets {
+    flex-direction: row;
+    flex-wrap: wrap;
+    min-width: 0;
+    padding-right: 0;
+    gap: 6px;
+  }
+  .goal-deadline-panel .period-picker-presets button {
+    flex: 1;
+    padding: 6px 8px;
+    text-align: center;
+    font-size: 10px;
+  }
+  .goal-deadline-panel .period-picker-divider {
+    display: none;
+  }
+  .goal-deadline-panel .period-picker-calendar {
+    min-width: 0;
+    padding-left: 0;
+    width: 100%;
   }
 }

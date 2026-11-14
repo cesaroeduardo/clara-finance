@@ -8,7 +8,6 @@ import {
   Bank,
   CalendarDots,
   CaretDown,
-  CircleNotch,
   Eye,
   EyeSlash,
   MagnifyingGlass,
@@ -32,9 +31,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClaraMark } from "./clara-mark";
-import { FinanceForm, type FormState, type Mutate } from "./finance-form";
+import dynamic from "next/dynamic";
+import type { FormState, Mutate } from "./finance-form";
+const FinanceForm = dynamic(() =>
+  import("./finance-form").then((module) => module.FinanceForm),
+);
 import type { CategoryViewState } from "./category-rules-editor";
 import { MerchantAssetsContext } from "./merchant-logo";
+import { Spinner } from "@/components/ui/loader";
+import { Skeleton, SkeletonGroup } from "@/components/ui/loading-skeleton";
 import { PrivacyContext } from "./finance-privacy";
 import {
   AnimatedLabel,
@@ -55,7 +60,10 @@ import {
   CategoriesHeader,
 } from "./finance-views";
 import { RecurringView } from "./finance-recurring";
-import { CommandTrigger, FinanceCommandBar } from "./finance-command";
+import { CommandTrigger } from "./finance-command-trigger";
+const FinanceCommandBar = dynamic(() =>
+  import("./finance-command").then((module) => module.FinanceCommandBar),
+);
 import {
   type AppPeriod,
   currentAppPeriod,
@@ -143,6 +151,8 @@ export function FinanceApp() {
     [hidden, setHidden] = useState(false),
     [syncing, setSyncing] = useState(false),
     [commandOpen, setCommandOpen] = useState(false);
+  const [commandMounted, setCommandMounted] = useState(false);
+  if (commandOpen && !commandMounted) setCommandMounted(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     () =>
       Object.fromEntries(
@@ -627,7 +637,7 @@ export function FinanceApp() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-52">
                           <DropdownMenuItem
-                            onClick={() =>
+                            onSelect={() =>
                               setForm({
                                 resource: "transactions",
                                 kind: "income",
@@ -638,7 +648,7 @@ export function FinanceApp() {
                             Nova entrada
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() =>
+                            onSelect={() =>
                               setForm({
                                 resource: "transactions",
                                 kind: "expense",
@@ -649,25 +659,27 @@ export function FinanceApp() {
                             Nova saída
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => setForm({ resource: "investments" })}
+                            onSelect={() =>
+                              setForm({ resource: "investments" })
+                            }
                           >
                             <Plant />
                             Investimento
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => setForm({ resource: "goals" })}
+                            onSelect={() => setForm({ resource: "goals" })}
                           >
                             <Target />
                             Meta
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => setForm({ resource: "categories" })}
+                            onSelect={() => setForm({ resource: "categories" })}
                           >
                             <Tag />
                             Categoria
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() =>
+                            onSelect={() =>
                               setForm({
                                 resource: "recurrings",
                                 kind: "expense",
@@ -692,8 +704,14 @@ export function FinanceApp() {
                 </div>
               ) : !props ? (
                 <div className="loading-state">
-                  <CircleNotch className="animate-spin" size={24} />
-                  <p>Carregando…</p>
+                  <Spinner size="lg" label="Carregando" showLabel />
+                  <SkeletonGroup
+                    className="grid w-full max-w-md gap-3"
+                    label="Carregando resumo"
+                  >
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-8 w-3/4" />
+                  </SkeletonGroup>
                 </div>
               ) : (
                 <div className="view-content" key={`${view}-${mode}`}>
@@ -775,21 +793,23 @@ export function FinanceApp() {
               }}
             />
           )}
-          <FinanceCommandBar
-            data={data?.mode === mode ? data : null}
-            open={commandOpen}
-            onOpenChange={setCommandOpen}
-            dark={dark}
-            hidden={hidden}
-            syncing={syncing}
-            navigate={navigate}
-            openForm={setForm}
-            sync={sync}
-            setDark={setDark}
-            setHidden={setHidden}
-            changeMonth={changeMonth}
-            goToCurrentMonth={goToCurrentMonth}
-          />
+          {commandMounted && (
+            <FinanceCommandBar
+              data={data?.mode === mode ? data : null}
+              open={commandOpen}
+              onOpenChange={setCommandOpen}
+              dark={dark}
+              hidden={hidden}
+              syncing={syncing}
+              navigate={navigate}
+              openForm={setForm}
+              sync={sync}
+              setDark={setDark}
+              setHidden={setHidden}
+              changeMonth={changeMonth}
+              goToCurrentMonth={goToCurrentMonth}
+            />
+          )}
         </div>
       </MerchantAssetsContext>
     </PrivacyContext>

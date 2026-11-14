@@ -17,6 +17,11 @@ export default defineConfig({
     url: "http://127.0.0.1:3014",
     reuseExistingServer: false,
     timeout: 60000,
-    env: { DATABASE_PATH: `./work/e2e-${Date.now()}.sqlite` },
+    env: {
+      DATABASE_PATH: `./work/e2e-${Date.now()}.sqlite`,
+      NEXT_BUILD_DIR:
+        process.env.NEXT_BUILD_DIR ||
+        (process.env.E2E_PRODUCTION ? ".next" : "work/next-e2e"),
+    },
   },
 });

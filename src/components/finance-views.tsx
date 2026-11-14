@@ -1,4 +1,9 @@
 "use client";
+import { Switch, SwitchThumb } from "@/components/ui/switch";
+import { StatusPill } from "@/components/ui/status-pill";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Panel } from "@/components/ui/surface";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { GoalContextMenu } from "./goal-context-menu";
 import { GoalDescription } from "./goal-description";
 import { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -62,7 +67,7 @@ import { InstitutionLogo } from "./institution-logo";
 import { TransactionAvatar } from "./transaction-avatar";
 import { MerchantLogo, useMerchantLogoUrl } from "./merchant-logo";
 import { MarketTickers } from "./market-tickers";
-import { PrivacyContext } from "./finance-privacy";
+import { PrivacyContext, PrivateValue } from "./finance-privacy";
 import {
   AnimatedLabel,
   LinkChevron,
@@ -205,6 +210,9 @@ export function Amount({
   prefix?: string;
   motion?: "none" | "reel";
 }) {
+  const hidden = useContext(PrivacyContext);
+  if (hidden)
+    return <span className={`amount ${className}`.trim()}>••••••</span>;
   if (motion === "reel") {
     return (
       <SpinningAmount
@@ -298,10 +306,20 @@ function StatusTag({
         ? "status-pill muted"
         : "status-pill";
   return (
-    <span className={className}>
+    <StatusPill
+      size="sm"
+      tone={
+        tone === "success"
+          ? "positive"
+          : tone === "warning"
+            ? "warning"
+            : "neutral"
+      }
+      className={className}
+    >
       <StatusGlyph tone={tone} />
       {children}
-    </span>
+    </StatusPill>
   );
 }
 
@@ -314,7 +332,11 @@ function GrowthTag({
 }) {
   const down = value < 0;
   return (
-    <span className={`home-growth-badge${down ? " negative" : ""}`}>
+    <StatusPill
+      size="sm"
+      tone={down ? "negative" : "positive"}
+      className={`home-growth-badge${down ? " negative" : ""}`}
+    >
       <i className="home-growth-glyph" aria-hidden="true">
         {down ? (
           <ArrowDown size={10} weight="bold" />
@@ -323,7 +345,7 @@ function GrowthTag({
         )}
       </i>
       {children}
-    </span>
+    </StatusPill>
   );
 }
 
@@ -337,14 +359,14 @@ function Empty({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="empty-state">
-      <div className="empty-icon">
-        <Plant size={25} />
-      </div>
-      <h3>{title}</h3>
-      {description && <p>{description}</p>}
+    <EmptyState
+      icon={Plant}
+      title={title}
+      description={description}
+      className="empty-state"
+    >
       {action}
-    </div>
+    </EmptyState>
   );
 }
 export function DashboardView(props: Props) {
@@ -399,6 +421,12 @@ export function DashboardView(props: Props) {
     });
   const currentMonth = localDate().slice(0, 7);
   const isPastMonth = month < currentMonth;
+  const insightKey = `${month}:${isPastMonth}`;
+  const [insightPeriod, setInsightPeriod] = useState(insightKey);
+  if (insightPeriod !== insightKey) {
+    setInsightPeriod(insightKey);
+    setInsightIndex(0);
+  }
   const monthResult = stats.balance;
   const monthPositive = monthResult >= 0;
   const canStillSpend = pace.remaining >= 0;
@@ -538,9 +566,6 @@ export function DashboardView(props: Props) {
     setInsightIndex((index) => (index + 1) % insights.length);
   };
   useEffect(() => {
-    setInsightIndex(0);
-  }, [month, isPastMonth]);
-  useEffect(() => {
     const blocked = isPastMonth ? false : pace.empty;
     if (blocked || insights.length < 2) return;
     const timer = window.setInterval(() => {
@@ -570,7 +595,8 @@ export function DashboardView(props: Props) {
   return (
     <div className="home-grid">
       <div className="home-top-stack">
-        <section
+        <Panel
+          render={<section />}
           className={`finance-card home-forecast${forecastGlowTone ? ` is-${forecastGlowTone}` : ""}`}
         >
           {forecastGlowTone && (
@@ -950,7 +976,7 @@ export function DashboardView(props: Props) {
               </button>
             </div>
           </div>
-        </section>
+        </Panel>
         <button
           className="finance-card home-bills-summary"
           aria-label="Ver contas a pagar"
@@ -984,7 +1010,7 @@ export function DashboardView(props: Props) {
       />
 
       <div className="home-left-stack">
-        <section className="finance-card home-result">
+        <Panel render={<section />} className="finance-card home-result">
           <div className="home-card-heading">
             <h2>{isPastMonth ? "Resultado do mês" : "Resultado até agora"}</h2>
             <DashboardLink
@@ -998,9 +1024,9 @@ export function DashboardView(props: Props) {
             </strong>
             {resultDeltaPercent != null && (
               <GrowthTag value={resultDelta}>
-                <span className="amount">
+                <PrivateValue as="span" className="amount">
                   {`${Math.abs(resultDeltaPercent).toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`}
-                </span>
+                </PrivateValue>
               </GrowthTag>
             )}
           </div>
@@ -1027,7 +1053,7 @@ export function DashboardView(props: Props) {
               </strong>
             </div>
           </div>
-        </section>
+        </Panel>
 
         <MarketTickers data={data} />
       </div>
@@ -1039,7 +1065,7 @@ export function DashboardView(props: Props) {
           navigate={navigate}
           openForm={openForm}
         />
-        <section className="finance-card home-wealth">
+        <Panel render={<section />} className="finance-card home-wealth">
           <div className="home-card-heading">
             <h2>Patrimônio</h2>
             <DashboardLink
@@ -1063,9 +1089,9 @@ export function DashboardView(props: Props) {
                 </strong>
                 {wealth.change !== 0 && (
                   <GrowthTag value={wealth.change}>
-                    <span className="amount">
+                    <PrivateValue as="span" className="amount">
                       {compactMoney(Math.abs(wealth.change))}
-                    </span>
+                    </PrivateValue>
                   </GrowthTag>
                 )}
               </div>
@@ -1154,7 +1180,7 @@ export function DashboardView(props: Props) {
               </div>
             </>
           )}
-        </section>
+        </Panel>
       </div>
 
       <div className="home-right-stack">
@@ -1269,7 +1295,7 @@ function SpendingDistribution({
     setCategory(category === item.name ? "all" : item.name);
   }
   return (
-    <section className="finance-card home-distribution">
+    <Panel render={<section />} className="finance-card home-distribution">
       <div className="home-card-heading">
         <h2>Distribuição dos gastos</h2>
       </div>
@@ -1350,7 +1376,7 @@ function SpendingDistribution({
           )}
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -1584,7 +1610,11 @@ function CreditCardsCard({
   }, [cards.length, reduced]);
 
   return (
-    <section className="finance-card home-cards" aria-label="Cartões">
+    <Panel
+      render={<section />}
+      className="finance-card home-cards"
+      aria-label="Cartões"
+    >
       <div className="home-cards-top">
         <div className="home-cards-heading">
           <span className="home-muted">
@@ -1743,7 +1773,7 @@ function CreditCardsCard({
           </Button>
         </div>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -2274,7 +2304,8 @@ function HomeInvestmentsCard({
   });
 
   return (
-    <section
+    <Panel
+      render={<section />}
       className="finance-card home-investments"
       aria-label="Investimentos"
     >
@@ -2320,9 +2351,9 @@ function HomeInvestmentsCard({
               >
                 <span className="home-investment-share">
                   <i style={{ background: row.color }} aria-hidden="true" />
-                  <small className="amount">
+                  <PrivateValue as="small" className="amount">
                     {`${row.share.toFixed(1).replace(".", ",")}%`}
-                  </small>
+                  </PrivateValue>
                 </span>
                 <span className="home-investment-category-copy">
                   <strong>{row.label}</strong>
@@ -2350,9 +2381,9 @@ function HomeInvestmentsCard({
                             )}
                           </i>
                         )}
-                        <span className="amount">
+                        <PrivateValue as="span" className="amount">
                           {compactMoney(Math.abs(row.gain))}
-                        </span>
+                        </PrivateValue>
                       </span>
                     )}
                   </span>
@@ -2394,7 +2425,7 @@ function HomeInvestmentsCard({
           </div>
         </>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -2437,17 +2468,12 @@ function GoalCard({
           de <Amount value={goal.target} />
         </span>
       </div>
-      <div className="progress-track">
-        <span
-          style={{
-            width: `${percent}%`,
-            background:
-              goal.current / goal.target >= 0.9
-                ? "var(--success)"
-                : "var(--muted-foreground)",
-          }}
-        />
-      </div>
+      <ProgressBar
+        value={percent}
+        label={`Progresso de ${goal.name}`}
+        tone={goal.current / goal.target >= 0.9 ? "positive" : "neutral"}
+        className="progress-track"
+      />
       <div className="goal-card-footer">
         <span>{percent}%</span>
       </div>
@@ -2705,7 +2731,7 @@ function TransactionTable({
                 <ContextMenuContent>
                   {onSearchSame ? (
                     <ContextMenuItem
-                      onClick={() => onSearchSame(row.description)}
+                      onSelect={() => onSearchSame(row.description)}
                     >
                       <MagnifyingGlass size={14} />
                       Buscar iguais
@@ -2713,7 +2739,7 @@ function TransactionTable({
                   ) : null}
                   {onSearchSame ? <ContextMenuSeparator /> : null}
                   <ContextMenuItem
-                    onClick={() =>
+                    onSelect={() =>
                       openForm({
                         resource: "transactions",
                         record: record(row),
@@ -2752,9 +2778,11 @@ export function TransactionsView(props: Props) {
       direction: "desc",
     });
   const bounds = periodDateBounds(appPeriod);
-  useEffect(() => {
+  const [pagePeriod, setPagePeriod] = useState(appPeriod);
+  if (pagePeriod !== appPeriod) {
+    setPagePeriod(appPeriod);
     setPage(1);
-  }, [appPeriod]);
+  }
   const baseRows = data.transactions.filter((row) =>
     inPeriod(row.date, bounds),
   );
@@ -2885,7 +2913,7 @@ export function TransactionsView(props: Props) {
           color="amber"
         />
       </div>
-      <section className="finance-card full-table">
+      <Panel render={<section />} className="finance-card full-table">
         <CardTitle
           title="Lançamentos"
           subtitle={`${filtered.length} registros`}
@@ -3037,7 +3065,7 @@ export function TransactionsView(props: Props) {
             }
           />
         )}
-      </section>
+      </Panel>
       <p className="view-footnote">
         Totais em BRL. Transferências não compõem o resultado do período.
       </p>
@@ -3058,7 +3086,7 @@ export function MiniStat({
   detail?: string;
 }) {
   return (
-    <div className="finance-card mini-stat">
+    <Panel className="finance-card mini-stat">
       <span className={`stat-icon ${color}`}>{icon}</span>
       <div>
         <span>{label}</span>
@@ -3067,7 +3095,7 @@ export function MiniStat({
         </strong>
         {detail && <small className="mini-stat-detail">{detail}</small>}
       </div>
-    </div>
+    </Panel>
   );
 }
 export function InvestmentsView({ data, month, category, openForm }: Props) {
@@ -3098,7 +3126,7 @@ export function InvestmentsView({ data, month, category, openForm }: Props) {
           color="amber"
         />
       </div>
-      <section className="finance-card investment-page">
+      <Panel render={<section />} className="finance-card investment-page">
         <CardTitle
           title="Carteira"
 
@@ -3174,7 +3202,7 @@ export function InvestmentsView({ data, month, category, openForm }: Props) {
             }
           />
         )}
-      </section>
+      </Panel>
       <p className="view-footnote">
         Saldos da última atualização. Totais em BRL.
       </p>
@@ -3374,24 +3402,12 @@ function GoalDetails({ goal }: { goal: Goal }) {
         </div>
       </div>
       <div className="goal-details-progress">
-        <div
+        <ProgressBar
+          value={percent}
+          label="Progresso da meta"
+          tone={goal.current / goal.target >= 0.9 ? "positive" : "neutral"}
           className="progress-track"
-          role="progressbar"
-          aria-label="Progresso da meta"
-          aria-valuenow={percent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <span
-            style={{
-              width: `${percent}%`,
-              background:
-                goal.current / goal.target >= 0.9
-                  ? "var(--success)"
-                  : "var(--muted-foreground)",
-            }}
-          />
-        </div>
+        />
         <div className="goal-details-progress-label">
           <span>{percent}%</span>
           <span>
@@ -3535,7 +3551,7 @@ export function CategoriesView({
           ))}
         </div>
       ) : (
-        <section className="finance-card">
+        <Panel render={<section />} className="finance-card">
           <Empty
             title="Nenhuma categoria"
             action={
@@ -3544,7 +3560,7 @@ export function CategoriesView({
               </Button>
             }
           />
-        </section>
+        </Panel>
       )}
     </>
   );
@@ -3626,17 +3642,15 @@ export function AccountsHeader({
         </a>
         <label className="demo-control">
           <span>Dados fictícios</span>
-          <button
-            type="button"
-            role="switch"
+          <Switch
             aria-label="Dados fictícios"
-            aria-checked={data.mode === "demo"}
+            checked={data.mode === "demo"}
             disabled={syncing}
             className="demo-toggle"
-            onClick={() => onDemoChange(data.mode !== "demo")}
+            onCheckedChange={onDemoChange}
           >
-            <span />
-          </button>
+            <SwitchThumb />
+          </Switch>
         </label>
         <Button onClick={() => openForm({ resource: "connections" })}>
           <Plus size={15} />
@@ -3659,7 +3673,7 @@ export function AccountsView({
   return (
     <>
       {(data.connections.length === 0 || !data.pluggyConfigured) && (
-        <section className="finance-card setup-card">
+        <Panel render={<section />} className="finance-card setup-card">
           <CardTitle title="Configuração" />
           <div className="setup-steps">
             <div>
@@ -3706,10 +3720,10 @@ export function AccountsView({
               </span>
             </div>
           </div>
-        </section>
+        </Panel>
       )}
       <div className="accounts-layout">
-        <section className="finance-card">
+        <Panel render={<section />} className="finance-card">
           <CardTitle title="Contas" subtitle="Saldos da instituição" />
           {data.accounts.length ? (
             <div className="bank-account-list">
@@ -3753,8 +3767,8 @@ export function AccountsView({
           ) : (
             <Empty title="Nenhuma conta" />
           )}
-        </section>
-        <section className="finance-card">
+        </Panel>
+        <Panel render={<section />} className="finance-card">
           <CardTitle
             title="Conexões"
             action={
@@ -3825,7 +3839,7 @@ export function AccountsView({
               }
             />
           )}
-        </section>
+        </Panel>
       </div>
       <p className="view-footnote">
         Sincronização bancária a cada 24 h. Até 5 conexões pessoais.

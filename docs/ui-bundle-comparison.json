@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-14",
+  "browser": "157.0.8103.51",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "scenario": "Visão geral → Contas → Dados fictícios → Visão geral; sem abrir formulário ou paleta",
+  "method": "Soma dos corpos JS de /_next/static solicitados, sem cache; gzip calculado por recurso. Não inclui CSS, dados ou HTML.",
+  "before": {
+    "label": "before",
+    "chunks": 7,
+    "jsBytes": 2085285,
+    "gzipBytes": 619121
+  },
+  "after": {
+    "label": "release",
+    "chunks": 13,
+    "jsBytes": 2115219,
+    "gzipBytes": 638464
+  },
+  "gzipDifferenceBytes": 19343,
+  "gzipDifferencePercent": 3.12
+}

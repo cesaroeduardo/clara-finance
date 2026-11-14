@@ -1,7 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Popover } from "@base-ui/react/popover";
+import {
+  DatePicker,
+  DatePickerTrigger,
+  DatePickerContent,
+  CalendarDay,
+  CalendarGrid,
+  CalendarHeading,
+  CalendarNext,
+  CalendarPrevious,
+  CalendarWeekday,
+  CalendarWeekdays,
+  CalendarWeeks,
+} from "@/components/ui/date-picker";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { inputClassName } from "@/components/ui/input";
 import { localDate } from "@/lib/format";
@@ -30,134 +42,93 @@ export function GoalDeadlinePicker({
 }) {
   const [value, setValue] = useState(defaultValue || futureDate(30));
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState(() =>
-    (defaultValue || futureDate(30)).slice(0, 7),
+  const [view, setView] = useState(value.slice(0, 7));
+  const label = new Intl.DateTimeFormat("pt-BR").format(
+    new Date(value + "T12:00:00"),
   );
-  const [year, month] = view.split("-").map(Number);
-  const firstDay = new Date(year, month - 1, 1).getDay();
-  const days = new Date(year, month, 0).getDate();
-  const selected = new Date(value + "T12:00:00");
-  const label = new Intl.DateTimeFormat("pt-BR").format(selected);
   function apply(next: string) {
     setValue(next);
     setView(next.slice(0, 7));
     setOpen(false);
   }
-  function shift(delta: number) {
-    setView(localDate(new Date(year, month - 1 + delta, 1)).slice(0, 7));
-  }
   return (
-    <>
-      <input type="hidden" name="deadline" value={value} />
-      <Popover.Root
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (next) setView(value.slice(0, 7));
-        }}
+    <DatePicker
+      locale="pt-BR"
+      weekStartsOn={0}
+      value={value}
+      month={view}
+      onMonthChange={setView}
+      onValueChange={(next) => {
+        if (typeof next === "string" && next) apply(next);
+      }}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setView(value.slice(0, 7));
+      }}
+      disabled={disabled}
+      name="deadline"
+      required
+      showOutsideDays={false}
+    >
+      <DatePickerTrigger
+        id="deadline"
+        className={`${inputClassName} goal-deadline-trigger`}
+        aria-label={`Escolher prazo: ${label}`}
       >
-        <Popover.Trigger
-          id="deadline"
-          type="button"
-          className={`${inputClassName} goal-deadline-trigger`}
-          disabled={disabled}
-          aria-label={`Escolher prazo: ${label}`}
-        >
-          Para {label}
-        </Popover.Trigger>
-        <Popover.Portal>
-          <Popover.Positioner
-            side="bottom"
-            align="start"
-            sideOffset={8}
-            className="goal-deadline-positioner"
+        Para {label}
+      </DatePickerTrigger>
+      <DatePickerContent
+        align="start"
+        sideOffset={8}
+        className="period-picker-panel t-dropdown goal-deadline-panel"
+      >
+        <div className="period-picker-presets">
+          <button
+            type="button"
+            className="period-preset"
+            onClick={() => apply(futureDate(30))}
           >
-            <Popover.Popup className="period-picker-panel t-dropdown goal-deadline-panel">
-              <div className="period-picker-presets">
-                <button
-                  type="button"
-                  className="period-preset"
-                  onClick={() => apply(futureDate(30))}
-                >
-                  Para 30 dias
-                </button>
-                <button
-                  type="button"
-                  className="period-preset"
-                  onClick={() => apply(futureDate(0, 3))}
-                >
-                  Para 3 meses
-                </button>
-                <button
-                  type="button"
-                  className="period-preset"
-                  onClick={() => apply(futureDate(0, 12))}
-                >
-                  Para 1 ano
-                </button>
-              </div>
-              <div className="period-picker-divider" aria-hidden="true" />
-              <div className="period-picker-calendar">
-                <div className="period-picker-year">
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label="Mês anterior"
-                    onClick={() => shift(-1)}
-                  >
-                    <CaretLeft size={15} />
-                  </button>
-                  <strong>
-                    {new Intl.DateTimeFormat("pt-BR", {
-                      month: "long",
-                      year: "numeric",
-                    }).format(new Date(year, month - 1, 1))}
-                  </strong>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label="Próximo mês"
-                    onClick={() => shift(1)}
-                  >
-                    <CaretRight size={15} />
-                  </button>
-                </div>
-                <div
-                  className="goal-deadline-days"
-                  role="group"
-                  aria-label="Dia do prazo"
-                >
-                  {["D", "S", "T", "Q", "Q", "S", "S"].map((day, i) => (
-                    <span key={i} aria-hidden="true">
-                      {day}
-                    </span>
-                  ))}
-                  {Array.from({ length: firstDay }, (_, i) => (
-                    <span key={`empty-${i}`} />
-                  ))}
-                  {Array.from({ length: days }, (_, i) => {
-                    const date = `${view}-${String(i + 1).padStart(2, "0")}`;
-                    return (
-                      <button
-                        type="button"
-                        key={date}
-                        className={`period-month${date === value ? " is-single" : ""}`}
-                        aria-label={new Intl.DateTimeFormat("pt-BR", {
-                          dateStyle: "long",
-                        }).format(new Date(date + "T12:00:00"))}
-                        aria-pressed={date === value}
-                        onClick={() => apply(date)}
-                      >
-                        {i + 1}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </Popover.Popup>
-          </Popover.Positioner>
-        </Popover.Portal>
-      </Popover.Root>
-    </>
+            Para 30 dias
+          </button>
+          <button
+            type="button"
+            className="period-preset"
+            onClick={() => apply(futureDate(0, 3))}
+          >
+            Para 3 meses
+          </button>
+          <button
+            type="button"
+            className="period-preset"
+            onClick={() => apply(futureDate(0, 12))}
+          >
+            Para 1 ano
+          </button>
+        </div>
+        <div className="period-picker-divider" aria-hidden="true" />
+        <div className="period-picker-calendar">
+          <div className="period-picker-year">
+            <CalendarPrevious className="icon-button" aria-label="Mês anterior">
+              <CaretLeft size={15} />
+            </CalendarPrevious>
+            <CalendarHeading render={<strong />} />
+            <CalendarNext className="icon-button" aria-label="Próximo mês">
+              <CaretRight size={15} />
+            </CalendarNext>
+          </div>
+          <CalendarGrid className="sdk-calendar-grid" aria-label="Dia do prazo">
+            <CalendarWeekdays className="sdk-calendar-weekdays">
+              {(index) => <CalendarWeekday index={index} />}
+            </CalendarWeekdays>
+            <CalendarWeeks>
+              {(cell) => (
+                <CalendarDay value={cell.date} className="period-month" />
+              )}
+            </CalendarWeeks>
+          </CalendarGrid>
+        </div>
+      </DatePickerContent>
+    </DatePicker>
   );
 }

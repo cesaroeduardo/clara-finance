@@ -17,12 +17,18 @@ test("meta sem grupo usa calendário e prazos futuros", async ({ page }) => {
   }
   await page.getByRole("button", { name: /^Escolher prazo:/ }).click();
   await page.getByRole("button", { name: "Próximo mês", exact: true }).click();
-  await page.locator(".goal-deadline-days button").first().click();
+  await page
+    .locator(
+      '.sdk-calendar-grid [data-slot="calendar-day"]:not([data-outside])',
+    )
+    .first()
+    .click();
   const deadline = await page.locator('input[name="deadline"]').inputValue();
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Editar Prazo de teste", exact: true })
+    .getByRole("button", { name: "Opções da meta Prazo de teste", exact: true })
     .click();
+  await page.getByRole("menuitem", { name: "Editar", exact: true }).click();
   await expect(page.locator('input[name="deadline"]')).toHaveValue(deadline);
 });

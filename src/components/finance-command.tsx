@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -36,10 +28,20 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandItem as CommandOption,
+} from "@/components/ui/command";
+import { Keynodes, type ShortcutPart } from "./finance-command-trigger";
+export { CommandTrigger, Keynodes } from "./finance-command-trigger";
+export type { ShortcutPart } from "./finance-command-trigger";
 import type { FormState } from "./finance-form";
 import { TransactionAvatar } from "./transaction-avatar";
 import type { FinanceData } from "@/lib/types";
 import { filterTransactions } from "@/lib/analytics";
+import { useIsMac } from "@/components/ui/key-hint";
 import { dateLabel, money } from "@/lib/format";
 
 type AppView =
@@ -50,27 +52,6 @@ type AppView =
   | "goals"
   | "categories"
   | "accounts";
-
-export type ShortcutPart =
-  { type: "key"; value: string } | { type: "text"; value: string };
-
-export function Keynodes({ parts }: { parts: ShortcutPart[] }) {
-  return (
-    <span className="keynodes" aria-hidden="true">
-      {parts.map((part, index) =>
-        part.type === "key" ? (
-          <kbd key={`${part.value}-${index}`} className="keynode">
-            {part.value}
-          </kbd>
-        ) : (
-          <span key={`${part.value}-${index}`} className="keynode-sep">
-            {part.value}
-          </span>
-        ),
-      )}
-    </span>
-  );
-}
 
 function key(...values: string[]): ShortcutPart[] {
   return values.flatMap((value, index) =>
@@ -126,15 +107,6 @@ function normalize(value: string) {
     .trim();
 }
 
-const subscribeNoop = () => () => {};
-function useIsMac() {
-  return useSyncExternalStore(
-    subscribeNoop,
-    () => /Mac|iPhone|iPad|iPod/.test(navigator.platform),
-    () => false,
-  );
-}
-
 export function FinanceCommandBar({
   data,
   open,
@@ -150,10 +122,8 @@ export function FinanceCommandBar({
   changeMonth,
   goToCurrentMonth,
 }: CommandBarProps) {
-  const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
-  const [active, setActive] = useState(0);
   const isMac = useIsMac();
 
   const commands = useMemo<CommandItem[]>(() => {
@@ -458,24 +428,12 @@ export function FinanceCommandBar({
 
   useEffect(() => {
     if (!open) return;
-    setQuery("");
-    setActive(0);
-    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    const frame = window.requestAnimationFrame(() => {
+      setQuery("");
+      inputRef.current?.focus();
+    });
     return () => window.cancelAnimationFrame(frame);
   }, [open]);
-
-  useEffect(() => {
-    setActive((current) => {
-      if (!flat.length) return 0;
-      return Math.min(current, flat.length - 1);
-    });
-  }, [flat]);
-
-  useEffect(() => {
-    if (!open) return;
-    const node = document.getElementById(`${listId}-option-${active}`);
-    node?.scrollIntoView({ block: "nearest" });
-  }, [active, listId, open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -488,115 +446,74 @@ export function FinanceCommandBar({
         <DialogDescription className="sr-only">
           Busque lançamentos, páginas e ações do app
         </DialogDescription>
-        <div className="command-bar-input-row">
-          <MagnifyingGlass size={16} aria-hidden="true" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setActive(0);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                if (!flat.length) return;
-                setActive((current) => (current + 1) % flat.length);
-                return;
-              }
-              if (event.key === "ArrowUp") {
-                event.preventDefault();
-                if (!flat.length) return;
-                setActive(
-                  (current) => (current - 1 + flat.length) % flat.length,
-                );
-                return;
-              }
-              if (event.key === "Enter") {
-                event.preventDefault();
-                flat[active]?.run();
-              }
-            }}
-            placeholder="Buscar lançamentos, páginas ou ações…"
-            aria-autocomplete="list"
-            aria-controls={listId}
-            aria-activedescendant={
-              flat[active] ? `${listId}-option-${active}` : undefined
-            }
-            role="combobox"
-            aria-expanded="true"
-          />
-        </div>
-        <div className="command-bar-list" id={listId} role="listbox">
-          {sections.length === 0 ? (
-            <p className="command-bar-empty">Nenhum resultado</p>
-          ) : (
-            sections.map((entry) => (
-              <div key={entry.section} className="command-bar-section">
-                <div className="command-bar-section-label">{entry.section}</div>
-                <div className="command-bar-section-items">
-                  {entry.items.map((item) => {
-                    const index = flat.findIndex((row) => row.id === item.id);
-                    const selected = index === active;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        id={`${listId}-option-${index}`}
-                        role="option"
-                        aria-selected={selected}
-                        className={`command-bar-item${selected ? " is-active" : ""}`}
-                        onMouseEnter={() => setActive(index)}
-                        onClick={() => item.run()}
-                      >
-                        <span
-                          className={`command-bar-item-icon${item.section === "Lançamentos" ? " command-bar-item-avatar" : ""}`}
+        <Command
+          query={query}
+          onQueryChange={setQuery}
+          filter={false}
+          loop
+          onAction={(value) => flat.find((item) => item.id === value)?.run()}
+          className="command-bar-body"
+        >
+          <div className="command-bar-input-row">
+            <MagnifyingGlass size={16} aria-hidden="true" />
+            <CommandInput
+              ref={inputRef}
+              placeholder="Buscar lançamentos, páginas ou ações…"
+              aria-label="Buscar lançamentos, páginas ou ações"
+            />
+          </div>
+          <CommandList className="command-bar-list">
+            {sections.length === 0 ? (
+              <p className="command-bar-empty">Nenhum resultado</p>
+            ) : (
+              sections.map((entry) => (
+                <div key={entry.section} className="command-bar-section">
+                  <div className="command-bar-section-label">
+                    {entry.section}
+                  </div>
+                  <div className="command-bar-section-items">
+                    {entry.items.map((item) => {
+                      return (
+                        <CommandOption
+                          key={item.id}
+                          value={item.id}
+                          label={item.label}
+                          render={<button type="button" />}
+                          className="command-bar-item"
                         >
-                          {item.icon}
-                        </span>
-                        <span className="command-bar-item-label">
-                          <span className="command-bar-item-title">
-                            {item.label}
+                          <span
+                            className={`command-bar-item-icon${item.section === "Lançamentos" ? " command-bar-item-avatar" : ""}`}
+                          >
+                            {item.icon}
                           </span>
-                          {item.detail && (
-                            <small className="command-bar-item-detail">
-                              {item.detail}
-                            </small>
+                          <span className="command-bar-item-label">
+                            <span className="command-bar-item-title">
+                              {item.label}
+                            </span>
+                            {item.detail && (
+                              <small className="command-bar-item-detail">
+                                {item.detail}
+                              </small>
+                            )}
+                          </span>
+                          {item.amount && (
+                            <span className="command-bar-item-amount">
+                              {item.amount}
+                            </span>
                           )}
-                        </span>
-                        {item.amount && (
-                          <span className="command-bar-item-amount">
-                            {item.amount}
-                          </span>
-                        )}
-                        {item.shortcut ? (
-                          <Keynodes parts={item.shortcut} />
-                        ) : null}
-                      </button>
-                    );
-                  })}
+                          {item.shortcut ? (
+                            <Keynodes parts={item.shortcut} />
+                          ) : null}
+                        </CommandOption>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </CommandList>
+        </Command>
       </DialogContent>
     </Dialog>
-  );
-}
-
-export function CommandTrigger({ onOpen }: { onOpen: () => void }) {
-  const isMac = useIsMac();
-  return (
-    <button
-      type="button"
-      className="sidebar-search command-trigger"
-      onClick={onOpen}
-      aria-label="Abrir paleta de comandos"
-    >
-      <MagnifyingGlass size={15} aria-hidden="true" />
-      <span>Buscar</span>
-      <Keynodes parts={mod(isMac ? "⌘" : "Ctrl", "K")} />
-    </button>
   );
 }

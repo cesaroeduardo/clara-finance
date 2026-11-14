@@ -7,7 +7,10 @@ test("cria registros e exporta lançamentos sem grupos", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Grupos", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await page
+    .locator(".page-heading")
+    .getByRole("button", { name: "Adicionar", exact: true })
+    .click();
   await page.getByRole("menuitem", { name: "Nova saída", exact: true }).click();
   let dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Grupo", { exact: true })).toHaveCount(0);
@@ -30,7 +33,10 @@ test("cria registros e exporta lançamentos sem grupos", async ({ page }) => {
   const csv = Buffer.concat(chunks).toString("utf8");
   expect(csv.split("\n")[0]).not.toContain("Grupo");
   expect(csv).toContain("Despesa sem grupo de verificação");
-  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await page
+    .locator(".page-heading")
+    .getByRole("button", { name: "Adicionar", exact: true })
+    .click();
   await page
     .getByRole("menuitem", { name: "Recorrência", exact: true })
     .click();
@@ -73,8 +79,11 @@ test("cria registros e exporta lançamentos sem grupos", async ({ page }) => {
   ).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: /^Categorias/ }).click();
   await page
-    .getByRole("group", { name: "Visualização de categorias", exact: true })
-    .getByRole("button", { name: "Configuração", exact: true })
+    .getByRole("radiogroup", {
+      name: "Visualização de categorias",
+      exact: true,
+    })
+    .getByRole("radio", { name: "Configuração", exact: true })
     .click();
   const table = page.getByRole("table", {
     name: "Regras de classificação",

@@ -75,7 +75,6 @@ export function FieldSelect({
 
   return (
     <Select
-      id={id}
       value={current}
       onValueChange={(next) => {
         if (next == null) return;
@@ -98,14 +97,16 @@ export function FieldSelect({
         className={cn("field-select-trigger", triggerClassName, className)}
       >
         <SelectValue placeholder={placeholder}>
-          {(selected) => {
+          {({ value: selected }) => {
             if (selected == null) return placeholder;
             const option = byValue[String(selected)];
             if (!option) return String(selected);
             return (
               <span className="field-select-option">
                 {option.leading}
-                <span className="field-select-option-label">{option.label}</span>
+                <span className="field-select-option-label">
+                  {option.label}
+                </span>
               </span>
             );
           }}
@@ -120,6 +121,7 @@ export function FieldSelect({
           <SelectItem
             key={option.value || EMPTY}
             value={toInternal(option.value)}
+            label={option.label}
           >
             <span className="field-select-option">
               {option.leading}

@@ -100,18 +100,18 @@ export function GoalContextMenu({
       kind === "context" ? ContextMenuSeparator : DropdownMenuSeparator;
     return (
       <>
-        <Item disabled={busy} onClick={onView}>
+        <Item disabled={busy} onSelect={onView}>
           <Eye /> Visualizar
         </Item>
         <Item
           disabled={busy}
-          onClick={() => openForm({ resource: "goals", record: { ...goal } })}
+          onSelect={() => openForm({ resource: "goals", record: { ...goal } })}
         >
           <PencilSimple /> Editar
         </Item>
         <Item
           disabled={busy || goal.completed}
-          onClick={() =>
+          onSelect={() =>
             openForm({
               resource: "goals",
               record: { ...goal },
@@ -121,7 +121,7 @@ export function GoalContextMenu({
         >
           <Plus /> Registrar progresso
         </Item>
-        <Item disabled={busy} onClick={() => void toggleCompleted()}>
+        <Item disabled={busy} onSelect={() => void toggleCompleted()}>
           {goal.completed ? <X /> : <Check />}
           {goal.completed ? "Marcar como não concluída" : "Concluir"}
         </Item>
@@ -129,7 +129,7 @@ export function GoalContextMenu({
         <Item
           variant="destructive"
           disabled={busy}
-          onClick={() => {
+          onSelect={() => {
             setError("");
             setConfirmDelete(true);
           }}

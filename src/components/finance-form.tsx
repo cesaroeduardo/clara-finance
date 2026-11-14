@@ -1,7 +1,11 @@
 "use client";
+import { Field as FormField, FieldLabel } from "@/components/ui/field";
+import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/loader";
+import { NumberInput } from "@/components/ui/number-input";
 import { useState } from "react";
 import { prepareGoalCelebration } from "@/lib/goal-celebration";
-import { ArrowRight, CircleNotch, Trash } from "@phosphor-icons/react";
+import { ArrowRight, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { categoryFieldOptions } from "@/components/category-mark";
 import { FieldSelect } from "@/components/ui/field-select";
@@ -9,7 +13,6 @@ import { Input, inputClassName } from "@/components/ui/input";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { GoalDeadlinePicker } from "./goal-deadline-picker";
 import { CategoryImagePicker } from "./category-image-picker";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -423,7 +426,7 @@ export function FinanceForm({
                       />
                     </Field>
                     <Field title="Descrição" name="description">
-                      <textarea
+                      <Textarea
                         id="description"
                         name="description"
                         className={`${inputClassName} goal-description-input`}
@@ -682,10 +685,9 @@ export function FinanceForm({
                         />
                       </Field>
                       <Field title="Dia do mês" name="dayOfMonth">
-                        <Input
+                        <NumberInput
                           id="dayOfMonth"
                           name="dayOfMonth"
-                          type="number"
                           min={1}
                           max={31}
                           defaultValue={String(row?.dayOfMonth || 1)}
@@ -716,10 +718,9 @@ export function FinanceForm({
                     {recurringType === "installment" && (
                       <div className="form-row">
                         <Field title="Parcela atual" name="installmentCurrent">
-                          <Input
+                          <NumberInput
                             id="installmentCurrent"
                             name="installmentCurrent"
-                            type="number"
                             min={1}
                             max={360}
                             defaultValue={String(row?.installmentCurrent || 1)}
@@ -730,10 +731,9 @@ export function FinanceForm({
                           title="Total de parcelas"
                           name="installmentTotal"
                         >
-                          <Input
+                          <NumberInput
                             id="installmentTotal"
                             name="installmentTotal"
-                            type="number"
                             min={2}
                             max={360}
                             defaultValue={String(row?.installmentTotal || 2)}
@@ -838,7 +838,7 @@ export function FinanceForm({
                 Cancelar
               </Button>
               <Button type="submit" disabled={busy || imageBusy}>
-                {busy && <CircleNotch className="animate-spin" size={16} />}{" "}
+                {busy && <Spinner label="Salvando" />}{" "}
                 <AnimatedLabel
                   value={
                     busy
@@ -872,9 +872,9 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="form-field">
-      <Label htmlFor={name}>{title}</Label>
+    <FormField className="form-field">
+      <FieldLabel htmlFor={name}>{title}</FieldLabel>
       {children}
-    </div>
+    </FormField>
   );
 }

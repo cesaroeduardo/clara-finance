@@ -1,4 +1,5 @@
 "use client";
+import { PrivateValue } from "./finance-privacy";
 import { useMemo, useState } from "react";
 import {
   Area,
@@ -351,21 +352,21 @@ export function RecurringView({
                           <strong>{point.label}</strong>
                           <p>
                             Parcelas:{" "}
-                            <span className="amount">
+                            <PrivateValue as="span" className="amount">
                               {compactMoney(point.installments)}
-                            </span>
+                            </PrivateValue>
                           </p>
                           <p>
                             Contas fixas:{" "}
-                            <span className="amount">
+                            <PrivateValue as="span" className="amount">
                               {compactMoney(point.fixed)}
-                            </span>
+                            </PrivateValue>
                           </p>
                           <p>
                             Total:{" "}
-                            <span className="amount">
+                            <PrivateValue as="span" className="amount">
                               {compactMoney(point.total)}
-                            </span>
+                            </PrivateValue>
                           </p>
                         </div>
                       );

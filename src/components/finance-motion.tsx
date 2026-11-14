@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useLayoutEffect, useRef } from "react";
+import { useContext, useEffect, useId, useRef } from "react";
 import { CaretDown, IconContext } from "@phosphor-icons/react";
 import {
   AnimatePresence,
@@ -11,7 +11,12 @@ import {
   useReducedMotion,
 } from "motion/react";
 import { money } from "@/lib/format";
-import { roll, showStatic, zeroLike } from "./finance-reel";
+import { RollingNumber } from "@/components/ui/rolling-number";
+import { PrivacyContext } from "./finance-privacy";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@/components/ui/segmented-control";
 
 // Free Transitions.dev recipes. Sources and license: docs/microinteractions.md.
 const easeOutQuint = [0.22, 1, 0.36, 1] as const;
@@ -112,18 +117,20 @@ export function MotionSegmentedControl({
   const reduced = useReducedMotion();
   return (
     <LayoutGroup id={id}>
-      <div
+      <SegmentedControl
         className="type-switch motion-segments"
-        role="group"
         aria-label={label}
+        value={value}
+        onValueChange={(next) => {
+          if (next !== null) onChange(next);
+        }}
       >
         {options.map(([option, text]) => (
-          <button
+          <SegmentedControlItem
+            value={option}
             key={option}
             type="button"
             data-active={value === option}
-            aria-pressed={value === option}
-            onClick={() => onChange(option)}
           >
             {value === option && (
               <m.span
@@ -137,9 +144,9 @@ export function MotionSegmentedControl({
               />
             )}
             <span>{text}</span>
-          </button>
+          </SegmentedControlItem>
         ))}
-      </div>
+      </SegmentedControl>
     </LayoutGroup>
   );
 }
@@ -239,29 +246,13 @@ export function SpinningAmount({
   prefix?: string;
   className?: string;
 }) {
-  const reduced = useReducedMotion();
-  const ref = useRef<HTMLSpanElement>(null);
-  const previous = useRef<string | null>(null);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const formatted = prefix + money(value, currency);
-    if (reduced) {
-      showStatic(el, formatted);
-      previous.current = formatted;
-      return;
-    }
-    const from = previous.current ?? zeroLike(formatted);
-    previous.current = formatted;
-    return roll(el, from, formatted);
-  }, [value, currency, prefix, reduced]);
-
+  const hidden = useContext(PrivacyContext);
+  if (hidden)
+    return <span className={`amount ${className}`.trim()}>••••••</span>;
   return (
-    <span
-      ref={ref}
+    <RollingNumber
+      value={prefix + money(value, currency)}
       className={`t-reel amount ${className}`.trim()}
-      aria-live="polite"
     />
   );
 }
@@ -283,10 +274,7 @@ export function PageEnter({ children }: { children: React.ReactNode }) {
   }, [reduced]);
 
   return (
-    <div
-      ref={ref}
-      className={`page-enter${reduced ? " is-shown" : ""}`}
-    >
+    <div ref={ref} className={`page-enter${reduced ? " is-shown" : ""}`}>
       {children}
     </div>
   );

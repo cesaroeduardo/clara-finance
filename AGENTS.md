@@ -15,3 +15,7 @@ Use português direto, títulos funcionais e rótulos curtos. Não use slogans, 
 ## Tema e tipografia
 
 Use a paleta neutra de `src/app/globals.css`, baseada em Vercel e Linear. A cor primária é preta no tema claro e branca no escuro. Use Geist Sans, gratuita e servida localmente por `next/font`. Controles, links, foco e gráficos gerais devem usar os tokens do tema; reserve cores para estados financeiros e categorias definidas pelo usuário. Não adicione azul como cor primária.
+
+## UI SDK e TuffUI
+
+Antes de alterar componentes UI SDK, leia `node_modules/@ui-sdk/react/docs/llms.txt` e a skill em `node_modules/@ui-sdk/core/skills/ui-sdk/SKILL.md`, seguindo a documenta��o da vers�o instalada. Para primitivas novas, consulte tamb�m `docs/core.md` por se��o e `docs/rendering.md`. Preserve as APIs p�blicas em `src/components/ui`, os tokens do Clara e os avisos de licen�a dos componentes derivados da TuffUI.

@@ -1,4 +1,5 @@
 "use client";
+import { PrivateValue } from "./finance-privacy";
 
 import { useEffect, useId, useMemo, useState } from "react";
 import {
@@ -279,9 +280,7 @@ function MarketDialog({
             <div className="market-dialog-price">
               <strong>{formatMarketPrice(quote)}</strong>
               <span className={`market-ticker-change ${tone}`}>
-                {quote.changeKnown !== false
-                  ? formatPct(quote.changePct)
-                  : "—"}
+                {quote.changeKnown !== false ? formatPct(quote.changePct) : "—"}
                 {!isRate && <small> hoje</small>}
               </span>
             </div>
@@ -290,18 +289,22 @@ function MarketDialog({
               <div className="market-dialog-position">
                 <p>
                   Sua posição:{" "}
-                  <strong className="amount">{money(quote.positionCents)}</strong>
+                  <PrivateValue as="strong" className="amount">
+                    {money(quote.positionCents)}
+                  </PrivateValue>
                 </p>
                 {quote.costCents != null && quote.costCents > 0 ? (
                   <p>
                     Custo:{" "}
-                    <strong className="amount">{money(quote.costCents)}</strong>
+                    <PrivateValue as="strong" className="amount">
+                      {money(quote.costCents)}
+                    </PrivateValue>
                     {" · "}
-                    <span
+                    <PrivateValue
                       className={`amount market-ticker-change ${toneOf(returnPct || 0)}`}
                     >
                       {formatPct(returnPct || 0)} vs custo
-                    </span>
+                    </PrivateValue>
                   </p>
                 ) : (
                   <p className="market-dialog-hint">

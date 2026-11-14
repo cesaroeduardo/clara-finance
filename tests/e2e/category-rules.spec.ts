@@ -5,8 +5,11 @@ test.setTimeout(60_000);
 
 async function showConfiguration(page: Page) {
   await page
-    .getByRole("group", { name: "Visualização de categorias", exact: true })
-    .getByRole("button", { name: "Configuração", exact: true })
+    .getByRole("radiogroup", {
+      name: "Visualização de categorias",
+      exact: true,
+    })
+    .getByRole("radio", { name: "Configuração", exact: true })
     .click();
 }
 
@@ -29,13 +32,13 @@ test("configuração mostra tabela, filtra e permite gerenciar regras persistida
   ).json()) as FinanceData;
   await page.goto("/");
   await page.getByRole("button", { name: /^Categorias/ }).click();
-  const selector = page.getByRole("group", {
+  const selector = page.getByRole("radiogroup", {
     name: "Visualização de categorias",
     exact: true,
   });
   await expect(
-    selector.getByRole("button", { name: "Categorias", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+    selector.getByRole("radio", { name: "Categorias", exact: true }),
+  ).toHaveAttribute("aria-checked", "true");
   await expect(
     page.getByRole("button", { name: "Editar Alimentação", exact: true }),
   ).toContainText("Padrão");
@@ -136,13 +139,13 @@ test("atalho da categoria abre somente suas regras e permite voltar aos cartões
     .getByRole("button", { name: "Ver configurações", exact: true })
     .click();
   await expect(editor).toHaveCount(0);
-  const selector = page.getByRole("group", {
+  const selector = page.getByRole("radiogroup", {
     name: "Visualização de categorias",
     exact: true,
   });
   await expect(
-    selector.getByRole("button", { name: "Configuração", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+    selector.getByRole("radio", { name: "Configuração", exact: true }),
+  ).toHaveAttribute("aria-checked", "true");
   await expect(
     page.getByRole("combobox", {
       name: "Filtrar regras por categoria",
@@ -179,7 +182,7 @@ test("atalho da categoria abre somente suas regras e permite voltar aos cartões
     table.locator("tbody tr").filter({ hasText: "Alimentação" }).first(),
   ).toBeVisible();
   await selector
-    .getByRole("button", { name: "Categorias", exact: true })
+    .getByRole("radio", { name: "Categorias", exact: true })
     .click();
   await expect(
     page.getByRole("button", {

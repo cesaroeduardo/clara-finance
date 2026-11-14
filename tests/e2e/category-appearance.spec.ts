@@ -24,7 +24,9 @@ test("categoria salva upload, clipboard e cor hexadecimal", async ({
   await expect(hex).toHaveValue("#FF0400");
   await hex.fill("#A12B3C");
   await page.keyboard.press("Escape");
-  await expect(page.getByLabel("Cor", { exact: true })).toHaveValue("#A12B3C");
+  await expect(
+    page.getByRole("textbox", { name: "Cor", exact: true }),
+  ).toHaveValue("#A12B3C");
   const png = await page.evaluate(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 500;
@@ -60,7 +62,9 @@ test("categoria salva upload, clipboard e cor hexadecimal", async ({
   });
   await expect(card.locator("img")).toHaveJSProperty("naturalWidth", 256);
   await card.click();
-  await expect(page.getByLabel("Cor", { exact: true })).toHaveValue("#A12B3C");
+  await expect(
+    page.getByRole("textbox", { name: "Cor", exact: true }),
+  ).toHaveValue("#A12B3C");
 
   // Exercise a real clipboard paste, including the browser's image decoding.
   await page.evaluate(async () => {
@@ -151,14 +155,16 @@ test("imagem inválida mantém a ilustração selecionada", async ({ page }) => 
     mimeType: "text/plain",
     buffer: Buffer.from("texto"),
   });
-  await expect(page.getByRole("alert")).toContainText("Use uma imagem");
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+    "Use uma imagem",
+  );
   await expect(preview).toHaveAttribute("src", original!);
   await page.getByLabel("Enviar ilustração da categoria").setInputFiles({
     name: "corrompida.png",
     mimeType: "image/png",
     buffer: Buffer.from("imagem inválida"),
   });
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
   await expect(preview).toHaveAttribute("src", original!);
 });
 
@@ -239,7 +245,7 @@ test("imagem salva da categoria aparece nos lançamentos, filtros e resumos", as
   const preview = page.locator(".category-image-upload img");
   await expect(preview).toHaveAttribute("src", /^data:image\/webp;base64,/);
   const uploaded = (await preview.getAttribute("src"))!;
-  await page.getByLabel("Cor", { exact: true }).fill("#123456");
+  await page.getByRole("textbox", { name: "Cor", exact: true }).fill("#123456");
   await page.getByRole("button", { name: "Salvar alterações" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Lançamentos", exact: true }).click();

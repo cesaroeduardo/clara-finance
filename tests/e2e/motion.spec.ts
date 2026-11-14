@@ -8,8 +8,11 @@ test("marca textual, menu com transição e fechamento animado do formulário", 
   await page.goto("/");
   await expect(page.locator(".brand")).toHaveText("clara.");
   await expect(page.locator(".brand-mark")).toHaveCount(1);
-  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
-  const menu = page.locator('[data-slot="dropdown-menu-content"]');
+  await page
+    .locator(".page-heading")
+    .getByRole("button", { name: "Adicionar", exact: true })
+    .click();
+  const menu = page.locator('[data-slot="menu-content"]');
   await expect(menu).toBeVisible();
   expect(
     await menu.evaluate((el) => getComputedStyle(el).transitionDuration),
@@ -22,10 +25,10 @@ test("marca textual, menu com transição e fechamento animado do formulário", 
   ).toBe("clara-modal-enter");
   await page.getByLabel("Descrição", { exact: true }).fill("Texto preservado");
   const oldPosition = await dialog.locator(".segment-indicator").boundingBox();
-  await page.getByRole("button", { name: "Entrada", exact: true }).click();
+  await page.getByRole("radio", { name: "Entrada", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Entrada", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+    page.getByRole("radio", { name: "Entrada", exact: true }),
+  ).toHaveAttribute("aria-checked", "true");
   await expect(page.getByLabel("Descrição", { exact: true })).toHaveValue(
     "Texto preservado",
   );
@@ -57,8 +60,10 @@ test("ocultação de valores é imediata e movimento reduzido é respeitado", as
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await expect(page.getByText("Saldo previsto")).toBeVisible();
-  const forecast = page.locator(".home-forecast-amount .amount");
+  await expect(
+    page.getByRole("heading", { name: "Você ainda pode gastar" }),
+  ).toBeVisible();
+  const forecast = page.locator(".home-forecast-amount .amount").first();
   await expect(forecast).toBeVisible();
   await expect(forecast).not.toHaveText("");
   await expect(page.locator(".page-enter")).toHaveClass(/is-shown/);
@@ -68,12 +73,18 @@ test("ocultação de valores é imediata e movimento reduzido é respeitado", as
       (value) => value === "••••••",
     ),
   ).toBe(true);
+  await expect(
+    page.locator(".home-forecast-amount .amount").first(),
+  ).toHaveText("••••••");
   const icon = page.locator('[aria-label="Mostrar valores"] .t-icon').first();
   expect(
     await icon.evaluate((el) => getComputedStyle(el).transitionDuration),
   ).toBe("0s");
-  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
-  const menu = page.locator('[data-slot="dropdown-menu-content"]');
+  await page
+    .locator(".page-heading")
+    .getByRole("button", { name: "Adicionar", exact: true })
+    .click();
+  const menu = page.locator('[data-slot="menu-content"]');
   expect(
     await menu.evaluate((el) => getComputedStyle(el).transitionDuration),
   ).toBe("0s");
@@ -92,15 +103,19 @@ test("entrada de página monta reel no saldo e troca de view sem erro", async ({
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
-  await expect(page.getByText("Saldo previsto")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Você ainda pode gastar" }),
+  ).toBeVisible();
   const reel = page.locator(".home-forecast-amount .t-reel");
   await expect(reel).toBeVisible();
-  await expect(reel).toHaveAttribute("aria-label", /R\$/);
+  await expect(reel.locator(".sr-only")).toContainText("R$");
   await expect(page.locator(".page-enter.is-shown")).toHaveCount(1);
   await page.getByRole("button", { name: "Lançamentos", exact: true }).click();
-  await expect(page.getByText("Entradas no mês")).toBeVisible();
+  await expect(page.locator(".summary-grid")).toBeVisible();
   await expect(page.locator(".summary-grid .t-reel").first()).toBeVisible();
   await page.getByRole("button", { name: "Visão geral", exact: true }).click();
-  await expect(page.getByText("Saldo previsto")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Você ainda pode gastar" }),
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });

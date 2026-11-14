@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Popover } from "@base-ui/react/popover";
+import { useMemo, useState } from "react";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { AnimatedLabel } from "@/components/finance-motion";
 import {
   type AppPeriod,
@@ -61,12 +66,6 @@ export function PeriodPicker({
   const label = useMemo(() => periodLabel(period), [period]);
   const todayMonth = monthKey();
 
-  useEffect(() => {
-    if (!open) return;
-    setViewYear(Number(toMonth.slice(0, 4)));
-    setDraftStart(null);
-  }, [open]);
-
   function apply(next: AppPeriod) {
     const nextLabel = periodLabel(next);
     const dir: 1 | -1 = nextLabel > label ? 1 : -1;
@@ -104,125 +103,153 @@ export function PeriodPicker({
       >
         <CaretLeft size={17} />
       </button>
-      <Popover.Root open={open} onOpenChange={setOpen}>
-        <Popover.Trigger
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (next) {
+            setViewYear(Number(toMonth.slice(0, 4)));
+            setDraftStart(null);
+          }
+        }}
+      >
+        <PopoverTrigger
           type="button"
           className="period-label period-label-trigger"
           data-mode={period.mode}
           aria-label="Escolher período"
         >
           <AnimatedLabel value={label} direction={direction} />
-        </Popover.Trigger>
-        <Popover.Portal>
-          <Popover.Positioner side="bottom" align="start" sideOffset={8}>
-            <Popover.Popup className="period-picker-panel t-dropdown">
-              <div className="period-picker-presets">
-                <button
-                  type="button"
-                  className={`period-preset${period.mode === "month" && period.month === todayMonth ? " is-active" : ""}`}
-                  onClick={() => apply(currentAppPeriod())}
-                >
-                  Este mês
-                </button>
-                <button
-                  type="button"
-                  className={`period-preset${period.mode === "last3" ? " is-active" : ""}`}
-                  onClick={() => apply({ mode: "last3", end: todayMonth })}
-                >
-                  Últimos 3 meses
-                </button>
-                <button
-                  type="button"
-                  className={`period-preset${period.mode === "year" && period.year === Number(todayMonth.slice(0, 4)) ? " is-active" : ""}`}
-                  onClick={() =>
-                    apply({
-                      mode: "year",
-                      year: Number(todayMonth.slice(0, 4)),
-                    })
-                  }
-                >
-                  Este ano
-                </button>
-                <button
-                  type="button"
-                  className={`period-preset${period.mode === "all" ? " is-active" : ""}`}
-                  onClick={() => apply({ mode: "all" })}
-                >
-                  Todo o período
-                </button>
-              </div>
+        </PopoverTrigger>
+        <PopoverContent
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          className="period-picker-panel t-dropdown"
+        >
+          <div className="period-picker-presets">
+            <button
+              type="button"
+              className={`period-preset${period.mode === "month" && period.month === todayMonth ? " is-active" : ""}`}
+              onClick={() => apply(currentAppPeriod())}
+            >
+              Este mês
+            </button>
+            <button
+              type="button"
+              className={`period-preset${period.mode === "last3" ? " is-active" : ""}`}
+              onClick={() => apply({ mode: "last3", end: todayMonth })}
+            >
+              Últimos 3 meses
+            </button>
+            <button
+              type="button"
+              className={`period-preset${period.mode === "year" && period.year === Number(todayMonth.slice(0, 4)) ? " is-active" : ""}`}
+              onClick={() =>
+                apply({
+                  mode: "year",
+                  year: Number(todayMonth.slice(0, 4)),
+                })
+              }
+            >
+              Este ano
+            </button>
+            <button
+              type="button"
+              className={`period-preset${period.mode === "all" ? " is-active" : ""}`}
+              onClick={() => apply({ mode: "all" })}
+            >
+              Todo o período
+            </button>
+          </div>
 
-              <div className="period-picker-divider" aria-hidden="true" />
+          <div className="period-picker-divider" aria-hidden="true" />
 
-              <div className="period-picker-calendar">
-                <div className="period-picker-year">
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label="Ano anterior"
-                    onClick={() => setViewYear((year) => year - 1)}
-                  >
-                    <CaretLeft size={15} />
-                  </button>
-                  <strong>{viewYear}</strong>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label="Próximo ano"
-                    onClick={() => setViewYear((year) => year + 1)}
-                  >
-                    <CaretRight size={15} />
-                  </button>
-                </div>
+          <div className="period-picker-calendar">
+            <div className="period-picker-year">
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Ano anterior"
+                onClick={() => setViewYear((year) => year - 1)}
+              >
+                <CaretLeft size={15} />
+              </button>
+              <strong>{viewYear}</strong>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Próximo ano"
+                onClick={() => setViewYear((year) => year + 1)}
+              >
+                <CaretRight size={15} />
+              </button>
+            </div>
 
-                <div
-                  className="period-picker-grid"
-                  role="grid"
-                  aria-label="Meses"
-                >
-                  {MONTH_SHORT.map((name, index) => {
-                    const key = monthInYear(viewYear, index);
-                    const role =
-                      period.mode === "all" && !draftStart
-                        ? null
-                        : rangeRole(key, highlightFrom, highlightTo);
-                    const isDraft = draftStart === key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        role="gridcell"
-                        className={`period-month${role ? ` is-${role}` : ""}${isDraft && !role ? " is-draft" : ""}`}
-                        aria-pressed={!!role}
-                        onClick={() => selectMonth(key)}
-                      >
-                        {name}
-                      </button>
-                    );
-                  })}
-                </div>
+            <ToggleGroup
+              multiple
+              className="period-picker-grid"
+              aria-label="Meses"
+              value={MONTH_SHORT.flatMap((_, i) => {
+                const key = monthInYear(viewYear, i);
+                return period.mode !== "all" &&
+                  rangeRole(key, highlightFrom, highlightTo)
+                  ? [key]
+                  : [];
+              })}
+              onValueChange={(next, details) => {
+                if (details.reason !== "item-press") return;
+                const previous = MONTH_SHORT.map((_, i) =>
+                  monthInYear(viewYear, i),
+                ).filter(
+                  (key) =>
+                    period.mode !== "all" &&
+                    rangeRole(key, highlightFrom, highlightTo),
+                );
+                const changed =
+                  next.find((key) => !previous.includes(key)) ??
+                  previous.find((key) => !next.includes(key));
+                if (changed) selectMonth(changed);
+              }}
+            >
+              {MONTH_SHORT.map((name, index) => {
+                const key = monthInYear(viewYear, index);
+                const role =
+                  period.mode === "all" && !draftStart
+                    ? null
+                    : rangeRole(key, highlightFrom, highlightTo);
+                const isDraft = draftStart === key;
+                return (
+                  <Toggle
+                    value={key}
+                    key={key}
+                    className={`period-month${role ? ` is-${role}` : ""}${isDraft && !role ? " is-draft" : ""}`}
+                  >
+                    {name}
+                  </Toggle>
+                );
+              })}
+            </ToggleGroup>
 
-                <div className="period-picker-actions">
-                  <button
-                    type="button"
-                    className="period-picker-action"
-                    onClick={() => apply(currentAppPeriod())}
-                  >
-                    Limpar
-                  </button>
-                  <button
-                    type="button"
-                    className="period-picker-action"
-                    onClick={() => apply(currentAppPeriod())}
-                  >
-                    Este mês
-                  </button>
-                </div>
-              </div>
-            </Popover.Popup>
-          </Popover.Positioner>
-        </Popover.Portal>
-      </Popover.Root>
+            <div className="period-picker-actions">
+              <button
+                type="button"
+                className="period-picker-action"
+                onClick={() => apply(currentAppPeriod())}
+              >
+                Limpar
+              </button>
+              <button
+                type="button"
+                className="period-picker-action"
+                onClick={() => apply(currentAppPeriod())}
+              >
+                Este mês
+              </button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
       <button
         type="button"
         className="icon-button"

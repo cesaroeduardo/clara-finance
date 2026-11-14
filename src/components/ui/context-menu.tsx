@@ -1,36 +1,40 @@
 "use client";
 
 import * as React from "react";
-import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
+import * as ContextMenuPrimitive from "@ui-sdk/react/menu";
 import { cn } from "@/lib/utils";
 
-function ContextMenu({ ...props }: ContextMenuPrimitive.Root.Props) {
-  return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />;
+function ContextMenu({
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.Menu>) {
+  return <ContextMenuPrimitive.Menu data-slot="context-menu" {...props} />;
 }
 
-function ContextMenuTrigger({ ...props }: ContextMenuPrimitive.Trigger.Props) {
+function ContextMenuTrigger({
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.MenuContextTrigger>) {
   return (
-    <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />
+    <ContextMenuPrimitive.MenuContextTrigger
+      data-slot="context-menu-trigger"
+      {...props}
+    />
   );
 }
 
 function ContextMenuContent({
   className,
   ...props
-}: ContextMenuPrimitive.Popup.Props) {
+}: React.ComponentProps<typeof ContextMenuPrimitive.MenuContent>) {
   return (
-    <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Positioner className="isolate z-50 outline-none">
-        <ContextMenuPrimitive.Popup
-          data-slot="context-menu-content"
-          className={cn(
-            "t-dropdown clara-select-content z-50 max-h-(--available-height) min-w-44 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-[10px] bg-popover p-1 text-popover-foreground outline-none",
-            className,
-          )}
-          {...props}
-        />
-      </ContextMenuPrimitive.Positioner>
-    </ContextMenuPrimitive.Portal>
+    <ContextMenuPrimitive.MenuContent
+      container={typeof document === "undefined" ? undefined : document.body}
+      data-slot="context-menu-content"
+      className={cn(
+        "t-dropdown clara-select-content z-50 max-h-(--available-height) min-w-44 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-[10px] bg-popover p-1 text-popover-foreground outline-none",
+        className,
+      )}
+      {...props}
+    />
   );
 }
 
@@ -39,12 +43,12 @@ function ContextMenuItem({
   inset,
   variant = "default",
   ...props
-}: ContextMenuPrimitive.Item.Props & {
+}: React.ComponentProps<typeof ContextMenuPrimitive.MenuItem> & {
   inset?: boolean;
   variant?: "default" | "destructive";
 }) {
   return (
-    <ContextMenuPrimitive.Item
+    <ContextMenuPrimitive.MenuItem
       data-slot="context-menu-item"
       data-inset={inset}
       data-variant={variant}
@@ -60,9 +64,9 @@ function ContextMenuItem({
 function ContextMenuSeparator({
   className,
   ...props
-}: ContextMenuPrimitive.Separator.Props) {
+}: React.ComponentProps<typeof ContextMenuPrimitive.MenuSeparator>) {
   return (
-    <ContextMenuPrimitive.Separator
+    <ContextMenuPrimitive.MenuSeparator
       data-slot="context-menu-separator"
       className={cn("divider my-1", className)}
       {...props}

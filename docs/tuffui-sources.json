@@ -1,0 +1,54 @@
+{
+  "retrieved": "2026-11-14",
+  "upstreamHead": "589cbb03ee1b06deaf02b78dde5395db99832397",
+  "components": [
+    {
+      "license": "MIT",
+      "registry": "https://tuffui.com/r/status-pill.json",
+      "sha256": "c008cb1c5885668c64b9b6b42a71bf70187ae7d5fd2d446b9471ad15095fcf72",
+      "component": "status-pill"
+    },
+    {
+      "license": "MIT",
+      "registry": "https://tuffui.com/r/empty-state.json",
+      "sha256": "5b4eb8cb5ae79dd4edb58b0a1f39014bfd302e5657caec6827b67d7e48ed41f1",
+      "component": "empty-state"
+    },
+    {
+      "license": "MIT",
+      "registry": "https://tuffui.com/r/loader.json",
+      "sha256": "7bf8dd03ac3687b9eb4cdfcf289923c50b573db490e684702b4593ea5dbe689c",
+      "component": "loader"
+    },
+    {
+      "license": "MIT",
+      "registry": "https://tuffui.com/r/loading-skeleton.json",
+      "sha256": "3cb2a1a6963964fed35f19d01708dad251f0a45a2962366d0488981b62c74075",
+      "component": "loading-skeleton"
+    },
+    {
+      "license": "MIT",
+      "registry": "https://tuffui.com/r/surface.json",
+      "sha256": "4dd565feb8fd23d22432146b30ea804feb15f7f9204a0e77f991c8c5c32366e7",
+      "component": "surface"
+    },
+    {
+      "license": "MIT",
+      "registry": "https://tuffui.com/r/progress-bar.json",
+      "sha256": "99d964a8de5691403a320f3fc52262cdf76aa265f4e2329860434e39e47216ac",
+      "component": "progress-bar"
+    },
+    {
+      "license": "MIT",
+      "registry": "https://tuffui.com/r/rolling-number.json",
+      "sha256": "d0b0fb6240c21581cae0c80717bd96f462b2a5994e1a184cde7c770c97cc162a",
+      "component": "rolling-number"
+    },
+    {
+      "license": "MIT",
+      "registry": "https://tuffui.com/r/key-hint.json",
+      "sha256": "364b07a51429ceb64abc65961a2ecd5c19e7d4c5a4f59d6cb8bee2af2c11ea97",
+      "component": "key-hint"
+    }
+  ]
+}

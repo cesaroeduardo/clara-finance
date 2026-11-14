@@ -1,4 +1,5 @@
 "use client";
+import { NumberInput } from "@/components/ui/number-input";
 
 import { useState } from "react";
 import { PencilSimple, Plus, Trash } from "@phosphor-icons/react";
@@ -311,10 +312,9 @@ function RuleDialog({
             <div className="form-row">
               <div className="form-field">
                 <Label htmlFor="rule-priority">Prioridade</Label>
-                <Input
+                <NumberInput
                   id="rule-priority"
                   name="priority"
-                  type="number"
                   min={0}
                   max={9999}
                   step={1}
