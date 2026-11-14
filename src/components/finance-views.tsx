@@ -3044,16 +3044,18 @@ export function TransactionsView(props: Props) {
     </>
   );
 }
-function MiniStat({
+export function MiniStat({
   label,
   value,
   icon,
   color,
+  detail,
 }: {
   label: string;
   value: number;
   icon: React.ReactNode;
   color: string;
+  detail?: string;
 }) {
   return (
     <div className="finance-card mini-stat">
@@ -3063,6 +3065,7 @@ function MiniStat({
         <strong>
           <Amount value={value} motion="reel" />
         </strong>
+        {detail && <small className="mini-stat-detail">{detail}</small>}
       </div>
     </div>
   );

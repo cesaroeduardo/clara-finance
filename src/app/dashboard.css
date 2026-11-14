@@ -2309,42 +2309,6 @@
   }
 }
 /* Recorrentes: superfícies e controles compartilhados com o dashboard */
-.recurring-overview {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 18px;
-  gap: 20px;
-}
-.recurring-metric.finance-card {
-  padding: 4px 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  overflow: visible;
-}
-.recurring-metric + .recurring-metric {
-  border-left: 1px solid var(--border);
-  padding-left: 20px;
-}
-.recurring-metric p {
-  margin: 0 0 8px;
-  color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 500;
-}
-.recurring-metric > .amount {
-  display: block;
-  font-size: clamp(22px, 1.8vw, 31px);
-  font-weight: 550;
-  letter-spacing: -1px;
-}
-.recurring-metric small {
-  display: block;
-  margin-top: 6px;
-  color: var(--muted-foreground);
-  font-size: 10px;
-}
 .recurring-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -2441,27 +2405,6 @@
   }
 }
 @media (max-width: 600px) {
-  .recurring-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px 12px;
-  }
-  .recurring-metric:first-child {
-    grid-column: 1 / -1;
-  }
-  .recurring-metric:nth-child(2) {
-    border-left: 0;
-    padding-left: 0;
-  }
-  .recurring-metric > .amount {
-    white-space: nowrap;
-  }
-  .recurring-metric + .recurring-metric {
-    padding-left: 12px;
-  }
-  .recurring-metric > .amount {
-    font-size: 18px;
-    letter-spacing: -0.6px;
-  }
   .recurring-workspace > .recurring-sidebar {
     grid-template-columns: minmax(0, 1fr);
   }

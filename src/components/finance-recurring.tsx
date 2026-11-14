@@ -9,8 +9,14 @@ import {
   YAxis,
 } from "recharts";
 import { FieldSelect } from "./ui/field-select";
-import { MagnifyingGlass, X } from "@phosphor-icons/react";
-import { Amount } from "./finance-views";
+import {
+  MagnifyingGlass,
+  X,
+  Wallet,
+  Check,
+  CalendarDots,
+} from "@phosphor-icons/react";
+import { Amount, MiniStat } from "./finance-views";
 import { CategoryImage, FinanceIcon } from "./finance-icons";
 import { MotionSegmentedControl } from "./finance-motion";
 import { MerchantLogo, useMerchantLogoUrl } from "./merchant-logo";
@@ -184,31 +190,28 @@ export function RecurringView({
         />
       </div>
 
-      <div className="recurring-overview">
-        <section className="finance-card recurring-metric">
-          <p>{kind === "expense" ? "A pagar no mês" : "A receber no mês"}</p>
-          <Amount value={summary.remaining} motion="reel" />
-          <small>
-            {summary.remainingCount}{" "}
-            {summary.remainingCount === 1 ? "pendente" : "pendentes"}
-          </small>
-        </section>
-        <section className="finance-card recurring-metric">
-          <p>{kind === "expense" ? "Pago no mês" : "Recebido no mês"}</p>
-          <Amount value={summary.total - summary.remaining} motion="reel" />
-          <small>
-            {items.length - summary.remainingCount}{" "}
-            {kind === "expense" ? "pagos" : "recebidos"}
-          </small>
-        </section>
-        <section className="finance-card recurring-metric">
-          <p>Total do mês</p>
-          <Amount value={summary.total} motion="reel" />
-          <small>
-            {summary.fixed.length} fixas · {summary.installments.length}{" "}
-            parcelas
-          </small>
-        </section>
+      <div className="summary-grid">
+        <MiniStat
+          label={kind === "expense" ? "A pagar no mês" : "A receber no mês"}
+          value={summary.remaining}
+          icon={<Wallet />}
+          color="amber"
+          detail={`${summary.remainingCount} ${summary.remainingCount === 1 ? "pendente" : "pendentes"}`}
+        />
+        <MiniStat
+          label={kind === "expense" ? "Pago no mês" : "Recebido no mês"}
+          value={summary.total - summary.remaining}
+          icon={<Check />}
+          color="green"
+          detail={`${items.length - summary.remainingCount} ${kind === "expense" ? "pagos" : "recebidos"}`}
+        />
+        <MiniStat
+          label="Total do mês"
+          value={summary.total}
+          icon={<CalendarDots />}
+          color="neutral"
+          detail={`${summary.fixed.length} fixas · ${summary.installments.length} parcelas`}
+        />
       </div>
       <div className="recurring-workspace">
         <div className="recurring-agenda">
