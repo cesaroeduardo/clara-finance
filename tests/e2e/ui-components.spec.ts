@@ -1,6 +1,51 @@
 import { test, expect } from "@playwright/test";
 import type { FinanceData } from "../../src/lib/types";
 
+test("TuffUI aparece nas superfícies, indicadores e campos", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const surface = page.locator(".home-distribution");
+  await expect(
+    surface.getByRole("heading", { name: "Distribuição dos gastos" }),
+  ).toBeVisible();
+  await expect(
+    surface.locator(':scope > [data-slot="surface-header"]'),
+  ).toBeVisible();
+  const colors = await surface.evaluate((element) => {
+    const panel = element.querySelector(":scope > .tuff-finance-body")!;
+    return {
+      shell: getComputedStyle(element).backgroundColor,
+      panel: getComputedStyle(panel).backgroundColor,
+      border: getComputedStyle(element).borderTopWidth,
+    };
+  });
+  expect(colors.shell).not.toBe(colors.panel);
+  expect(colors.border).toBe("0px");
+  await page.getByRole("button", { name: "Lançamentos", exact: true }).click();
+  const stat = page.locator(".tuff-stat").first();
+  await expect(stat.locator(".tuff-stat-value")).toBeVisible();
+  const frame = await stat.boundingBox();
+  const panel = await stat.locator(":scope > .tuff-finance-body").boundingBox();
+  expect(
+    frame!.y + frame!.height - panel!.y - panel!.height,
+  ).toBeLessThanOrEqual(7);
+  await page
+    .locator(".page-heading")
+    .getByRole("button", { name: "Adicionar", exact: true })
+    .click();
+  await page.getByRole("menuitem", { name: "Nova saída", exact: true }).click();
+  const field = page
+    .getByRole("dialog")
+    .getByLabel("Descrição", { exact: true });
+  await expect(field).toBeVisible();
+  const fill = await field.evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  expect(fill).not.toBe("rgba(0, 0, 0, 0)");
+});
+
 test("menu e seletor por teclado preservam formulário, foco e valor enviado", async ({
   page,
   request,

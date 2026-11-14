@@ -20,6 +20,17 @@ O Clara usa UI SDK `0.1.0-beta.1` para os controles e adapta componentes da Tuff
 
 A tabela da TuffUI não substitui a tabela financeira: ordenação, menus, modelo de transações e apresentação móvel continuam no Clara. Logos, imagens de categorias e cartões bancários também permanecem específicos do domínio.
 
+## Camada visual
+
+A primeira entrega preservava as classes antigas e trouxe pouca mudança visível. A camada visual foi corrigida para usar a composição da TuffUI nas telas:
+
+- `FinanceSurface` combina `Shell`, `ShellHeader`, `IconTile` e `Panel`: moldura neutra sem borda, cabeçalho com ícone e conteúdo em uma superfície interna.
+- Dashboard, tabelas, contas e investimentos usam essa composição. `StatCard`, adaptado do Stat Grid, organiza rótulo, ícone e valor nos resumos.
+- Botões usam a forma arredondada de Action Button, mantendo a primária preta/branca. Formulários têm campos preenchidos e seletores de fundo neutro.
+- `src/app/tuffui.css` contém a apresentação desses componentes depois dos estilos antigos; os seletores são limitados às superfícies e controles adotados. A grade e as regras financeiras permanecem as mesmas.
+- A correção visual também passou pelos 5 testes de componentes no build de produção, incluindo a verificação das superfícies e dos campos.
+- O teste visual verifica as superfícies computadas no navegador, a presença dos cabeçalhos e o preenchimento dos campos, para detectar a volta dos estilos antigos.
+
 ## Contratos e manutenção
 
 - Preservar `FieldSelect`, `Button`, `buttonVariants`, `Amount`, `PeriodPicker` e `GoalDeadlinePicker` como fronteiras da aplicação. Os tipos de domínio e os endpoints não mudaram.
@@ -40,13 +51,15 @@ A tabela da TuffUI não substitui a tabela financeira: ordenação, menus, model
 ## Validação
 
 - `npm test`: 62 testes, incluindo interação por APIs SDK e FormData de seletor, inteiro e cor.
-- `npm run test:e2e`: 23 cenários em Chrome; teclado, Escape, menus de contexto, privacidade, datas, imagens, persistência, temas e celular.
+- `npm run test:e2e`: 24 cenários em Chrome; teclado, Escape, menus de contexto, privacidade, datas, imagens, persistência, temas e celular.
 - Build de produção: 8 cenários adicionais de teclado, paleta, períodos, datas, privacidade e celular passaram (`E2E_PRODUCTION=true`, `NEXT_BUILD_DIR=work/next-ui-release`).
 - `npm run typecheck`, `npm run lint` e `npm run build` passaram. O lint mantém avisos existentes de hooks e símbolos não usados, sem erros.
 - Os testes de desenvolvimento usam `work/next-e2e` e SQLite separado, preservando o servidor de desenvolvimento aberto. `NEXT_BUILD_DIR` permite validar outro build; em produção, o padrão continua sendo `.next`.
 - Os testes de nomes/ações do SDK executam uma ponte somente dentro do teste; nenhuma ponte de agentes ou ferramenta remota é exposta pela aplicação.
 
 ## JavaScript em produção
+
+Esta é a medição da primeira entrega técnica, anterior à correção visual descrita acima. Serve como referência histórica; não mede o código visual atual.
 
 Comparação entre o commit anterior `d9018efaf83e50dcef274ff00ee6be908dc52651` e esta implementação, no mesmo Chrome, viewport de 1440 × 1000 e sem cache. Percurso: visão geral → Contas → dados fictícios → visão geral, sem abrir formulário ou paleta. Soma dos corpos JavaScript solicitados em `/_next/static`, com gzip calculado por recurso; não inclui HTML, CSS ou dados.
 

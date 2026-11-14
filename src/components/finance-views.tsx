@@ -2,7 +2,9 @@
 import { Switch, SwitchThumb } from "@/components/ui/switch";
 import { StatusPill } from "@/components/ui/status-pill";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Panel } from "@/components/ui/surface";
+import { ShellHeader } from "@/components/ui/surface";
+import { FinanceSurface } from "@/components/ui/finance-surface";
+import { StatCard } from "@/components/ui/stat-card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { GoalContextMenu } from "./goal-context-menu";
 import { GoalDescription } from "./goal-description";
@@ -20,6 +22,7 @@ import {
   CaretRight,
   Check,
   CreditCard,
+  ChartPieSlice,
   DownloadSimple,
   Info,
   MagnifyingGlass,
@@ -595,9 +598,56 @@ export function DashboardView(props: Props) {
   return (
     <div className="home-grid">
       <div className="home-top-stack">
-        <Panel
+        <FinanceSurface
           render={<section />}
           className={`finance-card home-forecast${forecastGlowTone ? ` is-${forecastGlowTone}` : ""}`}
+          header={
+            <ShellHeader
+              as="h2"
+              icon={Wallet}
+              title={
+                <>
+                  {" "}
+                  {isPastMonth
+                    ? "Resultado do mês"
+                    : "Você ainda pode gastar"}{" "}
+                </>
+              }
+              aside={
+                <>
+                  {" "}
+                  <div className="home-pace-heading-actions">
+                    <span
+                      title={
+                        isPastMonth
+                          ? "Entradas menos saídas do mês selecionado."
+                          : "Limite = renda do CNPJ (previsto ou já entrada) − guardar. Ritmo = despesas pagas no banco + fatura aberta do cartão. Reserva de alimentação só reduz o que ainda pode gastar, sem contar como gasto."
+                      }
+                    >
+                      <Info
+                        size={14}
+                        aria-label={
+                          isPastMonth
+                            ? "Cálculo do resultado do mês"
+                            : "Cálculo do quanto ainda pode gastar"
+                        }
+                      />
+                    </span>
+                    {!isPastMonth && (
+                      <button
+                        type="button"
+                        className="home-pace-edit"
+                        aria-label="Editar planejamento"
+                        onClick={openPlan}
+                      >
+                        <PencilSimple size={14} />
+                      </button>
+                    )}
+                  </div>{" "}
+                </>
+              }
+            />
+          }
         >
           {forecastGlowTone && (
             <div className="home-forecast-glow" aria-hidden="true">
@@ -606,39 +656,6 @@ export function DashboardView(props: Props) {
             </div>
           )}
           <div className="home-forecast-body">
-            <div className="home-card-heading">
-              <h2>
-                {isPastMonth ? "Resultado do mês" : "Você ainda pode gastar"}
-              </h2>
-              <div className="home-pace-heading-actions">
-                <span
-                  title={
-                    isPastMonth
-                      ? "Entradas menos saídas do mês selecionado."
-                      : "Limite = renda do CNPJ (previsto ou já entrada) − guardar. Ritmo = despesas pagas no banco + fatura aberta do cartão. Reserva de alimentação só reduz o que ainda pode gastar, sem contar como gasto."
-                  }
-                >
-                  <Info
-                    size={14}
-                    aria-label={
-                      isPastMonth
-                        ? "Cálculo do resultado do mês"
-                        : "Cálculo do quanto ainda pode gastar"
-                    }
-                  />
-                </span>
-                {!isPastMonth && (
-                  <button
-                    type="button"
-                    className="home-pace-edit"
-                    aria-label="Editar planejamento"
-                    onClick={openPlan}
-                  >
-                    <PencilSimple size={14} />
-                  </button>
-                )}
-              </div>
-            </div>
             {!isPastMonth && pace.empty ? (
               <div className="home-pace-empty">
                 <p>
@@ -976,7 +993,7 @@ export function DashboardView(props: Props) {
               </button>
             </div>
           </div>
-        </Panel>
+        </FinanceSurface>
         <button
           className="finance-card home-bills-summary"
           aria-label="Ver contas a pagar"
@@ -1010,14 +1027,33 @@ export function DashboardView(props: Props) {
       />
 
       <div className="home-left-stack">
-        <Panel render={<section />} className="finance-card home-result">
-          <div className="home-card-heading">
-            <h2>{isPastMonth ? "Resultado do mês" : "Resultado até agora"}</h2>
-            <DashboardLink
-              label="Ver lançamentos"
-              onClick={() => openTransactions()}
+        <FinanceSurface
+          render={<section />}
+          className="finance-card home-result"
+          header={
+            <ShellHeader
+              as="h2"
+              icon={ArrowUpRight}
+              title={
+                <>
+                  {" "}
+                  {isPastMonth
+                    ? "Resultado do mês"
+                    : "Resultado até agora"}{" "}
+                </>
+              }
+              aside={
+                <>
+                  {" "}
+                  <DashboardLink
+                    label="Ver lançamentos"
+                    onClick={() => openTransactions()}
+                  />{" "}
+                </>
+              }
             />
-          </div>
+          }
+        >
           <div className="home-value-line">
             <strong className="home-amount">
               <Amount value={confirmedResult} motion="reel" />
@@ -1053,7 +1089,7 @@ export function DashboardView(props: Props) {
               </strong>
             </div>
           </div>
-        </Panel>
+        </FinanceSurface>
 
         <MarketTickers data={data} />
       </div>
@@ -1065,14 +1101,26 @@ export function DashboardView(props: Props) {
           navigate={navigate}
           openForm={openForm}
         />
-        <Panel render={<section />} className="finance-card home-wealth">
-          <div className="home-card-heading">
-            <h2>Patrimônio</h2>
-            <DashboardLink
-              label="Ver contas"
-              onClick={() => navigate("accounts")}
+        <FinanceSurface
+          render={<section />}
+          className="finance-card home-wealth"
+          header={
+            <ShellHeader
+              as="h2"
+              icon={Wallet}
+              title="Patrimônio"
+              aside={
+                <>
+                  {" "}
+                  <DashboardLink
+                    label="Ver contas"
+                    onClick={() => navigate("accounts")}
+                  />{" "}
+                </>
+              }
             />
-          </div>
+          }
+        >
           {wealth.empty ? (
             <div className="home-empty">
               <Wallet size={24} />
@@ -1180,7 +1228,7 @@ export function DashboardView(props: Props) {
               </div>
             </>
           )}
-        </Panel>
+        </FinanceSurface>
       </div>
 
       <div className="home-right-stack">
@@ -1295,10 +1343,17 @@ function SpendingDistribution({
     setCategory(category === item.name ? "all" : item.name);
   }
   return (
-    <Panel render={<section />} className="finance-card home-distribution">
-      <div className="home-card-heading">
-        <h2>Distribuição dos gastos</h2>
-      </div>
+    <FinanceSurface
+      render={<section />}
+      className="finance-card home-distribution"
+      header={
+        <ShellHeader
+          as="h2"
+          icon={ChartPieSlice}
+          title="Distribuição dos gastos"
+        />
+      }
+    >
       <div
         className="home-distribution-body"
         onMouseLeave={() => setHoveredId(null)}
@@ -1376,7 +1431,7 @@ function SpendingDistribution({
           )}
         </div>
       </div>
-    </Panel>
+    </FinanceSurface>
   );
 }
 
@@ -1610,10 +1665,11 @@ function CreditCardsCard({
   }, [cards.length, reduced]);
 
   return (
-    <Panel
+    <FinanceSurface
       render={<section />}
       className="finance-card home-cards"
       aria-label="Cartões"
+      header={<ShellHeader as="h2" icon={CreditCard} title="Cartões" />}
     >
       <div className="home-cards-top">
         <div className="home-cards-heading">
@@ -1773,7 +1829,7 @@ function CreditCardsCard({
           </Button>
         </div>
       )}
-    </Panel>
+    </FinanceSurface>
   );
 }
 
@@ -2304,18 +2360,27 @@ function HomeInvestmentsCard({
   });
 
   return (
-    <Panel
+    <FinanceSurface
       render={<section />}
       className="finance-card home-investments"
       aria-label="Investimentos"
-    >
-      <div className="home-card-heading">
-        <h2>Investimentos</h2>
-        <DashboardLink
-          label="Ver investimentos"
-          onClick={() => navigate("investments")}
+      header={
+        <ShellHeader
+          as="h2"
+          icon={Plant}
+          title="Investimentos"
+          aside={
+            <>
+              {" "}
+              <DashboardLink
+                label="Ver investimentos"
+                onClick={() => navigate("investments")}
+              />{" "}
+            </>
+          }
         />
-      </div>
+      }
+    >
       {overview.empty ? (
         <div className="home-empty">
           <Plant size={24} />
@@ -2425,7 +2490,7 @@ function HomeInvestmentsCard({
           </div>
         </>
       )}
-    </Panel>
+    </FinanceSurface>
   );
 }
 
@@ -2913,7 +2978,7 @@ export function TransactionsView(props: Props) {
           color="amber"
         />
       </div>
-      <Panel render={<section />} className="finance-card full-table">
+      <FinanceSurface render={<section />} className="finance-card full-table">
         <CardTitle
           title="Lançamentos"
           subtitle={`${filtered.length} registros`}
@@ -3065,7 +3130,7 @@ export function TransactionsView(props: Props) {
             }
           />
         )}
-      </Panel>
+      </FinanceSurface>
       <p className="view-footnote">
         Totais em BRL. Transferências não compõem o resultado do período.
       </p>
@@ -3086,16 +3151,13 @@ export function MiniStat({
   detail?: string;
 }) {
   return (
-    <Panel className="finance-card mini-stat">
-      <span className={`stat-icon ${color}`}>{icon}</span>
-      <div>
-        <span>{label}</span>
-        <strong>
-          <Amount value={value} motion="reel" />
-        </strong>
-        {detail && <small className="mini-stat-detail">{detail}</small>}
-      </div>
-    </Panel>
+    <StatCard
+      label={label}
+      value={<Amount value={value} motion="reel" />}
+      icon={icon}
+      tone={color}
+      hint={detail}
+    />
   );
 }
 export function InvestmentsView({ data, month, category, openForm }: Props) {
@@ -3126,7 +3188,10 @@ export function InvestmentsView({ data, month, category, openForm }: Props) {
           color="amber"
         />
       </div>
-      <Panel render={<section />} className="finance-card investment-page">
+      <FinanceSurface
+        render={<section />}
+        className="finance-card investment-page"
+      >
         <CardTitle
           title="Carteira"
 
@@ -3202,7 +3267,7 @@ export function InvestmentsView({ data, month, category, openForm }: Props) {
             }
           />
         )}
-      </Panel>
+      </FinanceSurface>
       <p className="view-footnote">
         Saldos da última atualização. Totais em BRL.
       </p>
@@ -3551,7 +3616,7 @@ export function CategoriesView({
           ))}
         </div>
       ) : (
-        <Panel render={<section />} className="finance-card">
+        <FinanceSurface render={<section />} className="finance-card">
           <Empty
             title="Nenhuma categoria"
             action={
@@ -3560,7 +3625,7 @@ export function CategoriesView({
               </Button>
             }
           />
-        </Panel>
+        </FinanceSurface>
       )}
     </>
   );
@@ -3673,7 +3738,10 @@ export function AccountsView({
   return (
     <>
       {(data.connections.length === 0 || !data.pluggyConfigured) && (
-        <Panel render={<section />} className="finance-card setup-card">
+        <FinanceSurface
+          render={<section />}
+          className="finance-card setup-card"
+        >
           <CardTitle title="Configuração" />
           <div className="setup-steps">
             <div>
@@ -3720,10 +3788,10 @@ export function AccountsView({
               </span>
             </div>
           </div>
-        </Panel>
+        </FinanceSurface>
       )}
       <div className="accounts-layout">
-        <Panel render={<section />} className="finance-card">
+        <FinanceSurface render={<section />} className="finance-card">
           <CardTitle title="Contas" subtitle="Saldos da instituição" />
           {data.accounts.length ? (
             <div className="bank-account-list">
@@ -3767,8 +3835,8 @@ export function AccountsView({
           ) : (
             <Empty title="Nenhuma conta" />
           )}
-        </Panel>
-        <Panel render={<section />} className="finance-card">
+        </FinanceSurface>
+        <FinanceSurface render={<section />} className="finance-card">
           <CardTitle
             title="Conexões"
             action={
@@ -3839,7 +3907,7 @@ export function AccountsView({
               }
             />
           )}
-        </Panel>
+        </FinanceSurface>
       </div>
       <p className="view-footnote">
         Sincronização bancária a cada 24 h. Até 5 conexões pessoais.

@@ -1,4 +1,6 @@
 "use client";
+import { FinanceSurface } from "@/components/ui/finance-surface";
+import { ShellHeader } from "@/components/ui/surface";
 import { PrivateValue } from "./finance-privacy";
 
 import { useEffect, useId, useMemo, useState } from "react";
@@ -511,11 +513,20 @@ export function MarketTickers({ data }: { data: FinanceData }) {
   const selected = quotes.find((quote) => quote.id === selectedId) || null;
 
   return (
-    <section className="finance-card home-market">
-      <div className="home-card-heading">
-        <h2>Mercado</h2>
-        {failed && !quotes.length ? <span>Indisponível</span> : null}
-      </div>
+    <FinanceSurface
+      render={<section />}
+      className="finance-card home-market"
+      header={
+        <ShellHeader
+          as="h2"
+          icon={ChartLineUp}
+          title="Mercado"
+          aside={
+            failed && !quotes.length ? <span>Indisponível</span> : undefined
+          }
+        />
+      }
+    >
       {quotes.length ? (
         <>
           <div className="home-market-toolbar">
@@ -557,6 +568,6 @@ export function MarketTickers({ data }: { data: FinanceData }) {
           if (!open) setSelectedId(null);
         }}
       />
-    </section>
+    </FinanceSurface>
   );
 }

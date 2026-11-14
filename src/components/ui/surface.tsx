@@ -6,24 +6,21 @@ import { cn } from "@/lib/utils";
 
 type DivProps = React.ComponentProps<"div">;
 
-export function Shell({
-  className,
-  ...props
-}: React.ComponentProps<"section">) {
-  return (
-    <section
-      className={cn(
-        "@container w-full rounded-[1.375rem] bg-surface p-1.5",
-        className,
-      )}
-      {...props}
-    />
-  );
+export function Shell({ className, ...props }: PartProps<"div">) {
+  return renderElement("div", {
+    ...props,
+    "data-slot": "surface-shell",
+    className: cn(
+      "@container w-full rounded-[1.375rem] bg-surface p-1.5",
+      className,
+    ),
+  });
 }
 
 export function Panel({ className, ...props }: PartProps<"div">) {
   return renderElement("div", {
     ...props,
+    "data-slot": "surface-panel",
     className: cn("rounded-2xl bg-surface-inset", className),
   });
 }
@@ -80,6 +77,7 @@ export function ShellHeader({
 }: ShellHeaderProps) {
   return (
     <div
+      data-slot="surface-header"
       className={cn(
         "flex items-center gap-3 pt-1.5 pr-3.5 pb-3 pl-1.5",
         className,

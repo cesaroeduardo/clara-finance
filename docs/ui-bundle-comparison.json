@@ -20,5 +20,6 @@
     "gzipBytes": 638464
   },
   "gzipDifferenceBytes": 19343,
-  "gzipDifferencePercent": 3.12
+  "gzipDifferencePercent": 3.12,
+  "stage": "Primeira entrega técnica; anterior à correção visual Shell + Panel"
 }

@@ -49,6 +49,18 @@
       "registry": "https://tuffui.com/r/key-hint.json",
       "sha256": "364b07a51429ceb64abc65961a2ecd5c19e7d4c5a4f59d6cb8bee2af2c11ea97",
       "component": "key-hint"
+    },
+    {
+      "registry": "https://tuffui.com/r/action-button.json",
+      "component": "action-button",
+      "license": "MIT",
+      "sha256": "278fa3891c34e73d63528ffcb0bf6b7ee976cff842acd49014a1bce21c68e8b6"
+    },
+    {
+      "registry": "https://tuffui.com/r/stat-grid.json",
+      "component": "stat-grid",
+      "license": "MIT",
+      "sha256": "385334114fee82bb003d0ad6ad45ec8e0448bf2a9cadf627ed216612d3eebfb7"
     }
   ]
 }

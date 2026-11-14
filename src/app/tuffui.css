@@ -1,0 +1,303 @@
+/* TUFFUI Surface, Stat Grid and Action Button adaptations. License: docs/licenses/tuffui-MIT.txt. */
+:root {
+  --surface-shell: color-mix(in srgb, var(--foreground) 7%, var(--card));
+  --control-surface: color-mix(in srgb, var(--foreground) 5%, var(--card));
+  --control-hover: color-mix(in srgb, var(--foreground) 9%, var(--card));
+  --control-edge: color-mix(in srgb, var(--foreground) 9%, transparent);
+}
+
+.home-grid,
+.home-top-stack,
+.home-left-stack,
+.home-middle-stack,
+.home-right-stack {
+  gap: 18px;
+}
+
+.finance-card.tuff-finance-shell {
+  padding: 6px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--surface-shell);
+  box-shadow: none;
+  gap: 0;
+}
+
+.tuff-finance-body {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.tuff-finance-shell > [data-slot="surface-header"] {
+  min-height: 48px;
+  padding: 6px 10px 12px 6px;
+  gap: 10px;
+}
+
+.tuff-finance-shell > [data-slot="surface-header"] h2 {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: -0.2px;
+}
+
+.tuff-finance-shell > [data-slot="surface-header"] > :first-child {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.home-forecast > .tuff-finance-body,
+.home-wealth > .tuff-finance-body,
+.home-investments > .tuff-finance-body,
+.home-cards > .tuff-finance-body,
+.home-market > .tuff-finance-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-result > .tuff-finance-body {
+  padding: 18px 18px 20px;
+}
+
+.home-wealth > .tuff-finance-body,
+.home-investments > .tuff-finance-body {
+  padding: 18px 18px 0;
+}
+
+.home-distribution > .tuff-finance-body {
+  padding: 18px;
+}
+
+.home-cards > .tuff-finance-body {
+  padding: 18px 18px 16px;
+}
+
+.home-market > .tuff-finance-body {
+  gap: 12px;
+  padding: 14px 12px;
+}
+
+.home-forecast-body {
+  padding: 16px 18px 10px;
+}
+
+.tuff-finance-shell .home-forecast-footer {
+  background: var(--control-surface);
+  border-top: 0;
+}
+
+.home-grid .home-amount {
+  font-weight: 550;
+  letter-spacing: -1.1px;
+}
+
+.mini-stat.tuff-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 144px;
+}
+
+.tuff-stat > .tuff-finance-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 18px;
+}
+
+.tuff-stat-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tuff-stat-heading p,
+.tuff-stat-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.tuff-stat .tuff-stat-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+}
+
+.tuff-stat-icon.green {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.tuff-stat-icon.amber {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.tuff-stat .tuff-stat-value {
+  font-size: clamp(24px, 2.1vw, 30px);
+  line-height: 1.15;
+  font-weight: 550;
+  letter-spacing: -1px;
+}
+
+.tuff-finance-shell .card-heading {
+  padding: 20px;
+}
+
+.tuff-finance-shell .transactions-table thead,
+.tuff-finance-shell .category-rules-table thead {
+  background: var(--control-surface);
+}
+
+.category-card,
+.goal-card {
+  border: 0;
+  border-radius: 22px;
+  box-shadow: inset 0 0 0 5px var(--surface-shell);
+}
+
+.category-card {
+  padding: 22px;
+}
+
+.goal-card {
+  --goal-padding: 24px;
+}
+
+.add-button[data-slot="button"],
+[data-slot="button"][data-variant="outline"] {
+  border-radius: 999px;
+}
+
+.add-button[data-slot="button"] {
+  height: 36px;
+  padding-inline: 16px;
+  font-size: 12px;
+}
+
+.finance-dialog [data-slot="button"] {
+  border-radius: 999px;
+}
+
+.finance-dialog [data-slot="input"],
+.finance-dialog [data-slot="number-input-control"],
+.finance-dialog [data-slot="textarea"] {
+  min-height: 36px;
+  border-color: transparent;
+  border-radius: 12px;
+  background: var(--control-surface);
+  box-shadow: none;
+}
+
+.finance-dialog [data-slot="input"]:focus-visible,
+.finance-dialog [data-slot="number-input-control"]:focus-visible,
+.finance-dialog [data-slot="textarea"]:focus-visible {
+  border-color: var(--ring);
+}
+
+.field-select-trigger {
+  border-color: transparent;
+  border-radius: 12px;
+  background: var(--control-surface);
+}
+
+.page-heading .field-select-trigger {
+  border-radius: 999px;
+  padding-inline: 12px;
+}
+
+.period-picker {
+  padding: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--control-surface);
+}
+
+.period-picker > .icon-button {
+  border-radius: 999px;
+}
+
+.type-switch.motion-segments {
+  padding: 4px;
+  gap: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--control-surface);
+}
+
+.type-switch.motion-segments > button,
+.type-switch.motion-segments .segment-indicator {
+  border-radius: 999px;
+}
+
+.type-switch.motion-segments .segment-indicator {
+  box-shadow: 0 1px 3px var(--control-edge);
+}
+
+.finance-dialog {
+  border-radius: 24px;
+  box-shadow:
+    0 0 0 6px var(--surface-shell),
+    0 24px 80px color-mix(in srgb, var(--foreground) 14%, transparent);
+}
+
+.clara-select-content.t-dropdown {
+  padding: 6px;
+  border: 0;
+  border-radius: 16px;
+}
+
+.clara-select-content .clara-select-item {
+  min-height: 32px;
+  border-radius: 10px;
+}
+
+.sidebar-search {
+  border-radius: 999px;
+}
+
+@media (max-width: 600px) {
+  .add-button[data-slot="button"] {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    gap: 0;
+    font-size: 0;
+  }
+
+  .home-grid,
+  .home-top-stack,
+  .home-left-stack,
+  .home-middle-stack,
+  .home-right-stack {
+    gap: 14px;
+  }
+
+  .finance-card.tuff-finance-shell {
+    padding: 5px;
+    border-radius: 20px;
+  }
+
+  .tuff-finance-shell > [data-slot="surface-header"] h2 {
+    font-size: 12px;
+  }
+
+  .tuff-stat > .tuff-finance-body {
+    padding: 14px;
+  }
+
+  .tuff-stat .tuff-stat-value {
+    font-size: 24px;
+  }
+}
