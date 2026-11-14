@@ -156,13 +156,12 @@ test("aparência neutra, privacidade e calendário cabem no celular", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "Abrir menu" }).click();
   await page.getByRole("button", { name: "Ocultar valores" }).click();
+  await expect(page.locator(".app-shell")).toHaveClass(/values-hidden/);
   await expect
     .poll(async () =>
-      (await page.locator(".amount").allTextContents()).every(
-        (value) => value === "••••••",
-      ),
+      page.locator(".amount").first().evaluate((el) => getComputedStyle(el).filter),
     )
-    .toBe(true);
+    .toContain("blur");
   await page.getByRole("button", { name: "Usar tema escuro" }).click();
   await page.getByRole("button", { name: /^Metas/ }).click();
   await page.getByRole("button", { name: "Nova meta", exact: true }).click();

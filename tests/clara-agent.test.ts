@@ -50,8 +50,39 @@ const fixtureAccounts: FinanceData = {
       installmentNumber: null,
       installmentTotal: null,
     },
+    {
+      id: "tx-4",
+      description: "Internet",
+      amount: 12_000,
+      kind: "expense",
+      date: "2026-11-10",
+      status: "pending",
+      category: "Contas da casa",
+      accountId: "acc-1",
+      source: "manual",
+      currency: "BRL",
+      installmentNumber: null,
+      installmentTotal: null,
+    },
   ],
-  categories: [],
+  categories: [
+    {
+      id: "cat-1",
+      name: "Alimentação",
+      color: "#22c55e",
+      imageSlug: null,
+      sortOrder: 0,
+      taxonomyKey: "alimentacao",
+    },
+    {
+      id: "cat-2",
+      name: "Moradia",
+      color: "#3b82f6",
+      imageSlug: null,
+      sortOrder: 1,
+      taxonomyKey: "moradia",
+    },
+  ],
   categoryRules: [],
   accounts: [
     {
@@ -80,17 +111,63 @@ const fixtureAccounts: FinanceData = {
     },
   ],
   investments: [],
-  goals: [],
+  goals: [
+    {
+      id: "goal-1",
+      name: "Reserva",
+      description: "",
+      target: 1_000_000,
+      current: 250_000,
+      deadline: "2026-12-31",
+      icon: "piggy",
+      color: "#111111",
+      imageSlug: null,
+      completed: false,
+      category: "all",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      completedAt: null,
+    },
+  ],
   connections: [],
-  recurrings: [],
+  recurrings: [
+    {
+      id: "rec-1",
+      kind: "expense",
+      type: "fixed",
+      description: "Aluguel",
+      amount: 250_000,
+      dayOfMonth: 5,
+      frequency: "monthly",
+      category: "Moradia",
+      accountId: "acc-1",
+      installmentCurrent: null,
+      installmentTotal: null,
+      startDate: "2026-01-01",
+      endDate: null,
+      source: "manual",
+      matchKey: "aluguel",
+      ignored: false,
+      active: true,
+      userEdited: false,
+      currency: "BRL",
+    },
+  ],
   plan: {
-    monthlyLimit: 0,
-    fixedCost: 0,
-    monthlySavings: 0,
-    expectedSalary: 0,
+    monthlyLimit: 500_000,
+    fixedCost: 50_000,
+    monthlySavings: 100_000,
+    expectedSalary: 800_000,
     expectedFreelance: 0,
   },
-  plans: {},
+  plans: {
+    "2026-11": {
+      monthlyLimit: 500_000,
+      fixedCost: 50_000,
+      monthlySavings: 100_000,
+      expectedSalary: 800_000,
+      expectedFreelance: 0,
+    },
+  },
   pluggyConfigured: false,
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -136,6 +213,46 @@ test("mock abre Contas e resume saldo", () => {
   assert.ok(result.steps?.some((step) => step.ref === "Abrir Contas"));
   assert.match(result.reply, /Contas/i);
   assert.match(result.reply, /R\$/);
+});
+
+test("mock entende quero ir pra Metas com passo UI SDK", () => {
+  const result = planClaraReply({
+    message: "quero ir pra metas",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.view, "goals");
+  assert.deepEqual(result.steps, [
+    { ref: "Abrir Metas", action: "press" },
+  ]);
+  assert.match(result.reply, /Metas/i);
+});
+
+test("mock entende quero ir pra Lançamentos com passo UI SDK", () => {
+  const result = planClaraReply({
+    message: "quero ir pra lançamentos",
+    data: fixtureAccounts,
+    currentView: "dashboard",
+  });
+  assert.equal(result.view, "transactions");
+  assert.deepEqual(result.steps, [
+    { ref: "Abrir Lançamentos", action: "press" },
+  ]);
+  assert.match(result.reply, /Lan[cç]amentos/i);
+});
+
+test("mock entende me leva pra Visão geral", () => {
+  const result = planClaraReply({
+    message: "me leva pra visão geral",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.view, "dashboard");
+  assert.ok(
+    result.steps?.some(
+      (step) => step.ref === "Abrir Visão geral" && step.action === "press",
+    ),
+  );
 });
 
 test("mock detalha conta por instituição", () => {
@@ -187,6 +304,173 @@ test("mock responde maior gasto do mês com card", () => {
   assert.ok((result.card?.runnersUp.length ?? 0) >= 1);
 });
 
+test("mock responde ritmo do mês", () => {
+  const result = planClaraReply({
+    message: "posso gastar quanto hoje?",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.card?.type, "pace");
+  assert.match(result.reply, /por dia|ritmo|limite/i);
+  assert.ok(result.card?.type === "pace" && result.card.monthlyLimit > 0);
+});
+
+test("mock responde resumo do período", () => {
+  const result = planClaraReply({
+    message: "como foi o mês de novembro de 2026?",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.card?.type, "period-summary");
+  assert.match(result.reply, /entradas|saídas|Resumo/i);
+  assert.ok(
+    result.card?.type === "period-summary" && result.card.income === 800_000,
+  );
+});
+
+test("mock lista contas a pagar", () => {
+  const result = planClaraReply({
+    message: "o que vence em novembro de 2026?",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.card?.type, "pending-bills");
+  assert.match(result.reply, /Internet|a pagar/i);
+  assert.ok(
+    result.card?.type === "pending-bills" &&
+      result.card.bills.some((row) => row.description === "Internet"),
+  );
+});
+
+test("mock resume recorrentes do ciclo", () => {
+  const result = planClaraReply({
+    message: "quanto sai fixo em novembro de 2026?",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.card?.type, "recurrings");
+  assert.match(result.reply, /recorrentes|fixos|Aluguel/i);
+  assert.ok(
+    result.card?.type === "recurrings" && result.card.fixedTotal === 250_000,
+  );
+});
+
+test("mock resume gasto por categoria", () => {
+  const result = planClaraReply({
+    message: "onde gastei mais em novembro de 2026?",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.card?.type, "category-spend");
+  assert.match(result.reply, /Moradia|categoria/i);
+  assert.ok(
+    result.card?.type === "category-spend" &&
+      result.card.categories[0]?.name === "Moradia",
+  );
+});
+
+test("mock detalha gasto em categoria nomeada", () => {
+  const result = planClaraReply({
+    message: "quanto gastei em Alimentação em novembro de 2026?",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.card?.type, "category-spend");
+  assert.ok(
+    result.card?.type === "category-spend" &&
+      result.card.focusCategory === "Alimentação" &&
+      result.card.focusAmount === 42_050,
+  );
+});
+
+test("mock responde progresso das metas", () => {
+  const result = planClaraReply({
+    message: "como vão as metas?",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.card?.type, "goals");
+  assert.match(result.reply, /Reserva|meta/i);
+  assert.ok(
+    result.card?.type === "goals" &&
+      result.card.goals.some((row) => row.name === "Reserva"),
+  );
+});
+
+test("mock conclui meta pelo nome com navegação e ação", () => {
+  const result = planClaraReply({
+    message: "conclui a meta Reserva",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.view, "goals");
+  assert.deepEqual(result.steps, [
+    { ref: "Abrir Metas", action: "press" },
+  ]);
+  assert.equal(result.action?.type, "complete-goal");
+  assert.equal(result.action?.goalId, "goal-1");
+  assert.match(result.reply, /Reserva|orgulh|Metas/i);
+});
+
+test("mock pede o nome se a meta não for encontrada", () => {
+  const result = planClaraReply({
+    message: "conclui a meta Viagem",
+    data: fixtureAccounts,
+    currentView: "clara",
+  });
+  assert.equal(result.action, undefined);
+  assert.match(result.reply, /Qual meta|nome/i);
+});
+
+test("mock entende consegui bater a meta do nome", () => {
+  const data = {
+    ...fixtureAccounts,
+    goals: [
+      {
+        ...fixtureAccounts.goals[0]!,
+        id: "goal-gta",
+        name: "GTA VI",
+      },
+    ],
+  };
+  const result = planClaraReply({
+    message: "Vó, consegui bater a meta do GTA VI",
+    data,
+    currentView: "clara",
+  });
+  assert.equal(result.view, "goals");
+  assert.equal(result.action?.type, "complete-goal");
+  assert.equal(result.action?.goalId, "goal-gta");
+  assert.match(result.reply, /GTA VI|orgulh|Metas/i);
+});
+
+test("mock desfaz última conclusão de meta", () => {
+  const result = planClaraReply({
+    message: "desfazer",
+    data: fixtureAccounts,
+    currentView: "clara",
+    lastUndo: {
+      type: "complete-goal",
+      goalId: "goal-1",
+      label: "Reserva",
+    },
+  });
+  assert.equal(result.action?.type, "undo");
+  assert.equal(result.view, "goals");
+  assert.match(result.reply, /desfazer|Reserva/i);
+});
+
+test("mock avisa quando não há ação pra desfazer", () => {
+  const result = planClaraReply({
+    message: "desfazer",
+    data: fixtureAccounts,
+    currentView: "clara",
+    lastUndo: null,
+  });
+  assert.equal(result.action, undefined);
+  assert.match(result.reply, /nada pra desfazer/i);
+});
+
 test("resolve mês passado e este mês para insights", async () => {
   const { resolveMonthFromMessage, biggestExpenseInsight } = await import(
     "../src/lib/clara-agent-insights"
@@ -201,7 +485,7 @@ test("resolve mês passado e este mês para insights", async () => {
   );
   const card = biggestExpenseInsight(fixtureAccounts, "2026-11");
   assert.equal(card?.transaction.description, "Aluguel");
-  assert.equal(card?.sharePercent, 85.6);
+  assert.equal(card?.sharePercent, 82.2);
 });
 
 test("composer da Clara é localizável e preenchível pelo createAgent", async () => {
@@ -293,6 +577,7 @@ test("composer da Clara é localizável e preenchível pelo createAgent", async 
         data: fixtureAccounts,
         currentView: "clara",
         onNavigate: () => {},
+        mutate: async () => {},
       }),
     );
     await act(async () => {

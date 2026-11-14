@@ -10,12 +10,13 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { Minus, PictureInPicture, Play, X } from "@phosphor-icons/react";
+import { Minus, PictureInPicture, X } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { ClaraAgentComposerPlus } from "@/components/clara-agent-composer-plus";
 import { ClaraAgentComposerSend } from "@/components/clara-agent-composer-send";
 import { ClaraAgentGreeting } from "@/components/clara-agent-greeting";
 import { ClaraAgentMessageCard } from "@/components/clara-agent-message-card";
+import { ClaraAgentThinking } from "@/components/clara-agent-thinking";
 import { ClaraMark } from "@/components/clara-mark";
 import { ClaraType } from "@/components/clara-type";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +30,7 @@ import {
   setClaraVoiceMode,
   toggleClaraVoiceMode,
 } from "@/lib/clara-chat-session";
+import type { Mutate } from "@/components/finance-form";
 import type { ClaraView } from "@/lib/clara-mock-agent";
 import type { FinanceData } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,7 @@ type ClaraAgentFloatProps = {
   data: FinanceData;
   currentView: ClaraView;
   onNavigate: (view: ClaraView) => void;
+  mutate: Mutate;
 };
 
 const FLOAT_PAD = 16;
@@ -71,16 +74,18 @@ export function ClaraAgentFloat({
   data,
   currentView,
   onNavigate,
+  mutate,
 }: ClaraAgentFloatProps) {
   const reduceMotion = useReducedMotion();
   const panelId = useId();
-  const { messages, suggestions, presentation, pending, voiceMode, send } =
-    useClaraAgentChat({ data, currentView, onNavigate });
+  const { messages, presentation, pending, voiceMode, send } =
+    useClaraAgentChat({ data, currentView, onNavigate, mutate });
   const [draft, setDraft] = useState("");
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLFormElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const dragOriginRef = useRef<{
     x: number;
@@ -93,7 +98,8 @@ export function ClaraAgentFloat({
   const minimized = presentation === "minimized";
   const empty = messages.length === 0 && !pending;
   const showLauncher =
-    currentView !== "clara" && presentation === "inline";
+    currentView !== "clara" &&
+    (presentation === "inline" || presentation === "minimized");
 
   useLayoutEffect(() => {
     setPortalHost(document.body);
@@ -216,11 +222,18 @@ export function ClaraAgentFloat({
     [],
   );
 
+  function focusComposer() {
+    const node = composerRef.current?.querySelector("textarea");
+    node?.focus({ preventScroll: true });
+  }
+
   async function submitDraft() {
     const text = draft.trim();
-    if (!text) return;
+    if (!text || pending) return;
     setDraft("");
+    requestAnimationFrame(() => focusComposer());
     await send(text);
+    focusComposer();
   }
 
   if (!portalHost) return null;
@@ -232,12 +245,18 @@ export function ClaraAgentFloat({
           key="clara-agent-launcher"
           type="button"
           className="clara-agent-launcher"
-          aria-label="Abrir novo chat do agente"
+          aria-label={
+            minimized ? "Expandir conversa do agente" : "Abrir novo chat do agente"
+          }
           initial={reduceMotion ? false : { opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.92 }}
           transition={{ type: "spring", stiffness: 420, damping: 34 }}
           onClick={() => {
+            if (minimized) {
+              expandClaraAgentFloat();
+              return;
+            }
             setDraft("");
             openClaraAgentNewFloatChat();
           }}
@@ -247,23 +266,38 @@ export function ClaraAgentFloat({
       ) : null}
 
       {floating && pos ? (
-        <div
+        <m.aside
           key="clara-agent-float"
-          className="clara-agent-float-root pointer-events-none fixed inset-0 z-[80] overflow-hidden"
+          ref={panelRef}
+          id={panelId}
+          role="dialog"
+          aria-label="Agente"
+          aria-modal={false}
+          style={{
+            left: pos.left,
+            top: pos.top,
+            transformOrigin: "bottom right",
+          }}
+          className={cn(
+            "clara-agent-float pointer-events-auto fixed z-[80] flex flex-col overflow-hidden",
+            dragging && "clara-agent-float-dragging",
+          )}
+          initial={
+            reduceMotion ? false : { opacity: 0, scale: 0.9, y: 18 }
+          }
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={
+            reduceMotion
+              ? undefined
+              : { opacity: 0, scale: 0.94, y: 12 }
+          }
+          transition={
+            reduceMotion
+              ? { duration: 0 }
+              : { type: "spring", stiffness: 420, damping: 30, mass: 0.78 }
+          }
         >
-          <aside
-            ref={panelRef}
-            id={panelId}
-            role="dialog"
-            aria-label="Agente"
-            aria-modal={false}
-            style={{ left: pos.left, top: pos.top }}
-            className={cn(
-              "clara-agent-float pointer-events-auto absolute flex flex-col overflow-hidden",
-              dragging && "clara-agent-float-dragging",
-            )}
-          >
-            <div className="clara-agent-float-body">
+          <div className="clara-agent-float-body">
             <header
               className={cn(
                 "clara-agent-float-topbar",
@@ -337,27 +371,7 @@ export function ClaraAgentFloat({
                   )}
                   {pending ? (
                     <div className="clara-agent-turn is-compact">
-                      <p className="clara-agent-turn-text clara-agent-thinking">
-                        Um momentinho…
-                      </p>
-                    </div>
-                  ) : null}
-                  {!pending && suggestions.length > 0 ? (
-                    <div
-                      className="clara-agent-chips is-compact"
-                      role="group"
-                      aria-label="Próximos passos"
-                    >
-                      {suggestions.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className="clara-agent-chip"
-                          onClick={() => void send(item.prompt)}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
+                      <ClaraAgentThinking compact />
                     </div>
                   ) : null}
                 </div>
@@ -366,6 +380,7 @@ export function ClaraAgentFloat({
 
             <div className="clara-agent-float-composer">
               <form
+                ref={composerRef}
                 className="clara-agent-composer-outer"
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -377,14 +392,9 @@ export function ClaraAgentFloat({
                     aria-label="Mensagem para a Clara"
                     className="clara-agent-composer-input is-compact"
                     value={draft}
-                    disabled={pending}
                     rows={1}
                     autoResize
-                    placeholder={
-                      empty
-                        ? "O que vamos ver hoje?"
-                        : "Pergunte sobre suas contas…"
-                    }
+                    placeholder="Pergunte ou digite /help"
                     onValueChange={(value) => setDraft(String(value))}
                     onSubmit={() => {
                       void submitDraft();
@@ -406,39 +416,10 @@ export function ClaraAgentFloat({
                 </div>
               </form>
             </div>
-            </div>
-          </aside>
-        </div>
+          </div>
+        </m.aside>
       ) : null}
 
-      {minimized ? (
-        <m.div
-          key="clara-agent-dock"
-          className="clara-agent-float-dock"
-          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 8 }}
-          transition={{ type: "spring", stiffness: 420, damping: 34 }}
-        >
-          <button
-            type="button"
-            className="clara-agent-float-pill"
-            onClick={() => expandClaraAgentFloat()}
-            aria-label="Expandir agente"
-          >
-            <span className="clara-agent-float-pill-label">Agente</span>
-          </button>
-          <button
-            type="button"
-            className="clara-agent-float-pill-primary"
-            onClick={() => expandClaraAgentFloat()}
-          >
-            <ClaraMark className="clara-agent-float-pill-mark clara-agent-mark brand-mark" />
-            Agente
-            <Play size={12} weight="fill" className="opacity-70" />
-          </button>
-        </m.div>
-      ) : null}
     </AnimatePresence>,
     portalHost,
   );

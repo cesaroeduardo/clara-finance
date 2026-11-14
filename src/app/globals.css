@@ -6,7 +6,9 @@
 @import "./finance.css";
 @import "./motion.css";
 @import "./dashboard.css";
-@import "./tuffui.css";
+/* tuffui.css is imported from layout.tsx so it ships as its own chunk —
+   nesting it here after finance/dashboard pushes the Turbopack CSS bundle
+   past ~256KB and the import is dropped silently. */
 
 @custom-variant dark (&:is(.dark *));
 

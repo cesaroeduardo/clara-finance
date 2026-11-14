@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test("dados ficticios sao opcionais e controlados apenas em Contas", async ({
+test("dados ficticios sao opcionais e controlados em Contas", async ({
   page,
 }) => {
   let syncRequests = 0;
@@ -37,6 +37,10 @@ test("dados ficticios sao opcionais e controlados apenas em Contas", async ({
   await expect(
     page.getByRole("button", { name: "Sincronizar conexões" }),
   ).toBeDisabled();
+  await expect(page.getByLabel("Dados fictícios ativos")).toHaveCount(0);
+  await page.getByRole("button", { name: "Visão geral", exact: true }).click();
+  await expect(page.getByLabel("Dados fictícios ativos")).toBeVisible();
+  await expect(page.locator(".sidebar-demo-status")).toHaveCount(0);
   await page.reload();
   await page.getByRole("button", { name: "Contas", exact: true }).click();
   await expect(toggle).toBeChecked();

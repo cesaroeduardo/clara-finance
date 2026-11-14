@@ -11,12 +11,37 @@ import {
   balancesReply,
   biggestExpenseInsight,
   biggestExpenseReply,
+  categorySpendInsight,
+  categorySpendReply,
   emptyBalancesReply,
   emptyBiggestExpenseReply,
+  goalsInsight,
+  goalsReply,
   netWorthCardReply,
   netWorthInsight,
+  paceInsight,
+  paceReply,
+  pendingBillsInsight,
+  pendingBillsReply,
+  periodSummaryInsight,
+  periodSummaryReply,
+  recurringsInsight,
+  recurringsReply,
+  resolveCategoryFromMessage,
   resolveMonthFromMessage,
+  resolvePeriodFromMessage,
   wantsBiggestExpense,
+  completeGoalAlreadyReply,
+  completeGoalMissingReply,
+  completeGoalReply,
+  resolveGoalFromMessage,
+  wantsCategorySpend,
+  wantsCompleteGoal,
+  wantsGoals,
+  wantsPace,
+  wantsPendingBills,
+  wantsPeriodSummary,
+  wantsRecurrings,
   type ClaraAgentCard,
 } from "@/lib/clara-agent-insights";
 import type { Account, Connection, FinanceData } from "@/lib/types";
@@ -46,12 +71,28 @@ export type ClaraSuggestion = {
   prompt: string;
 };
 
+export type ClaraUndoEntry = {
+  type: "complete-goal";
+  goalId: string;
+  label: string;
+};
+
+export type ClaraAgentAction =
+  | {
+      type: "complete-goal";
+      goalId: string;
+    }
+  | {
+      type: "undo";
+    };
+
 export type ClaraMockResult = {
   reply: string;
   view?: ClaraView;
   steps?: AgentStep[];
   suggestions?: ClaraSuggestion[];
   card?: ClaraAgentCard;
+  action?: ClaraAgentAction;
 };
 
 const SUGGEST_OPEN_ACCOUNTS: ClaraSuggestion = {
@@ -84,6 +125,44 @@ const SUGGEST_HELP: ClaraSuggestion = {
   label: "/help",
   prompt: "/help",
 };
+const SUGGEST_PACE: ClaraSuggestion = {
+  id: "pace",
+  label: "Ritmo do mês",
+  prompt: "Posso gastar quanto hoje?",
+};
+const SUGGEST_SUMMARY: ClaraSuggestion = {
+  id: "summary",
+  label: "Resumo do mês",
+  prompt: "Como foi o mês?",
+};
+const SUGGEST_PENDING: ClaraSuggestion = {
+  id: "pending",
+  label: "A pagar",
+  prompt: "O que vence?",
+};
+const SUGGEST_RECURRING: ClaraSuggestion = {
+  id: "recurring",
+  label: "Recorrentes",
+  prompt: "Quanto sai fixo este mês?",
+};
+const SUGGEST_CATEGORY: ClaraSuggestion = {
+  id: "category",
+  label: "Por categoria",
+  prompt: "Onde gastei mais?",
+};
+const SUGGEST_GOALS: ClaraSuggestion = {
+  id: "goals",
+  label: "Metas",
+  prompt: "Como vão as metas?",
+};
+
+/** Verbos de navegação em PT-BR (inclui “pra”, “quero ir”, “me leva”). */
+const GO_TO =
+  "(?:abre|abra|abrir|mostra|mostre|exibe|exibir|acessa|acessar|" +
+  "quero\\s+(?:ir|ver|abrir|acessar)|" +
+  "(?:me\\s+)?(?:leva|levar|leve)|" +
+  "(?:ir|vai|v[aá]|vamos|navega|navegar)\\s+(?:pra|para|pro|a|ao)|" +
+  "(?:ir|vai|v[aá])\\s+em)";
 
 const VIEW_INTENTS: {
   view: ClaraView;
@@ -93,63 +172,101 @@ const VIEW_INTENTS: {
   {
     view: "accounts",
     patterns: [
-      /\b(abre|abra|abrir|mostra|mostre|ir\s+para|vai\s+para|vá\s+para)\b.*\bcontas?\b/i,
-      /\bcontas?\b.*\b(abre|abra|abrir|mostra|mostre)\b/i,
+      new RegExp(`\\b(?:${GO_TO})\\b.*\\bcontas?\\b`, "i"),
+      /\bcontas?\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
     opened: "Pronto, meu bem — abri Contas pra você olhar com calma.",
   },
   {
     view: "dashboard",
     patterns: [
-      /\b(abre|abra|abrir|mostra|mostre|ir\s+para|vai\s+para|vá\s+para)\b.*\b(vis[aã]o\s+geral|in[ií]cio|dashboard)\b/i,
-      /\b(vis[aã]o\s+geral|dashboard)\b.*\b(abre|abra|abrir|mostra|mostre)\b/i,
+      new RegExp(
+        `\\b(?:${GO_TO})\\b.*\\b(vis[aã]o\\s+geral|in[ií]cio|dashboard)\\b`,
+        "i",
+      ),
+      /\b(vis[aã]o\s+geral|dashboard)\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
     opened: "Vamos lá — deixei a Visão geral aberta pra você.",
   },
   {
     view: "transactions",
     patterns: [
-      /\b(abre|abra|abrir|mostra|mostre|ir\s+para|vai\s+para|vá\s+para)\b.*\b(lan[cç]amentos?|extrato|transa[cç][oõ]es)\b/i,
+      new RegExp(
+        `\\b(?:${GO_TO})\\b.*\\b(lan[cç]amentos?|extrato|transa[cç][oõ]es)\\b`,
+        "i",
+      ),
+      /\b(lan[cç]amentos?|extrato|transa[cç][oõ]es)\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
     opened: "Abri os Lançamentos. Olha com carinho o que entrou e saiu.",
   },
   {
     view: "recurring",
     patterns: [
-      /\b(abre|abra|abrir|mostra|mostre|ir\s+para|vai\s+para|vá\s+para)\b.*\brecorrentes?\b/i,
+      new RegExp(`\\b(?:${GO_TO})\\b.*\\brecorrentes?\\b`, "i"),
+      /\brecorrentes?\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
     opened: "Pronto — Recorrentes está aberta.",
   },
   {
     view: "investments",
     patterns: [
-      /\b(abre|abra|abrir|mostra|mostre|ir\s+para|vai\s+para|vá\s+para)\b.*\binvestimentos?\b/i,
+      new RegExp(`\\b(?:${GO_TO})\\b.*\\binvestimentos?\\b`, "i"),
+      /\binvestimentos?\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
     opened: "Abri Investimentos pra você.",
   },
   {
     view: "goals",
     patterns: [
-      /\b(abre|abra|abrir|mostra|mostre|ir\s+para|vai\s+para|vá\s+para)\b.*\bmetas?\b/i,
+      new RegExp(`\\b(?:${GO_TO})\\b.*\\bmetas?\\b`, "i"),
+      /\bmetas?\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
     opened: "Metas aberta. Com jeitinho a gente chega lá.",
   },
   {
     view: "categories",
     patterns: [
-      /\b(abre|abra|abrir|mostra|mostre|ir\s+para|vai\s+para|vá\s+para)\b.*\bcategorias?\b/i,
+      new RegExp(`\\b(?:${GO_TO})\\b.*\\bcategorias?\\b`, "i"),
+      /\bcategorias?\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
     opened: "Abri Categorias pra você organizar.",
   },
   {
     view: "clara",
     patterns: [
-      /\b(abre|abra|abrir|volta|voltar)\b.*\b(clara|agente)\b/i,
-      /\b(clara|agente)\b.*\b(abre|abra|abrir|volta|voltar)\b/i,
+      new RegExp(`\\b(?:${GO_TO}|volta|voltar)\\b.*\\b(clara|agente)\\b`, "i"),
+      /\b(clara|agente)\b.*\b(abre|abra|abrir|volta|voltar|quero\s+ir)\b/i,
     ],
     opened: "Estou bem aqui, meu bem. Pode perguntar.",
   },
 ];
+
+function viewLabel(view: ClaraView) {
+  switch (view) {
+    case "dashboard":
+      return "Visão geral";
+    case "transactions":
+      return "Lançamentos";
+    case "recurring":
+      return "Recorrentes";
+    case "investments":
+      return "Investimentos";
+    case "goals":
+      return "Metas";
+    case "categories":
+      return "Categorias";
+    case "accounts":
+      return "Contas";
+    case "clara":
+      return "Agente";
+  }
+}
+
+/** UI SDK: press the sidebar control registered as `Abrir {tela}`. */
+function openViewSteps(view: ClaraView): AgentStep[] | undefined {
+  if (view === "clara") return undefined;
+  return [{ ref: `Abrir ${viewLabel(view)}`, action: "press" }];
+}
 
 function normalize(text: string) {
   return text
@@ -229,7 +346,16 @@ export type ClaraMockInput = {
   message: string;
   data: FinanceData;
   currentView: ClaraView;
+  lastUndo?: ClaraUndoEntry | null;
 };
+
+export function wantsUndo(message: string) {
+  return (
+    /\b(desfazer|desfa[cç]a|desfaz|undo|voltar\s+atr[aá]s|reverter)\b/i.test(
+      message,
+    ) || /^\/undo\b/i.test(message.trim())
+  );
+}
 
 /** Classifies the user message and returns a persona reply plus optional nav/UI steps. */
 export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
@@ -240,9 +366,9 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
         "Pode falar, meu bem. Pergunte de uma conta ou peça pra eu abrir uma tela.",
       suggestions: [
         SUGGEST_BALANCES,
+        SUGGEST_PACE,
         SUGGEST_BIGGEST,
         SUGGEST_WORTH,
-        SUGGEST_OPEN_ACCOUNTS,
       ],
     };
   }
@@ -260,6 +386,30 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
       reply: helpReply(),
       card: buildHelpCard(),
       suggestions: [SUGGEST_BIGGEST, SUGGEST_BALANCES, SUGGEST_HELP],
+    };
+  }
+
+  if (wantsUndo(text)) {
+    const last = input.lastUndo ?? null;
+    if (!last) {
+      return {
+        reply:
+          "Não tem nada pra desfazer agora, meu bem. Eu só desfaço a última ação que eu mesma fiz.",
+        suggestions: [SUGGEST_HELP, SUGGEST_GOALS],
+      };
+    }
+    if (last.type === "complete-goal") {
+      return {
+        reply: `Beleza — vou desfazer a conclusão da meta “${last.label}”.`,
+        view: "goals",
+        steps: openViewSteps("goals"),
+        action: { type: "undo" },
+        suggestions: [SUGGEST_GOALS, SUGGEST_HELP],
+      };
+    }
+    return {
+      reply: "Essa última ação eu ainda não sei desfazer, meu bem.",
+      suggestions: [SUGGEST_HELP],
     };
   }
 
@@ -285,10 +435,7 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
       reply: `${open.opened}\n\n${detail}`,
       card: card ?? undefined,
       view: open.view,
-      steps:
-        open.view !== "clara"
-          ? [{ ref: `Abrir ${viewLabel(open.view)}`, action: "press" }]
-          : undefined,
+      steps: openViewSteps(open.view),
       suggestions: [SUGGEST_WORTH, SUGGEST_DASHBOARD],
     };
   }
@@ -297,11 +444,96 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
     return {
       reply: open.opened,
       view: open.view,
-      steps:
-        open.view !== input.currentView
-          ? [{ ref: `Abrir ${viewLabel(open.view)}`, action: "press" }]
-          : undefined,
+      steps: openViewSteps(open.view),
       suggestions: [SUGGEST_BALANCES, SUGGEST_WORTH],
+    };
+  }
+
+  if (wantsCompleteGoal(text)) {
+    const goal = resolveGoalFromMessage(text, input.data);
+    if (!goal) {
+      return {
+        reply: completeGoalMissingReply(),
+        suggestions: [SUGGEST_GOALS, SUGGEST_HELP],
+      };
+    }
+    if (goal.completed) {
+      return {
+        reply: completeGoalAlreadyReply(goal),
+        suggestions: [SUGGEST_GOALS, SUGGEST_WORTH],
+        view: "goals",
+        steps: openViewSteps("goals"),
+      };
+    }
+    return {
+      reply: completeGoalReply(goal),
+      view: "goals",
+      steps: openViewSteps("goals"),
+      action: { type: "complete-goal", goalId: goal.id },
+      suggestions: [SUGGEST_GOALS, SUGGEST_WORTH],
+    };
+  }
+
+  if (wantsPace(text)) {
+    const month = resolveMonthFromMessage(text);
+    const card = paceInsight(input.data, month);
+    return {
+      reply: paceReply(card),
+      card: card.empty ? undefined : card,
+      suggestions: [SUGGEST_SUMMARY, SUGGEST_PENDING, SUGGEST_DASHBOARD],
+    };
+  }
+
+  if (wantsPeriodSummary(text)) {
+    const period = resolvePeriodFromMessage(text);
+    const card = periodSummaryInsight(input.data, period);
+    return {
+      reply: periodSummaryReply(card),
+      card,
+      suggestions: [SUGGEST_PACE, SUGGEST_CATEGORY, SUGGEST_BIGGEST],
+    };
+  }
+
+  if (wantsPendingBills(text)) {
+    const period = resolvePeriodFromMessage(text);
+    const card = pendingBillsInsight(input.data, period);
+    return {
+      reply: pendingBillsReply(card),
+      card: card.count > 0 ? card : undefined,
+      suggestions: [SUGGEST_RECURRING, SUGGEST_PACE, SUGGEST_DASHBOARD],
+    };
+  }
+
+  if (wantsRecurrings(text)) {
+    const month = resolveMonthFromMessage(text);
+    const card = recurringsInsight(input.data, month);
+    return {
+      reply: recurringsReply(card),
+      card: card.total > 0 || card.topItems.length > 0 ? card : undefined,
+      suggestions: [SUGGEST_PENDING, SUGGEST_SUMMARY],
+    };
+  }
+
+  if (wantsCategorySpend(text)) {
+    const month = resolveMonthFromMessage(text);
+    const focus = resolveCategoryFromMessage(text, input.data);
+    const card = categorySpendInsight(input.data, month, focus);
+    return {
+      reply: categorySpendReply(card),
+      card:
+        card.categories.length > 0 || (card.focusCategory && card.focusAmount)
+          ? card
+          : undefined,
+      suggestions: [SUGGEST_BIGGEST, SUGGEST_SUMMARY, SUGGEST_PACE],
+    };
+  }
+
+  if (wantsGoals(text)) {
+    const card = goalsInsight(input.data);
+    return {
+      reply: goalsReply(card),
+      card: card.goals.length > 0 ? card : undefined,
+      suggestions: [SUGGEST_GOALS, SUGGEST_WORTH, SUGGEST_PACE],
     };
   }
 
@@ -317,7 +549,7 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
     return {
       reply: biggestExpenseReply(card),
       card,
-      suggestions: [SUGGEST_BALANCES, SUGGEST_WORTH, SUGGEST_DASHBOARD],
+      suggestions: [SUGGEST_CATEGORY, SUGGEST_BALANCES, SUGGEST_DASHBOARD],
     };
   }
 
@@ -339,22 +571,21 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
       reply: accountCardReply(card),
       card,
       view: "accounts",
-      steps: [{ ref: "Abrir Contas", action: "press" }],
+      steps: openViewSteps("accounts"),
       suggestions: [SUGGEST_BALANCES, SUGGEST_DASHBOARD],
     };
   }
 
   if (askBalances || /\bcontas?\b/i.test(text)) {
     const card = balancesInsight(input.data);
+    const goAccounts = /\b(abre|abra|abrir|mostra|mostre|quero\s+ir|ir\s+(?:pra|para))\b/i.test(
+      text,
+    );
     return {
       reply: card ? balancesReply(card) : emptyBalancesReply(),
       card: card ?? undefined,
-      view: text.match(/\b(abre|abra|abrir|mostra|mostre)\b/i)
-        ? "accounts"
-        : undefined,
-      steps: text.match(/\b(abre|abra|abrir|mostra|mostre)\b/i)
-        ? [{ ref: "Abrir Contas", action: "press" }]
-        : undefined,
+      view: goAccounts ? "accounts" : undefined,
+      steps: goAccounts ? openViewSteps("accounts") : undefined,
       suggestions: [SUGGEST_OPEN_ACCOUNTS, SUGGEST_WORTH],
     };
   }
@@ -379,30 +610,9 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
 
   return {
     reply:
-      "Não entendi bem, meu bem. Digite /help pra ver o que eu já sei responder, ou pergunte saldo, maior gasto, patrimônio, Contas ou Visão geral.",
-    suggestions: [SUGGEST_HELP, SUGGEST_BIGGEST, SUGGEST_BALANCES],
+      "Não entendi bem, meu bem. Digite /help pra ver o que eu já sei responder, ou pergunte ritmo do mês, resumo, metas, saldo ou patrimônio.",
+    suggestions: [SUGGEST_HELP, SUGGEST_PACE, SUGGEST_SUMMARY],
   };
-}
-
-function viewLabel(view: ClaraView) {
-  switch (view) {
-    case "dashboard":
-      return "Visão geral";
-    case "transactions":
-      return "Lançamentos";
-    case "recurring":
-      return "Recorrentes";
-    case "investments":
-      return "Investimentos";
-    case "goals":
-      return "Metas";
-    case "categories":
-      return "Categorias";
-    case "accounts":
-      return "Contas";
-    case "clara":
-      return "Agente";
-  }
 }
 
 export async function runClaraMock(

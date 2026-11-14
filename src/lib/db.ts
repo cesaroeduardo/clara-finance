@@ -68,7 +68,7 @@ export function listPlanMonths(
   return plans;
 }
 
-const SCHEMA_VERSION = 27;
+const SCHEMA_VERSION = 33;
 const globalDb = globalThis as unknown as {
   financeDb?: Database.Database;
   financeDbSchemaVersion?: number;
@@ -790,6 +790,153 @@ export function db() {
         .prepare("INSERT INTO schema_migrations(version) VALUES(27)")
         .run();
     })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=28").get()
+  )
+    database.transaction(() => {
+      seedDemoCompletedGoals(database);
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(28)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=29").get()
+  )
+    database.transaction(() => {
+      const update = database.prepare(
+        "UPDATE goals SET category=?, description=? WHERE mode='demo' AND id=?",
+      );
+      update.run(
+        "Investimentos",
+        "Seis meses de custos fixos para imprevistos.",
+        "demo-reserve",
+      );
+      update.run(
+        "Compras",
+        "Passagens e hospedagem para a próxima viagem.",
+        "demo-travel",
+      );
+      update.run(
+        "Contas da casa",
+        "Entrada do imóvel e reserva para mudança.",
+        "demo-home-goal",
+      );
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(29)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=30").get()
+  )
+    database.transaction(() => {
+      database
+        .prepare(
+          `UPDATE goals
+           SET name=?, description=?, target=?, current=?, icon=?, color=?, category=?
+           WHERE mode='demo' AND id='demo-goal-notebook'`,
+        )
+        .run(
+          "MacBook Pro 14\"",
+          "MacBook Pro 14\" M4 Pro, 24 GB.",
+          1899900,
+          1899900,
+          "target",
+          "#0ea5e9",
+          "Compras",
+        );
+      database
+        .prepare("DELETE FROM goals WHERE mode='demo' AND id='demo-goal-bike'")
+        .run();
+      seedDemoCompletedGoals(database);
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(30)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=31").get()
+  )
+    database.transaction(() => {
+      database
+        .prepare(
+          `UPDATE goals
+           SET id='demo-gta', name=?, description=?, target=?, current=?, deadline=?, icon=?, color=?, category=?
+           WHERE mode='demo' AND id='demo-reserve'`,
+        )
+        .run(
+          "GTA VI",
+          "Edição padrão no lançamento.",
+          59900,
+          18500,
+          `${Number(monthKey().slice(0, 4)) + 1}-05-26`,
+          "target",
+          "#22c55e",
+          "Jogos",
+        );
+      database
+        .prepare(
+          `UPDATE goals
+           SET name=?, description=?, category=?
+           WHERE mode='demo' AND id='demo-travel'`,
+        )
+        .run(
+          "Viagem Europa",
+          "Passagens e hospedagem para a Europa.",
+          "Compras",
+        );
+      database
+        .prepare(
+          `UPDATE goals
+           SET name=?, description=?, target=?, current=?, category=?
+           WHERE mode='demo' AND id='demo-home-goal'`,
+        )
+        .run(
+          "Fazenda",
+          "Compra de uma fazenda.",
+          100000000,
+          21800000,
+          "Contas da casa",
+        );
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(31)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=32").get()
+  )
+    database.transaction(() => {
+      database
+        .prepare(
+          "DELETE FROM goals WHERE mode='demo' AND id IN ('demo-goal-english','demo-goal-dental')",
+        )
+        .run();
+      database
+        .prepare(
+          "UPDATE goals SET image_slug='software' WHERE mode='demo' AND id='demo-goal-notebook'",
+        )
+        .run();
+      database
+        .prepare(
+          "UPDATE goals SET image_slug='transporte' WHERE mode='demo' AND id='demo-goal-tesla'",
+        )
+        .run();
+      seedDemoCompletedGoals(database);
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(32)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=33").get()
+  )
+    database.transaction(() => {
+      database
+        .prepare(
+          "UPDATE goals SET image_slug='jogos' WHERE mode='demo' AND id='demo-gta'",
+        )
+        .run();
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(33)")
+        .run();
+    })();
   globalDb.financeDb = database;
   globalDb.financeDbSchemaVersion = SCHEMA_VERSION;
   return database;
@@ -818,6 +965,80 @@ function removeLegacyGroups(database: Database.Database) {
       "DROP TABLE IF EXISTS groups; INSERT INTO schema_migrations(version) VALUES(20)",
     );
   })();
+}
+
+function seedDemoCompletedGoals(database: Database.Database) {
+  if (!database.prepare("SELECT 1 FROM accounts WHERE mode='demo'").get())
+    return;
+  const month = monthKey();
+  const anchor = new Date(`${month}-15T12:00:00`);
+  const stamp = (monthsBack: number, day: number) => {
+    const date = new Date(anchor);
+    date.setMonth(date.getMonth() - monthsBack);
+    date.setDate(day);
+    return date.toISOString();
+  };
+  const insert = database.prepare(
+    `INSERT OR IGNORE INTO goals(
+       id,mode,name,description,target,current,deadline,icon,color,image_slug,completed,category,created_at,completed_at
+     ) VALUES(?,'demo',?,?,?,?,?,?,?,?,1,?,?,?)`,
+  );
+  const completed = [
+    [
+      "demo-goal-notebook",
+      "MacBook Pro 14\"",
+      "MacBook Pro 14\" M4 Pro, 24 GB.",
+      1899900,
+      stamp(10, 8),
+      "target",
+      "#0ea5e9",
+      "software",
+      "Compras",
+      stamp(14, 3),
+      stamp(3, 18),
+    ],
+    [
+      "demo-goal-tesla",
+      "Tesla Model 3",
+      "Tesla Model 3 RWD.",
+      27990000,
+      stamp(7, 20),
+      "car",
+      "#ef4444",
+      "transporte",
+      "Transporte",
+      stamp(18, 2),
+      stamp(5, 27),
+    ],
+  ] as const;
+  for (const [
+    id,
+    name,
+    description,
+    amount,
+    deadline,
+    icon,
+    color,
+    imageSlug,
+    category,
+    createdAt,
+    completedAt,
+  ] of completed) {
+    insert.run(
+      id,
+      name,
+      description,
+      amount,
+      amount,
+      deadline.slice(0, 10),
+      icon,
+      color,
+      imageSlug,
+      category,
+      createdAt,
+      completedAt,
+    );
+  }
 }
 
 function seedDemoInvestments(database: Database.Database) {
@@ -1300,35 +1521,57 @@ function seedDemo(database: Database.Database) {
     }
     seedDemoInvestments(database);
     const goal = database.prepare(
-      "INSERT INTO goals(id,mode,name,target,current,deadline,icon,color) VALUES(?,'demo',?,?,?,?,?,?)",
+      `INSERT INTO goals(
+         id,mode,name,description,target,current,deadline,icon,color,image_slug,completed,category,created_at,completed_at
+       ) VALUES(?,'demo',?,?,?,?,?,?,?,?,?,?,?,?)`,
     );
+    const year = Number(month.slice(0, 4));
     goal.run(
-      "demo-reserve",
-      "Reserva de emergência",
-      4000000,
-      2845000,
-      `${Number(month.slice(0, 4)) + 1}-06-30`,
-      "shield",
-      "#2563eb",
+      "demo-gta",
+      "GTA VI",
+      "Edição padrão no lançamento.",
+      59900,
+      18500,
+      `${year + 1}-05-26`,
+      "target",
+      "#22c55e",
+      "jogos",
+      0,
+      "Jogos",
+      `${year - 1}-03-12T15:00:00.000Z`,
+      null,
     );
     goal.run(
       "demo-travel",
-      "Próxima viagem",
+      "Viagem Europa",
+      "Passagens e hospedagem para a Europa.",
       1500000,
       620000,
-      `${Number(month.slice(0, 4)) + 1}-09-01`,
+      `${year + 1}-09-01`,
       "plane",
       "#f4a52b",
+      null,
+      0,
+      "Compras",
+      `${year - 1}-08-04T15:00:00.000Z`,
+      null,
     );
     goal.run(
       "demo-home-goal",
-      "Meu cantinho",
-      8000000,
-      1687500,
-      `${Number(month.slice(0, 4)) + 2}-12-01`,
+      "Fazenda",
+      "Compra de uma fazenda.",
+      100000000,
+      21800000,
+      `${year + 2}-12-01`,
       "house",
       "#8b5cf6",
+      null,
+      0,
+      "Contas da casa",
+      `${year - 1}-01-20T15:00:00.000Z`,
+      null,
     );
+    seedDemoCompletedGoals(database);
     database
       .prepare(
         `INSERT INTO plan_settings(

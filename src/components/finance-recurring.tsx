@@ -1,136 +1,250 @@
 "use client";
 import { useMemo, useState } from "react";
-import { ChartCard } from "./ui/chart-card";
-import { FieldSelect } from "./ui/field-select";
 import {
   MagnifyingGlass,
   X,
   Wallet,
   Check,
   CalendarDots,
+  ChartLineUp,
+  Stack,
+  Bank,
+  PencilSimple,
+  ArrowUp,
+  ArrowDown,
 } from "@phosphor-icons/react";
-import { Amount, MiniStat } from "./finance-views";
+import { ChartCard } from "./ui/chart-card";
+import { EmptyState } from "./ui/empty-state";
+import { FieldSelect } from "./ui/field-select";
+import { FinanceSurface } from "./ui/finance-surface";
+import { ShellHeader } from "./ui/surface";
+import { Amount, MiniStat, StatusTag } from "./finance-views";
 import { CategoryImage, FinanceIcon } from "./finance-icons";
-import { MotionSegmentedControl } from "./finance-motion";
-import { MerchantLogo, useMerchantLogoUrl } from "./merchant-logo";
+import { TransactionAvatar } from "./transaction-avatar";
 import type { FormState } from "./finance-form";
-import { recurringCycle, type RecurringInstance } from "@/lib/recurring";
+import { formatAccountLabel } from "@/lib/accounts";
 import { colorForCategory, imageForCategory } from "@/lib/categorize";
-import { compactMoney } from "@/lib/format";
+import { compactMoney, dateLabel } from "@/lib/format";
+import { recurringCycle, type RecurringInstance } from "@/lib/recurring";
 
-import type { FinanceData, RecurringKind } from "@/lib/types";
+import type { FinanceData } from "@/lib/types";
 
-function weekdayDateLabel(date: string) {
-  const formatted = new Intl.DateTimeFormat("pt-BR", {
-    weekday: "short",
-    day: "numeric",
-    month: "long",
-  }).format(new Date(`${date.slice(0, 10)}T12:00:00`));
-  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-}
+type RecurringSortColumn =
+  | "description"
+  | "category"
+  | "account"
+  | "date"
+  | "format"
+  | "status"
+  | "amount";
 
-function groupByDate(items: RecurringInstance[]) {
-  const map = new Map<string, RecurringInstance[]>();
-  for (const item of items) {
-    const list = map.get(item.date);
-    if (list) list.push(item);
-    else map.set(item.date, [item]);
+type RecurringSort = {
+  column: RecurringSortColumn;
+  direction: "asc" | "desc";
+};
+
+function formatLabel(row: RecurringInstance) {
+  if (
+    row.type === "installment" &&
+    row.installmentCurrent != null &&
+    row.installmentTotal != null
+  ) {
+    return `Parcela ${row.installmentCurrent} de ${row.installmentTotal}`;
   }
-  return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+  return "Mensal";
 }
 
-function RecurringList({
-  title,
-  items,
-  categories,
+function accountLabel(
+  data: FinanceData,
+  accountId: string | null,
+) {
+  if (!accountId) return "Manual";
+  const account = data.accounts.find((item) => item.id === accountId);
+  return account
+    ? formatAccountLabel(account, data.connections)
+    : "Manual";
+}
+
+function RecurringTable({
+  data,
+  rows,
+  sort,
+  onSort,
   onEdit,
 }: {
-  title: string;
-  items: RecurringInstance[];
-  categories: FinanceData["categories"];
+  data: FinanceData;
+  rows: RecurringInstance[];
+  sort: RecurringSort;
+  onSort: (column: RecurringSortColumn) => void;
   onEdit: (id: string) => void;
 }) {
-  const merchantLogoUrl = useMerchantLogoUrl();
-  const groups = groupByDate(items);
+  const columns: [RecurringSortColumn, string][] = [
+    ["description", "Descrição"],
+    ["category", "Categoria"],
+    ["account", "Conta"],
+    ["date", "Data"],
+    ["format", "Formato"],
+    ["status", "Situação"],
+    ["amount", "Valor"],
+  ];
+
   return (
-    <section className="finance-card recurring-list-card">
-      <div className="card-heading">
-        <div>
-          <h2>
-            {title} ({items.length})
-          </h2>
-        </div>
+    <div className="table-scroll transactions-responsive">
+      <div className="transaction-mobile-sort">
+        <FieldSelect
+          aria-label="Ordenar recorrências"
+          value={sort.column}
+          onValueChange={(column) => onSort(column as RecurringSortColumn)}
+          options={columns.map(([value, label]) => ({ value, label }))}
+        />
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={
+            sort.direction === "asc"
+              ? "Ordenar decrescente"
+              : "Ordenar crescente"
+          }
+          onClick={() => onSort(sort.column)}
+        >
+          {sort.direction === "asc" ? (
+            <ArrowUp size={16} />
+          ) : (
+            <ArrowDown size={16} />
+          )}
+        </button>
       </div>
-      {!items.length ? (
-        <p className="muted recurring-empty">Nenhuma recorrência encontrada.</p>
-      ) : (
-        <div className="recurring-list">
-          {groups.map(([date, rows]) => (
-            <div key={date} className="recurring-day-group">
-              <p className="recurring-day-label">{weekdayDateLabel(date)}</p>
-              {rows.map((row) => {
-                const image = imageForCategory(row.category, categories);
-                const color = colorForCategory(row.category, 0, categories);
-                const hasMerchantLogo = Boolean(
-                  merchantLogoUrl(row.description),
-                );
-                return (
+      <table className="transactions-table">
+        <thead>
+          <tr>
+            {columns.map(([column, label]) => {
+              const active = sort.column === column;
+              return (
+                <th
+                  key={column}
+                  scope="col"
+                  className={column === "amount" ? "right" : undefined}
+                  aria-sort={
+                    active
+                      ? sort.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none"
+                  }
+                >
                   <button
-                    key={`${row.recurringId}-${row.date}`}
                     type="button"
-                    className="recurring-row"
-                    onClick={() => onEdit(row.recurringId)}
+                    className="table-sort"
+                    onClick={() => onSort(column)}
+                    aria-label={`Ordenar por ${label.toLocaleLowerCase("pt-BR")}: ${active && sort.direction === "asc" ? "decrescente" : "crescente"}`}
                   >
-                    <span
-                      className={`recurring-icon${hasMerchantLogo || image ? " has-image" : ""}${hasMerchantLogo ? " has-merchant" : ""}`}
-                      style={{
-                        background: `color-mix(in srgb, ${color} 16%, transparent)`,
-                        color,
-                      }}
-                    >
-                      {hasMerchantLogo ? (
-                        <MerchantLogo description={row.description} size={28} />
-                      ) : image ? (
-                        <CategoryImage name={image} size={28} />
+                    {label}
+                    {active &&
+                      (sort.direction === "desc" ? (
+                        <ArrowDown size={11} weight="bold" />
                       ) : (
-                        <FinanceIcon name="layers" size={16} />
-                      )}
-                    </span>
-                    <span className="recurring-row-main">
+                        <ArrowUp size={11} weight="bold" />
+                      ))}
+                  </button>
+                </th>
+              );
+            })}
+            <th>
+              <span className="sr-only">Ações</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const categoryName = row.category || "Sem categoria";
+            const categoryImage = imageForCategory(
+              categoryName,
+              data.categories,
+            );
+            const categoryColor = colorForCategory(
+              categoryName,
+              0,
+              data.categories,
+            );
+            const paid = row.status === "paid";
+            return (
+              <tr key={`${row.recurringId}-${row.date}`}>
+                <td className="transaction-desc">
+                  <button
+                    type="button"
+                    className="transaction-name"
+                    onClick={() => onEdit(row.recurringId)}
+                    title={row.description}
+                  >
+                    <TransactionAvatar
+                      transaction={{
+                        description: row.description,
+                        category: row.category,
+                      }}
+                      categories={data.categories}
+                    />
+                    <span className="transaction-name-text">
                       <strong>{row.description}</strong>
-                      <small>
-                        {row.category} ·{" "}
-                        {row.type === "installment" &&
-                        row.installmentCurrent != null &&
-                        row.installmentTotal != null
-                          ? `Parcela ${row.installmentCurrent} de ${row.installmentTotal}`
-                          : "Mensal"}
-                      </small>
-                    </span>
-                    <span className="recurring-row-value">
-                      <span className="recurring-amount-line">
-                        <Amount value={row.amount} />
-                      </span>
-                      <small
-                        className={`recurring-state ${row.status === "paid" ? "is-paid" : ""}`}
-                      >
-                        {row.status === "paid"
-                          ? row.kind === "income"
-                            ? "Recebido"
-                            : "Pago"
-                          : row.kind === "income"
-                            ? "A receber"
-                            : "A pagar"}
-                      </small>
                     </span>
                   </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
+                </td>
+                <td
+                  className="transaction-category-cell"
+                  data-label="Categoria"
+                >
+                  <span className="transaction-category">
+                    <span
+                      className={`transaction-category-icon${categoryImage ? " has-image" : ""}`}
+                      style={{
+                        color: categoryColor,
+                        background: `color-mix(in srgb, ${categoryColor} 16%, transparent)`,
+                      }}
+                    >
+                      {categoryImage ? (
+                        <CategoryImage name={categoryImage} size={28} />
+                      ) : (
+                        <FinanceIcon name="layers" size={15} />
+                      )}
+                    </span>
+                    <strong>{categoryName}</strong>
+                  </span>
+                </td>
+                <td
+                  className="muted transaction-account-cell"
+                  data-label="Conta"
+                >
+                  {accountLabel(data, row.accountId)}
+                </td>
+                <td className="table-date" data-label="Data">
+                  {dateLabel(row.date, { year: true })}
+                </td>
+                <td className="muted" data-label="Formato">
+                  {formatLabel(row)}
+                </td>
+                <td className="transaction-status-cell" data-label="Situação">
+                  <StatusTag tone={paid ? "success" : "warning"}>
+                    {paid ? "Pago" : "A pagar"}
+                  </StatusTag>
+                </td>
+                <td className="right transaction-amount">
+                  <Amount value={row.amount} prefix="− " />
+                </td>
+                <td className="transaction-actions-cell">
+                  <button
+                    type="button"
+                    className="icon-button row-edit"
+                    onClick={() => onEdit(row.recurringId)}
+                    aria-label={`Editar ${row.description}`}
+                  >
+                    <PencilSimple size={14} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -145,23 +259,61 @@ export function RecurringView({
   category: string;
   openForm: (form: FormState) => void;
 }) {
-  const [kind, setKind] = useState<RecurringKind>("expense");
   const summary = useMemo(
-    () => recurringCycle(data, month, kind, category),
-    [data, month, kind, category],
+    () => recurringCycle(data, month, "expense", category),
+    [data, month, category],
   );
   const [status, setStatus] = useState("all");
   const [type, setType] = useState("all");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<RecurringSort>({
+    column: "date",
+    direction: "asc",
+  });
   const items = [...summary.fixed, ...summary.installments];
-  const visibleItems = items.filter(
-    (row) =>
-      (status === "all" || row.status === status) &&
-      (type === "all" || row.type === type) &&
-      `${row.description} ${row.category}`
-        .toLocaleLowerCase("pt-BR")
-        .includes(search.trim().toLocaleLowerCase("pt-BR")),
-  );
+  const visibleItems = items
+    .filter(
+      (row) =>
+        (status === "all" || row.status === status) &&
+        (type === "all" || row.type === type) &&
+        `${row.description} ${row.category}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(search.trim().toLocaleLowerCase("pt-BR")),
+    )
+    .sort((a, b) => {
+      const value = (row: RecurringInstance): string | number => {
+        switch (sort.column) {
+          case "description":
+            return row.description;
+          case "category":
+            return row.category || "Sem categoria";
+          case "account":
+            return accountLabel(data, row.accountId);
+          case "date":
+            return row.date;
+          case "format":
+            return formatLabel(row);
+          case "status":
+            return row.status === "paid" ? "Pago" : "A pagar";
+          case "amount":
+            return row.amount;
+        }
+      };
+      const left = value(a);
+      const right = value(b);
+      const comparison =
+        typeof left === "number" && typeof right === "number"
+          ? left - right
+          : String(left).localeCompare(String(right), "pt-BR", {
+              sensitivity: "base",
+              numeric: true,
+            });
+      return (
+        (sort.direction === "asc" ? comparison : -comparison) ||
+        a.recurringId.localeCompare(b.recurringId) ||
+        a.date.localeCompare(b.date)
+      );
+    });
 
   const editRecurring = (id: string) => {
     const row = data.recurrings.find((item) => item.id === id);
@@ -169,114 +321,133 @@ export function RecurringView({
     openForm({ resource: "recurrings", record: { ...row } });
   };
 
+  const toggleSort = (column: RecurringSortColumn) => {
+    setSort((current) => ({
+      column,
+      direction:
+        current.column === column && current.direction === "asc"
+          ? "desc"
+          : "asc",
+    }));
+  };
+
   return (
     <div className="recurring-page">
-      <div className="section-top recurring-filters">
-        <MotionSegmentedControl
-          label="Tipo de recorrência"
-          value={kind}
-          onChange={(value) => setKind(value as RecurringKind)}
-          options={[
-            ["expense", "Despesas"],
-            ["income", "Receitas"],
-          ]}
-        />
-      </div>
-
       <div className="summary-grid">
         <MiniStat
-          label={kind === "expense" ? "A pagar no mês" : "A receber no mês"}
+          label="A pagar no mês"
           value={summary.remaining}
-          icon={<Wallet />}
-          color="amber"
+          icon={Wallet}
           detail={`${summary.remainingCount} ${summary.remainingCount === 1 ? "pendente" : "pendentes"}`}
         />
         <MiniStat
-          label={kind === "expense" ? "Pago no mês" : "Recebido no mês"}
+          label="Pago no mês"
           value={summary.total - summary.remaining}
-          icon={<Check />}
-          color="green"
-          detail={`${items.length - summary.remainingCount} ${kind === "expense" ? "pagos" : "recebidos"}`}
+          icon={Check}
+          detail={`${items.length - summary.remainingCount} ${items.length - summary.remainingCount === 1 ? "pago" : "pagos"}`}
         />
         <MiniStat
           label="Total do mês"
           value={summary.total}
-          icon={<CalendarDots />}
-          color="neutral"
+          icon={CalendarDots}
           detail={`${summary.fixed.length} fixas · ${summary.installments.length} parcelas`}
         />
       </div>
       <div className="recurring-workspace">
         <div className="recurring-agenda">
-          <div className="recurring-toolbar">
-            <label className="search-field">
-              <MagnifyingGlass size={17} />
-              <input
-                aria-label="Buscar recorrência"
-                placeholder="Buscar recorrência"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
+          <FinanceSurface
+            render={<section />}
+            className="finance-card full-table recurring-list-card"
+            header={
+              <ShellHeader
+                as="h2"
+                icon={CalendarDots}
+                title="Recorrências do mês"
+                subtitle={`${visibleItems.length} ${visibleItems.length === 1 ? "item" : "itens"}`}
               />
-              {search && (
-                <button
-                  type="button"
-                  className="search-field-clear"
-                  aria-label="Limpar busca"
-                  onClick={() => setSearch("")}
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </label>
-            <FieldSelect
-              aria-label="Status da recorrência"
-              value={status}
-              onValueChange={setStatus}
-              options={[
-                { value: "all", label: "Todos os status" },
-                {
-                  value: "pending",
-                  label: kind === "expense" ? "A pagar" : "A receber",
-                },
-                {
-                  value: "paid",
-                  label: kind === "expense" ? "Pagos" : "Recebidos",
-                },
-              ]}
-            />
-            <FieldSelect
-              aria-label="Formato da recorrência"
-              value={type}
-              onValueChange={setType}
-              options={[
-                { value: "all", label: "Fixas e parcelas" },
-                { value: "fixed", label: "Fixas" },
-                { value: "installment", label: "Parcelas" },
-              ]}
-            />
-          </div>
-          <RecurringList
-            title="Recorrências do mês"
-            items={visibleItems}
-            categories={data.categories}
-            onEdit={editRecurring}
-          />
+            }
+          >
+            <div className="table-filters">
+              <label className="search-field">
+                <MagnifyingGlass size={17} />
+                <input
+                  aria-label="Buscar recorrência"
+                  placeholder="Buscar descrição ou categoria"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+                {search ? (
+                  <button
+                    type="button"
+                    className="search-field-clear"
+                    aria-label="Limpar busca"
+                    onClick={() => setSearch("")}
+                  >
+                    <X size={14} />
+                  </button>
+                ) : null}
+              </label>
+              <FieldSelect
+                aria-label="Status da recorrência"
+                value={status}
+                onValueChange={setStatus}
+                options={[
+                  { value: "all", label: "Todos os status" },
+                  { value: "pending", label: "A pagar" },
+                  { value: "paid", label: "Pagos" },
+                ]}
+              />
+              <FieldSelect
+                aria-label="Formato da recorrência"
+                value={type}
+                onValueChange={setType}
+                options={[
+                  { value: "all", label: "Fixas e parcelas" },
+                  { value: "fixed", label: "Fixas" },
+                  { value: "installment", label: "Parcelas" },
+                ]}
+              />
+            </div>
+            {visibleItems.length ? (
+              <RecurringTable
+                data={data}
+                rows={visibleItems}
+                sort={sort}
+                onSort={toggleSort}
+                onEdit={editRecurring}
+              />
+            ) : (
+              <EmptyState
+                icon={CalendarDots}
+                title="Nenhuma recorrência encontrada"
+                description="Ajuste os filtros ou cadastre uma nova recorrência."
+                className="empty-state"
+              />
+            )}
+          </FinanceSurface>
         </div>
         <aside className="recurring-sidebar">
-          <section className="finance-card recurring-chart-card">
-            <div className="card-heading">
-              <div>
-                <h2>Projeção de 6 meses</h2>
-              </div>
-              <div className="recurring-legend">
-                <span>
-                  <i className="is-installment" /> Parcelas
-                </span>
-                <span>
-                  <i className="is-fixed" /> Contas fixas
-                </span>
-              </div>
-            </div>
+          <FinanceSurface
+            render={<section />}
+            className="finance-card recurring-chart-card"
+            header={
+              <ShellHeader
+                as="h2"
+                icon={ChartLineUp}
+                title="Projeção de 6 meses"
+                aside={
+                  <div className="recurring-legend">
+                    <span>
+                      <i className="is-installment" /> Parcelas
+                    </span>
+                    <span>
+                      <i className="is-fixed" /> Contas fixas
+                    </span>
+                  </div>
+                }
+              />
+            }
+          >
             <div className="recurring-chart">
               <ChartCard
                 embedded
@@ -306,37 +477,55 @@ export function RecurringView({
                 }}
               />
             </div>
-          </section>
+          </FinanceSurface>
 
-          <section className="finance-card recurring-panel recurring-totals-card">
-            <h2 className="recurring-support-title">Composição do mês</h2>
-            <div className="recurring-total-row">
-              <span>Fixas</span>
-              <Amount value={summary.fixedTotal} />
-            </div>
-            <div className="recurring-total-row">
-              <span>Parcelas</span>
-              <Amount value={summary.installmentTotal} />
-            </div>
-          </section>
-          <section className="finance-card recurring-panel">
-            <h2 className="recurring-support-title">Por conta</h2>
-            {!summary.byAccount.length ? (
-              <p className="muted recurring-empty">Nenhuma conta neste mês.</p>
-            ) : (
-              <div className="recurring-account-list">
-                {summary.byAccount.map((item) => (
-                  <div
-                    className="recurring-total-row"
-                    key={item.accountId || "outros"}
-                  >
-                    <span>{item.name}</span>
-                    <Amount value={item.amount} />
-                  </div>
-                ))}
+          <FinanceSurface
+            render={<section />}
+            className="finance-card recurring-panel recurring-totals-card"
+            header={
+              <ShellHeader as="h2" icon={Stack} title="Composição do mês" />
+            }
+          >
+            <div className="recurring-panel-body">
+              <div className="recurring-total-row">
+                <span>Fixas</span>
+                <Amount value={summary.fixedTotal} />
               </div>
-            )}
-          </section>
+              <div className="recurring-total-row">
+                <span>Parcelas</span>
+                <Amount value={summary.installmentTotal} />
+              </div>
+            </div>
+          </FinanceSurface>
+
+          <FinanceSurface
+            render={<section />}
+            className="finance-card recurring-panel"
+            header={<ShellHeader as="h2" icon={Bank} title="Por conta" />}
+          >
+            <div className="recurring-panel-body">
+              {!summary.byAccount.length ? (
+                <EmptyState
+                  icon={Bank}
+                  title="Nenhuma conta neste mês"
+                  compact
+                  className="recurring-empty-state"
+                />
+              ) : (
+                <div className="recurring-account-list">
+                  {summary.byAccount.map((item) => (
+                    <div
+                      className="recurring-total-row"
+                      key={item.accountId || "outros"}
+                    >
+                      <span>{item.name}</span>
+                      <Amount value={item.amount} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </FinanceSurface>
         </aside>
       </div>
     </div>

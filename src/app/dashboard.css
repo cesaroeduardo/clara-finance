@@ -2036,8 +2036,11 @@
   gap: 14px;
   min-width: 0;
 }
-.recurring-panel {
-  padding: 21px;
+.recurring-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px 16px;
 }
 .recurring-panel > .muted:first-child {
   margin: 0;
@@ -2062,9 +2065,7 @@
   font-size: 13px;
   line-height: 1.4;
 }
-.recurring-totals-card {
-  display: flex;
-  flex-direction: column;
+.recurring-totals-card .recurring-panel-body {
   gap: 12px;
 }
 .recurring-total-row {
@@ -2095,7 +2096,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 12px;
 }
 .recurring-account-meta {
   display: grid;
@@ -2124,13 +2124,12 @@
   height: 100%;
   border-radius: inherit;
 }
-.recurring-chart-card .card-heading {
-  padding-bottom: 8px;
-}
 .recurring-legend {
   display: flex;
-  gap: 12px;
-  font-size: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  font-size: 11px;
   color: var(--muted-foreground);
 }
 .recurring-legend span {
@@ -2145,15 +2144,15 @@
   display: inline-block;
 }
 .recurring-legend i.is-installment {
-  background: var(--warning);
+  background: var(--chart-2);
 }
 .recurring-legend i.is-fixed {
-  background: var(--foreground);
+  background: var(--chart-1);
 }
 .recurring-chart {
   width: 100%;
   min-height: 220px;
-  padding: 0 12px 16px;
+  padding: 4px 18px 14px;
 }
 .recurring-tooltip {
   background: var(--popover);
@@ -2171,116 +2170,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
-.recurring-list-card .recurring-empty,
-.recurring-list-card .recurring-list {
-  padding: 8px 21px 21px;
-}
-.recurring-empty {
-  margin: 0;
-  font-size: 13px;
-}
-.recurring-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin: 0;
-}
-.recurring-day-label {
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-.recurring-row {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 8px;
-  margin: 0 -8px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 8px;
-}
-.recurring-row:hover {
-  background: var(--muted);
-}
-.recurring-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.recurring-icon.has-image {
-  padding: 3px;
-  overflow: hidden;
-}
-.recurring-icon.has-merchant {
-  padding: 0;
-  background: transparent;
-}
-.recurring-icon .category-image,
-.recurring-icon .merchant-logo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: inherit;
-  display: block;
-}
-.recurring-icon .category-image {
-  object-fit: contain;
-  filter: grayscale(1);
-  transition: filter 150ms ease;
-}
-.recurring-row:hover .recurring-icon .category-image,
-.recurring-row:focus-visible .recurring-icon .category-image {
-  filter: grayscale(0);
-}
-.recurring-row-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.recurring-row-main strong {
-  font-size: 14px;
-  font-weight: 550;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.recurring-row-main small,
-.recurring-row-value small {
-  color: var(--muted-foreground);
-  font-size: 12px;
-}
-.recurring-row-value {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-.recurring-amount-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.recurring-status {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-}
-.recurring-status.is-paid {
-  background: var(--success);
-}
-.recurring-status.is-pending {
-  background: var(--destructive);
+.recurring-empty-state {
+  margin-top: 4px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
 }
 @media (max-width: 1100px) {
   .recurring-layout,
@@ -2298,74 +2191,15 @@
 .recurring-agenda {
   min-width: 0;
 }
-.recurring-toolbar {
+.recurring-list-card > .tuff-finance-body,
+.recurring-chart-card > .tuff-finance-body,
+.recurring-panel > .tuff-finance-body {
   display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.recurring-toolbar .search-field {
-  flex: 1 1 170px;
-}
-.recurring-toolbar .field-select-trigger {
-  width: auto;
-  flex: 0 1 auto;
-}
-.recurring-row:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-.recurring-support-title {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted-foreground);
-}
-.recurring-sidebar .card-heading {
-  flex-wrap: wrap;
-  gap: 14px;
-}
-.recurring-sidebar .card-heading h2 {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted-foreground);
-}
-.recurring-legend {
-  font-size: 10px;
-}
-.recurring-legend i.is-installment {
-  background: var(--chart-2);
-}
-.recurring-legend i.is-fixed {
-  background: var(--chart-1);
-}
-.recurring-chart {
-  padding: 4px 14px 14px;
+  flex-direction: column;
 }
 .recurring-tooltip {
   border-radius: 8px;
   font-size: 11px;
-}
-.recurring-day-group + .recurring-day-group {
-  border-top: 1px solid var(--border);
-  padding-top: 14px;
-}
-.recurring-row {
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
-.recurring-row-main strong {
-  font-size: 12px;
-}
-.recurring-row-main small,
-.recurring-row-value small {
-  font-size: 10px;
-}
-.recurring-row-value {
-  font-size: 12px;
-}
-.recurring-state.is-paid {
-  color: var(--success);
 }
 @media (max-width: 1100px) {
   .recurring-workspace {
@@ -2382,12 +2216,5 @@
 @media (max-width: 600px) {
   .recurring-workspace > .recurring-sidebar {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .recurring-toolbar .search-field {
-    flex-basis: 100%;
-  }
-  .recurring-toolbar .field-select-trigger {
-    flex: 1;
-    min-width: 0;
   }
 }

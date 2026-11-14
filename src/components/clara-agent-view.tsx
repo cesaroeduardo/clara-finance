@@ -4,8 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Bank,
   ChartLineUp,
+  Gauge,
   PictureInPicture,
-  Question,
   Receipt,
   SquaresFour,
 } from "@phosphor-icons/react";
@@ -14,13 +14,16 @@ import { ClaraAgentComposerPlus } from "@/components/clara-agent-composer-plus";
 import { ClaraAgentComposerSend } from "@/components/clara-agent-composer-send";
 import { ClaraAgentGreeting } from "@/components/clara-agent-greeting";
 import { ClaraAgentMessageCard } from "@/components/clara-agent-message-card";
+import { ClaraAgentThinking } from "@/components/clara-agent-thinking";
 import { ClaraMark } from "@/components/clara-mark";
+import { ClaraType } from "@/components/clara-type";
 import { Textarea } from "@/components/ui/textarea";
 import { useClaraAgentChat } from "@/hooks/use-clara-agent-chat";
 import {
   dockClaraAgentToFloat,
   toggleClaraVoiceMode,
 } from "@/lib/clara-chat-session";
+import type { Mutate } from "@/components/finance-form";
 import type { ClaraView } from "@/lib/clara-mock-agent";
 import type { FinanceData } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -29,6 +32,7 @@ type ClaraAgentViewProps = {
   data: FinanceData;
   currentView: ClaraView;
   onNavigate: (view: ClaraView) => void;
+  mutate: Mutate;
 };
 
 const THREAD_TO_COMPOSER_GAP = 28;
@@ -58,16 +62,16 @@ const EMPTY_STARTERS: {
     icon: ChartLineUp,
   },
   {
+    id: "pace",
+    label: "Ritmo",
+    prompt: "Posso gastar quanto hoje?",
+    icon: Gauge,
+  },
+  {
     id: "biggest",
     label: "Maior gasto",
     prompt: "Qual foi o meu maior gasto este mês?",
     icon: Receipt,
-  },
-  {
-    id: "help",
-    label: "/help",
-    prompt: "/help",
-    icon: Question,
   },
   {
     id: "accounts",
@@ -81,10 +85,11 @@ export function ClaraAgentView({
   data,
   currentView,
   onNavigate,
+  mutate,
 }: ClaraAgentViewProps) {
   const reduceMotion = useReducedMotion();
-  const { messages, suggestions, pending, presentation, voiceMode, send } =
-    useClaraAgentChat({ data, currentView, onNavigate });
+  const { messages, pending, presentation, voiceMode, send } =
+    useClaraAgentChat({ data, currentView, onNavigate, mutate });
   const [draft, setDraft] = useState("");
   const [composerH, setComposerH] = useState(88);
   const [liftY, setLiftY] = useState(0);
@@ -130,11 +135,18 @@ export function ClaraAgentView({
     });
   }, [messages, pending, reduceMotion, inline]);
 
+  function focusComposer() {
+    const node = composerRef.current?.querySelector("textarea");
+    node?.focus({ preventScroll: true });
+  }
+
   async function submitDraft() {
     const text = draft.trim();
-    if (!text) return;
+    if (!text || pending) return;
     setDraft("");
+    requestAnimationFrame(() => focusComposer());
     await send(text);
+    focusComposer();
   }
 
   function openPictureInPicture() {
@@ -147,8 +159,10 @@ export function ClaraAgentView({
       {inline && !empty ? (
         <div className="clara-agent-topbar">
           <div className="clara-agent-topbar-inner">
-            <ClaraMark className="clara-agent-topbar-mark clara-agent-mark brand-mark" />
-            <span className="clara-agent-topbar-title">Agente</span>
+            <div className="clara-agent-topbar-brand">
+              <ClaraMark className="clara-agent-topbar-mark clara-agent-mark brand-mark" />
+              <ClaraType className="clara-agent-topbar-title brand-type" />
+            </div>
             <button
               type="button"
               className="clara-agent-topbar-action"
@@ -190,27 +204,7 @@ export function ClaraAgentView({
             )}
             {pending ? (
               <div className="clara-agent-turn">
-                <p className="clara-agent-turn-text clara-agent-thinking">
-                  Um momentinho…
-                </p>
-              </div>
-            ) : null}
-            {!pending && suggestions.length > 0 ? (
-              <div
-                className="clara-agent-chips"
-                role="group"
-                aria-label="Próximos passos"
-              >
-                {suggestions.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="clara-agent-chip"
-                    onClick={() => void send(item.prompt)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+                <ClaraAgentThinking />
               </div>
             ) : null}
           </div>
@@ -238,14 +232,9 @@ export function ClaraAgentView({
                 aria-label="Mensagem para a Clara"
                 className="clara-agent-composer-input"
                 value={draft}
-                disabled={pending}
                 rows={1}
                 autoResize
-                placeholder={
-                  empty
-                    ? "O que vamos ver hoje?"
-                    : "Pergunte sobre suas contas…"
-                }
+                placeholder="Pergunte ou digite /help"
                 onValueChange={(value) => setDraft(String(value))}
                 onSubmit={() => {
                   void submitDraft();

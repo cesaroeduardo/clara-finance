@@ -102,11 +102,11 @@ const navigationSections = [
     label: "Principal",
     items: [
       { id: "dashboard", label: "Visão geral", icon: SquaresFour },
+      { id: "clara", label: "Conversar", icon: ChatCircle },
       { id: "transactions", label: "Lançamentos", icon: ArrowsLeftRight },
       { id: "recurring", label: "Recorrentes", icon: CalendarDots },
       { id: "investments", label: "Investimentos", icon: Plant },
       { id: "goals", label: "Metas", icon: Target },
-      { id: "clara", label: "Agente", icon: ChatCircle },
     ],
   },
   {
@@ -126,6 +126,20 @@ const subscribePreferences = (callback: () => void) => {
     window.removeEventListener("clara-preferences", callback);
   };
 };
+function DemoStatusTag({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="demo-status-tag"
+      onClick={onClick}
+      aria-label="Dados fictícios ativos"
+    >
+      <span className="sidebar-demo-dot" aria-hidden="true" />
+      <span>Dados fictícios</span>
+    </button>
+  );
+}
+
 function usePreference(key: string, fallback: string) {
   const value = useSyncExternalStore(
     subscribePreferences,
@@ -546,16 +560,6 @@ export function FinanceApp() {
                   </NavAccordion>
                 );
               })}
-              {mode === "demo" && (
-                <button
-                  type="button"
-                  className="sidebar-demo-status"
-                  onClick={() => navigate("accounts")}
-                >
-                  <span className="sidebar-demo-dot" aria-hidden="true" />
-                  <span>Dados fictícios</span>
-                </button>
-              )}
             </ScrollFade>
             <div className="sidebar-bottom">
               <MotionSegmentedControl
@@ -632,6 +636,11 @@ export function FinanceApp() {
                     categoryView={categoryView}
                     onCategoryViewChange={setCategoryView}
                     openForm={setForm}
+                    leadingAction={
+                      mode === "demo" ? (
+                        <DemoStatusTag onClick={() => navigate("accounts")} />
+                      ) : null
+                    }
                   />
                 )}
                 {props && view === "accounts" && (
@@ -646,6 +655,9 @@ export function FinanceApp() {
                 )}
                 {view === "goals" && (
                   <div className="page-heading-actions">
+                    {mode === "demo" && (
+                      <DemoStatusTag onClick={() => navigate("accounts")} />
+                    )}
                     <Button
                       className="add-button"
                       onClick={() => setForm({ resource: "goals" })}
@@ -658,21 +670,27 @@ export function FinanceApp() {
                   view !== "categories" &&
                   view !== "goals" && (
                     <div className="page-heading-actions">
-                      <button
-                        className="sync-button"
-                        onClick={sync}
-                        disabled={syncing || mode === "demo"}
-                        aria-label={syncing ? "Sincronizando…" : "Sincronizar"}
-                        aria-busy={syncing}
-                      >
-                        <ArrowsClockwise
-                          size={14}
-                          className={syncing ? "animate-spin" : ""}
-                        />
-                        <AnimatedLabel
-                          value={syncing ? "Sincronizando…" : "Sincronizar"}
-                        />
-                      </button>
+                      {mode === "demo" ? (
+                        <DemoStatusTag onClick={() => navigate("accounts")} />
+                      ) : (
+                        <button
+                          className="sync-button"
+                          onClick={sync}
+                          disabled={syncing}
+                          aria-label={
+                            syncing ? "Sincronizando…" : "Sincronizar"
+                          }
+                          aria-busy={syncing}
+                        >
+                          <ArrowsClockwise
+                            size={14}
+                            className={syncing ? "animate-spin" : ""}
+                          />
+                          <AnimatedLabel
+                            value={syncing ? "Sincronizando…" : "Sincronizar"}
+                          />
+                        </button>
+                      )}
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={<Button className="add-button" />}
@@ -788,15 +806,13 @@ export function FinanceApp() {
                         data={props.data}
                         currentView={view}
                         onNavigate={navigate}
+                        mutate={mutate}
                       />
                     ) : (
                       <AccountsView
                         {...props}
                         syncing={syncing}
                         sync={sync}
-                        onDemoChange={(enabled) =>
-                          changeMode(enabled ? "demo" : "personal")
-                        }
                       />
                     )}
                   </PageEnter>
@@ -873,6 +889,7 @@ export function FinanceApp() {
                 data={data}
                 currentView={view}
                 onNavigate={navigate}
+                mutate={mutate}
               />
               <ClaraAgentVoiceOverlay />
             </>

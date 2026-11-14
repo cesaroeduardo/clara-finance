@@ -52,11 +52,11 @@ test("curvas ao lado do resultado terminam nos totais confirmados e ocultam valo
   await control.press("End");
   await expect(chart.getByRole("status")).toContainText("Entradas");
   await page.getByRole("button", { name: "Ocultar valores" }).click();
-  await expect(last.nth(0)).toHaveText("••••••");
-  await expect(last.nth(1)).toHaveText("••••••");
+  await expect(last.nth(0)).toHaveText("oculto");
+  await expect(last.nth(1)).toHaveText("oculto");
   await control.press("End");
   await expect(chart.getByRole("status")).not.toContainText("R$");
-  await expect(chart.getByRole("status")).toContainText("••••••");
+  await expect(chart.getByRole("status")).toContainText("oculto");
   await control.press("Escape");
   await expect(chart.getByRole("status")).toHaveText("");
 });

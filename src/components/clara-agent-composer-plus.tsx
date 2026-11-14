@@ -2,13 +2,21 @@
 
 import type { Icon } from "@phosphor-icons/react";
 import {
+  ArrowsClockwise,
   Bank,
+  ChartBar,
   ChartLineUp,
+  ChartPieSlice,
+  ArrowCounterClockwise,
+  CheckCircle,
+  Flag,
+  Gauge,
   Plus,
   Question,
   Receipt,
   SquaresFour,
   Wallet,
+  WarningCircle,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +33,14 @@ const MENU_META: Record<
 > = {
   balances: { icon: Wallet, description: "Saldos por conta" },
   worth: { icon: ChartLineUp, description: "Contas + investimentos" },
+  pace: { icon: Gauge, description: "Quanto pode gastar por dia" },
+  summary: { icon: ChartBar, description: "Entradas e saídas" },
+  pending: { icon: WarningCircle, description: "Contas pendentes" },
+  recurring: { icon: ArrowsClockwise, description: "Fixos e parcelas" },
+  category: { icon: ChartPieSlice, description: "Gastos por categoria" },
+  goals: { icon: Flag, description: "Progresso das metas" },
+  "complete-goal": { icon: CheckCircle, description: "Conclui pelo nome" },
+  undo: { icon: ArrowCounterClockwise, description: "Desfaz a última ação" },
   biggest: { icon: Receipt, description: "Maior despesa do mês" },
   "open-accounts": { icon: Bank, description: "Tela de Contas" },
   "open-dashboard": { icon: SquaresFour, description: "Painel principal" },

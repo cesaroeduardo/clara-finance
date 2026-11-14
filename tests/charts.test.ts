@@ -48,6 +48,7 @@ test("privacidade mascara resumo, tabela e total dos gráficos", () => {
       }),
     ),
   );
-  assert.doesNotMatch(markup, /R\$/);
-  assert.match(markup, /••••••/);
+  assert.match(markup, /R\$/);
+  assert.match(markup, /oculto/);
+  assert.match(markup, /Valor oculto/);
 });

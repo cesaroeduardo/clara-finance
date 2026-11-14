@@ -39,7 +39,7 @@ A primeira entrega preservava as classes antigas e trouxe pouca mudança visíve
 - O resultado tem curvas compactas de entradas e saídas confirmadas no período selecionado. Os últimos pontos correspondem aos totais de receita e gasto exibidos; transferências e pendências não entram nessas curvas.
 - Distribuição por categoria, patrimônio, projeção de faturas, recorrências, cotações e detalhes do mercado usam o mesmo renderer. As cores de categorias permanecem definidas pelo usuário; entradas/saídas usam cores financeiras e as outras séries usam tokens neutros.
 - Adaptações: modo embutido e sparkline, tamanhos responsivos, suporte a séries negativas/zeradas, `m` compatível com LazyMotion strict e movimento reduzido. Setas/Home/End consultam pontos; Escape limpa a consulta; Enter ativa categoria/fatura quando aplicável.
-- Privacidade mascara tooltips, títulos com totais, resumos, tabelas acessíveis e anúncios dos gráficos financeiros. Cotações públicas de mercado continuam visíveis. Os gráficos decorativos de cotação não acrescentam controles dentro dos botões.
+- Privacidade desfoca os valores no lugar (sem trocar o texto nem mudar o tamanho), anima o blur e mascara tabelas/anúncios acessíveis dos gráficos. Cotações públicas de mercado continuam visíveis. Os gráficos decorativos de cotação não acrescentam controles dentro dos botões.
 
 ## Contratos e manutenção
 
@@ -47,7 +47,7 @@ A primeira entrega preservava as classes antigas e trouxe pouca mudança visíve
 - Não empilhar gerenciadores de foco. O SDK posiciona popups sem Positioner; menus em tabelas usam um container no documento para preservar o HTML das linhas.
 - As partes do SDK mantêm seus próprios `data-slot`: menus usam `menu-content`, e controles segmentados usam `radiogroup`/`radio` com `aria-checked`.
 - Declarar a camada `ui-sdk` antes do Tailwind. As cores TuffUI `brand`, `positive`, `negative`, `warning` e as superfícies apontam para os tokens do Clara. Manter Geist e a primária preta/branca.
-- As animações respeitam movimento reduzido. Rolling Number recebe o texto já formatado pelo Clara; o valor oculto substitui tanto os dígitos quanto o texto acessível. Os valores auxiliares usam `PrivateValue`.
+- As animações respeitam movimento reduzido. Rolling Number recebe o texto já formatado pelo Clara; com privacidade o valor permanece no layout e só recebe blur, com rótulo acessível “Valor oculto”. Os valores auxiliares usam `PrivateValue`.
 - Formulário e paleta são carregados sob demanda. A paleta permanece montada após o primeiro uso para preservar o fechamento animado.
 - Antes de atualizar o SDK, ler a documentação que acompanha a versão instalada e repetir os testes de foco, datas e FormData. A versão está em beta e permanece fixada no lockfile.
 

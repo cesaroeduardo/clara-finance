@@ -254,13 +254,14 @@ export function SpinningAmount({
   className?: string;
 }) {
   const hidden = useContext(PrivacyContext);
-  if (hidden)
-    return <span className={`amount ${className}`.trim()}>••••••</span>;
+  const text = prefix + money(value, currency);
   return (
-    <RollingNumber
-      value={prefix + money(value, currency)}
-      className={`t-reel amount ${className}`.trim()}
-    />
+    <span className={`amount ${className}`.trim()}>
+      {hidden ? <span className="sr-only">Valor oculto</span> : null}
+      <span aria-hidden={hidden || undefined}>
+        <RollingNumber value={text} className="t-reel" />
+      </span>
+    </span>
   );
 }
 

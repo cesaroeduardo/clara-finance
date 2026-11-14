@@ -2,8 +2,14 @@
 
 import { ClaraAgentAccountCard } from "@/components/clara-agent-account-card";
 import { ClaraAgentBalancesCard } from "@/components/clara-agent-balances-card";
+import { ClaraAgentCategoryCard } from "@/components/clara-agent-category-card";
 import { ClaraAgentExpenseCard } from "@/components/clara-agent-expense-card";
+import { ClaraAgentGoalsCard } from "@/components/clara-agent-goals-card";
 import { ClaraAgentHelpCard } from "@/components/clara-agent-help-card";
+import { ClaraAgentPaceCard } from "@/components/clara-agent-pace-card";
+import { ClaraAgentPendingCard } from "@/components/clara-agent-pending-card";
+import { ClaraAgentRecurringCard } from "@/components/clara-agent-recurring-card";
+import { ClaraAgentSummaryCard } from "@/components/clara-agent-summary-card";
 import { ClaraAgentWorthCard } from "@/components/clara-agent-worth-card";
 import type { ClaraAgentCard } from "@/lib/clara-agent-insights";
 import type { Category } from "@/lib/types";
@@ -36,6 +42,18 @@ export function ClaraAgentMessageCard({
       return <ClaraAgentWorthCard card={card} compact={compact} />;
     case "account":
       return <ClaraAgentAccountCard card={card} compact={compact} />;
+    case "pace":
+      return <ClaraAgentPaceCard card={card} compact={compact} />;
+    case "period-summary":
+      return <ClaraAgentSummaryCard card={card} compact={compact} />;
+    case "pending-bills":
+      return <ClaraAgentPendingCard card={card} compact={compact} />;
+    case "recurrings":
+      return <ClaraAgentRecurringCard card={card} compact={compact} />;
+    case "category-spend":
+      return <ClaraAgentCategoryCard card={card} compact={compact} />;
+    case "goals":
+      return <ClaraAgentGoalsCard card={card} compact={compact} />;
     case "help":
       return (
         <ClaraAgentHelpCard

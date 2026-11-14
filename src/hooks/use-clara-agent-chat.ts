@@ -1,21 +1,49 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import type { Mutate } from "@/components/finance-form";
 import { getClaraAgent } from "@/lib/clara-agent-bridge";
 import {
   appendClaraChatMessages,
   getClaraAgentStore,
   setClaraChatMessages,
+  setClaraLastUndo,
   setClaraPending,
   setClaraSuggestions,
   subscribeClaraAgentStore,
   type ClaraChatMessage,
 } from "@/lib/clara-chat-session";
 import { runClaraMock, type ClaraView } from "@/lib/clara-mock-agent";
+import { prepareGoalCelebration } from "@/lib/goal-celebration";
 import type { FinanceData } from "@/lib/types";
 
 function nextId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** After UI SDK nav, put keyboard focus back on the PiP composer. */
+function focusClaraPipComposer() {
+  if (typeof document === "undefined") return;
+  if (getClaraAgentStore().presentation !== "float") return;
+  const pip = document.querySelector(
+    ".clara-agent-float textarea[aria-label='Mensagem para a Clara']",
+  );
+  if (pip instanceof HTMLTextAreaElement) {
+    pip.focus({ preventScroll: true });
+  }
+}
+
+async function restorePipFocusAfterNav() {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  focusClaraPipComposer();
+  // SDK / route paint can steal focus once more — nudge again.
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  focusClaraPipComposer();
 }
 
 export function useClaraAgentStore() {
@@ -30,12 +58,14 @@ type SendOptions = {
   data: FinanceData;
   currentView: ClaraView;
   onNavigate: (view: ClaraView) => void;
+  mutate: Mutate;
 };
 
 export function useClaraAgentChat({
   data,
   currentView,
   onNavigate,
+  mutate,
 }: SendOptions) {
   const store = useClaraAgentStore();
 
@@ -70,6 +100,7 @@ export function useClaraAgentChat({
           message: text,
           data,
           currentView,
+          lastUndo: store.lastUndo,
         });
         const assistantMessage: ClaraChatMessage = {
           id: nextId(),
@@ -78,26 +109,116 @@ export function useClaraAgentChat({
           card: result.card,
         };
         appendClaraChatMessages(assistantMessage);
-        setClaraSuggestions(result.suggestions ?? []);
 
-        if (result.view && result.view !== currentView) {
-          await new Promise((resolve) => setTimeout(resolve, 450));
+        const changingView = Boolean(
+          result.view && result.view !== currentView,
+        );
+        // Prefer UI SDK press on the nav control; fall back to React navigate.
+        if (result.steps?.length) {
+          if (changingView) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+          }
+          await runUiSteps(result.steps);
+          if (changingView && result.view) {
+            onNavigate(result.view);
+          }
+        } else if (changingView && result.view) {
           onNavigate(result.view);
-          await new Promise((resolve) => setTimeout(resolve, 120));
-          await runUiSteps(result.steps);
-        } else {
-          await runUiSteps(result.steps);
+        }
+
+        const completeAction =
+          result.action?.type === "complete-goal" ? result.action : null;
+        if (completeAction) {
+          // Let Metas mount so the card can leave the active grid with celebration.
+          await new Promise((resolve) => setTimeout(resolve, 450));
+          const goal = data.goals.find(
+            (row) => row.id === completeAction.goalId,
+          );
+          if (goal && !goal.completed) {
+            const celebrate = prepareGoalCelebration({
+              goalId: goal.id,
+              goalName: goal.name,
+            });
+            try {
+              await mutate("goals", { ...goal, completed: true }, "PATCH");
+              celebrate(true);
+              setClaraLastUndo({
+                type: "complete-goal",
+                goalId: goal.id,
+                label: goal.name,
+              });
+            } catch {
+              celebrate(false);
+              appendClaraChatMessages({
+                id: nextId(),
+                role: "assistant",
+                text: "Não consegui concluir a meta agora, meu bem. Tenta de novo pela tela de Metas.",
+              });
+            }
+          }
+        }
+
+        if (result.action?.type === "undo") {
+          const last = store.lastUndo;
+          if (last?.type === "complete-goal") {
+            await new Promise((resolve) => setTimeout(resolve, 350));
+            const goal = data.goals.find((row) => row.id === last.goalId);
+            if (goal?.completed) {
+              try {
+                await mutate("goals", { ...goal, completed: false }, "PATCH");
+                setClaraLastUndo(null);
+                appendClaraChatMessages({
+                  id: nextId(),
+                  role: "assistant",
+                  text: `Pronto — “${last.label}” voltou pra ativas.`,
+                });
+              } catch {
+                appendClaraChatMessages({
+                  id: nextId(),
+                  role: "assistant",
+                  text: "Não consegui desfazer agora, meu bem. Olha na tela de Metas.",
+                });
+              }
+            } else {
+              setClaraLastUndo(null);
+              appendClaraChatMessages({
+                id: nextId(),
+                role: "assistant",
+                text: "Essa meta já não estava concluída. Limpei o desfazer.",
+              });
+            }
+          } else {
+            setClaraLastUndo(null);
+          }
+        }
+
+        if (
+          changingView ||
+          result.steps?.length ||
+          result.action?.type === "complete-goal" ||
+          result.action?.type === "undo"
+        ) {
+          await restorePipFocusAfterNav();
         }
       } finally {
         setClaraPending(false);
       }
     },
-    [currentView, data, onNavigate, runUiSteps, store.pending],
+    [
+      currentView,
+      data,
+      mutate,
+      onNavigate,
+      runUiSteps,
+      store.lastUndo,
+      store.pending,
+    ],
   );
 
   const clearMessages = useCallback(() => {
     setClaraChatMessages([]);
     setClaraSuggestions([]);
+    setClaraLastUndo(null);
   }, []);
 
   return { ...store, send, clearMessages };

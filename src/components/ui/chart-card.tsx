@@ -14,15 +14,24 @@ import {
   m,
   useReducedMotion,
 } from "motion/react";
-import { useContext, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { RollingNumber } from "@/components/ui/rolling-number";
 import { ShellHeader } from "@/components/ui/surface";
 import { PrivacyContext } from "@/components/finance-privacy";
+import { cn } from "@/lib/utils";
+
 const EASE_OUT = [0.23, 1, 0.32, 1] as const;
 const EASE_IN_OUT = [0.65, 0, 0.35, 1] as const;
 const enter = { duration: 0.125, ease: EASE_OUT };
 const exit = { duration: 0.1, ease: EASE_OUT };
-import { cn } from "@/lib/utils";
 
 export type ChartType = "bar" | "line" | "area" | "donut";
 
@@ -131,8 +140,9 @@ export function ChartCard({
 }: ChartCardProps) {
   const Container = interactive ? "div" : "span";
   const privateValues = useContext(PrivacyContext) && sensitive;
-  const format = (value: number) =>
-    privateValues ? "••••••" : formatter(value);
+  const format = (value: number) => formatter(value);
+  const spoken = (value: number) =>
+    privateValues ? "oculto" : formatter(value);
   const H = height;
   const PAD = sparkline
     ? { top: 6, right: 6, bottom: 6, left: 6 }
@@ -143,6 +153,14 @@ export function ChartCard({
   const [hiddenSeries, setHidden] = useState<string[]>([]);
   const [active, setActive] = useState<number | null>(null);
   const [fromKeyboard, setFromKeyboard] = useState(false);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+  const [tipAnchor, setTipAnchor] = useState<{
+    left: number;
+    top: number;
+    center: boolean;
+  } | null>(null);
+
+  useEffect(() => setPortalHost(document.body), []);
 
   const series = data.series.map((s, i) => ({
     ...s,
@@ -208,7 +226,7 @@ export function ChartCard({
   );
 
   const summary = donut
-    ? visible.map((s) => `${s.label} ${format(sum(s.values))}`).join(", ")
+    ? visible.map((s) => `${s.label} ${spoken(sum(s.values))}`).join(", ")
     : `${title}: ${visible.map((s) => s.label).join(", ")}. ${data.labels[0] ?? ""} a ${data.labels.at(-1) ?? ""}.`;
 
   const tooltip =
@@ -234,6 +252,47 @@ export function ChartCard({
       />
     );
 
+  const tipLocalLeft =
+    activeIndex === null || donut
+      ? 0
+      : Math.max(
+          0,
+          Math.min(x(activeIndex) - 72, width - Math.min(160, width)),
+        );
+
+  useLayoutEffect(() => {
+    // Keep the last anchor while exiting so the portal tip isn't clipped
+    // by overflow:hidden on finance cards / shell bodies.
+    if (activeIndex === null) return;
+    const el = ref.current;
+    if (!el) return;
+
+    const place = () => {
+      const rect = el.getBoundingClientRect();
+      setTipAnchor(
+        donut
+          ? {
+              left: rect.left + rect.width / 2,
+              top: rect.top,
+              center: true,
+            }
+          : {
+              left: rect.left + tipLocalLeft,
+              top: rect.top,
+              center: false,
+            },
+      );
+    };
+
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [activeIndex, donut, ref, tipLocalLeft]);
+
   return (
     <MotionConfig reducedMotion="user">
       <Container
@@ -252,10 +311,17 @@ export function ChartCard({
             subtitle={subtitle}
             aside={
               total && (
-                <RollingNumber
-                  value={privateValues ? "••••••" : total}
-                  className="text-xl font-medium tracking-tight"
-                />
+                <span className="amount">
+                  {privateValues ? (
+                    <span className="sr-only">Valor oculto</span>
+                  ) : null}
+                  <span aria-hidden={privateValues || undefined}>
+                    <RollingNumber
+                      value={total}
+                      className="text-xl font-medium tracking-tight"
+                    />
+                  </span>
+                </span>
               )
             }
           />
@@ -333,7 +399,7 @@ export function ChartCard({
               aria-label={summary}
               width={width}
               height={H}
-              className="block overflow-visible"
+              className="block overflow-hidden"
               onPointerLeave={() => select(null, false)}
             >
               <defs>
@@ -411,6 +477,7 @@ export function ChartCard({
                           textAnchor="end"
                           fontSize="10"
                           fill="currentColor"
+                          className="amount"
                         >
                           {format(t)}
                         </text>
@@ -541,7 +608,7 @@ export function ChartCard({
                         x1={x(activeIndex)}
                         x2={x(activeIndex)}
                         y1={PAD.top}
-                        y2={y(0)}
+                        y2={PAD.top + innerH}
                         stroke="currentColor"
                         strokeOpacity={0.25}
                         className="text-foreground"
@@ -590,33 +657,33 @@ export function ChartCard({
               )}
             </svg>
 
-            <AnimatePresence>
-              {activeIndex !== null && tooltip && (
-                <m.div
-                  key="tip"
-                  initial={fromKeyboard ? false : { opacity: 0, scale: 0.97 }}
-                  animate={{ opacity: 1, scale: 1, transition: enter }}
-                  exit={{ opacity: 0, transition: exit }}
-                  className="pointer-events-none absolute top-0 z-10 min-w-36 rounded-xl bg-surface-raised px-3 py-2 text-xs"
-                  style={
-                    donut
-                      ? { left: "50%", transform: "translateX(-50%)" }
-                      : {
-                          left: Math.max(
-                            0,
-                            Math.min(
-                              x(activeIndex) - 72,
-                              width - Math.min(160, width),
-                            ),
-                          ),
-                          transformOrigin: "top center",
-                        }
-                  }
-                >
-                  {tooltip}
-                </m.div>
+            {portalHost &&
+              createPortal(
+                <AnimatePresence>
+                  {activeIndex !== null && tooltip && tipAnchor && (
+                    <m.div
+                      key="tip"
+                      initial={
+                        fromKeyboard ? false : { opacity: 0, scale: 0.97 }
+                      }
+                      animate={{ opacity: 1, scale: 1, transition: enter }}
+                      exit={{ opacity: 0, transition: exit }}
+                      className="pointer-events-none fixed z-[60] min-w-36 rounded-xl bg-surface-raised px-3 py-2 text-xs"
+                      style={{
+                        left: tipAnchor.left,
+                        top: tipAnchor.top,
+                        transform: tipAnchor.center
+                          ? "translateX(-50%)"
+                          : undefined,
+                        transformOrigin: "top center",
+                      }}
+                    >
+                      {tooltip}
+                    </m.div>
+                  )}
+                </AnimatePresence>,
+                portalHost,
               )}
-            </AnimatePresence>
           </Container>
 
           {interactive && (
@@ -641,14 +708,14 @@ export function ChartCard({
                   ? visible.map((s) => (
                       <tr key={s.id}>
                         <th scope="row">{s.label}</th>
-                        <td>{format(sum(s.values))}</td>
+                        <td>{spoken(sum(s.values))}</td>
                       </tr>
                     ))
                   : data.labels.map((label, i) => (
                       <tr key={`${label}-${i}`}>
                         <th scope="row">{label}</th>
                         {visible.map((s) => (
-                          <td key={s.id}>{format(s.values[i] ?? 0)}</td>
+                          <td key={s.id}>{spoken(s.values[i] ?? 0)}</td>
                         ))}
                       </tr>
                     ))}
@@ -659,8 +726,8 @@ export function ChartCard({
             <p role="status" aria-live="polite" className="sr-only">
               {fromKeyboard && activeIndex !== null
                 ? donut
-                  ? `${visible[activeIndex]?.label}: ${format(sum(visible[activeIndex]?.values ?? []))}`
-                  : `${data.labels[activeIndex]}: ${visible.map((s) => `${s.label} ${format(s.values[activeIndex] ?? 0)}`).join(", ")}`
+                  ? `${visible[activeIndex]?.label}: ${spoken(sum(visible[activeIndex]?.values ?? []))}`
+                  : `${data.labels[activeIndex]}: ${visible.map((s) => `${s.label} ${spoken(s.values[activeIndex] ?? 0)}`).join(", ")}`
                 : ""}
             </p>
           )}
@@ -693,7 +760,7 @@ function TooltipRows({
             style={{ background: row.color }}
           />
           <span className="flex-1">{row.label}</span>
-          <span className="font-mono text-foreground tabular-nums">
+          <span className="amount font-mono text-foreground tabular-nums">
             {row.value}
           </span>
         </p>
@@ -751,7 +818,7 @@ function Donut({
           textAnchor="middle"
           fontSize="18"
           fontWeight={500}
-          className="fill-foreground tabular-nums"
+          className="amount fill-foreground tabular-nums"
         >
           {activeIndex === null
             ? format(total)

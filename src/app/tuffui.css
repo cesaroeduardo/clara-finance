@@ -166,6 +166,9 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+}
+
+.mini-stat.tuff-stat:not(:has(> [data-slot="surface-header"])) {
   min-height: 144px;
 }
 
@@ -192,6 +195,16 @@
   padding: 18px;
 }
 
+.tuff-stat:has(> [data-slot="surface-header"]) > .tuff-finance-body {
+  flex: 0 0 auto;
+  gap: 0;
+  padding: 12px 18px 14px;
+}
+.tuff-stat:has(> [data-slot="surface-header"]) .tuff-stat-value {
+  margin: 0;
+  line-height: 1.1;
+}
+
 .tuff-stat-with-chart > .tuff-finance-body {
   gap: 12px;
 }
@@ -211,12 +224,6 @@
   color: var(--muted-foreground);
 }
 
-.tuff-stat .tuff-stat-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
-}
-
 .tuff-stat-chart {
   width: 100%;
   height: 56px;
@@ -233,16 +240,6 @@
   min-width: 0;
 }
 
-.tuff-stat-icon.green {
-  color: var(--success);
-  background: var(--success-soft);
-}
-
-.tuff-stat-icon.amber {
-  color: var(--warning);
-  background: var(--warning-soft);
-}
-
 .tuff-stat .tuff-stat-value {
   font-size: clamp(24px, 2.1vw, 30px);
   line-height: 1.15;
@@ -250,13 +247,22 @@
   letter-spacing: -1px;
 }
 
-.tuff-finance-shell .card-heading {
-  padding: 20px;
+.setup-card > .tuff-finance-body,
+.accounts-card > .tuff-finance-body,
+.full-table > .tuff-finance-body,
+.investment-page > .tuff-finance-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.setup-card > .tuff-finance-body:has(.empty-state),
+.accounts-card > .tuff-finance-body:has(.empty-state),
+.completed-goals-card > .tuff-finance-body:has(.empty-state),
+.investment-page > .tuff-finance-body:has(.empty-state) {
+  padding: 8px 0 12px;
 }
 
 .full-table > .tuff-finance-body {
-  display: flex;
-  flex-direction: column;
   padding: 0;
 }
 
@@ -270,8 +276,9 @@
   padding-right: 18px;
 }
 
-.tuff-finance-shell .transactions-table thead,
-.tuff-finance-shell .category-rules-table thead {
+.tuff-finance-shell .transactions-table thead th,
+.tuff-finance-shell .category-rules-table thead th,
+.tuff-finance-shell .completed-goals-table thead th {
   background: var(--control-surface);
 }
 
@@ -288,6 +295,7 @@
 
 .goal-card {
   --goal-padding: 24px;
+  --goal-ring: 5px;
 }
 
 .add-button[data-slot="button"],
@@ -462,6 +470,10 @@
 
   .tuff-stat > .tuff-finance-body {
     padding: 14px;
+  }
+
+  .tuff-stat:has(> [data-slot="surface-header"]) > .tuff-finance-body {
+    padding: 10px 14px 12px;
   }
 
   .tuff-stat .tuff-stat-value {

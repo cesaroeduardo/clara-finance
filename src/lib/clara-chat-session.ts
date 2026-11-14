@@ -1,5 +1,8 @@
 import type { ClaraAgentCard } from "@/lib/clara-agent-insights";
-import type { ClaraSuggestion } from "@/lib/clara-mock-agent";
+import type {
+  ClaraSuggestion,
+  ClaraUndoEntry,
+} from "@/lib/clara-mock-agent";
 
 type ChatRole = "user" | "assistant";
 
@@ -19,6 +22,7 @@ export type ClaraAgentStore = {
   presentation: ClaraPresentation;
   pending: boolean;
   voiceMode: boolean;
+  lastUndo: ClaraUndoEntry | null;
 };
 
 let store: ClaraAgentStore = {
@@ -27,6 +31,7 @@ let store: ClaraAgentStore = {
   presentation: "inline",
   pending: false,
   voiceMode: false,
+  lastUndo: null,
 };
 
 const listeners = new Set<() => void>();
@@ -112,7 +117,16 @@ export function openClaraAgentNewFloatChat() {
     pending: false,
     voiceMode: false,
     presentation: "float",
+    lastUndo: null,
   });
+}
+
+export function setClaraLastUndo(lastUndo: ClaraUndoEntry | null) {
+  patch({ lastUndo });
+}
+
+export function getClaraLastUndo() {
+  return store.lastUndo;
 }
 
 export function setClaraVoiceMode(voiceMode: boolean) {

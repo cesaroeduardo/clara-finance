@@ -61,7 +61,9 @@ export function GoalContextMenu({
   async function toggleCompleted() {
     if (busy) return;
     setBusy(true);
-    const celebrate = !goal.completed ? prepareGoalCelebration() : undefined;
+    const celebrate = !goal.completed
+      ? prepareGoalCelebration({ goalId: goal.id, goalName: goal.name })
+      : undefined;
     try {
       await mutate("goals", { ...goal, completed: !goal.completed }, "PATCH");
       celebrate?.(true);
@@ -147,6 +149,7 @@ export function GoalContextMenu({
         <ContextMenuTrigger
           render={row ? <tr /> : <div />}
           className={row ? "completed-goal-row" : "goal-context-trigger"}
+          data-goal-id={goal.id}
           onClick={
             row
               ? (event) => {

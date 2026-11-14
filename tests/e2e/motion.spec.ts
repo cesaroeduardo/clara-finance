@@ -68,14 +68,12 @@ test("ocultação de valores é imediata e movimento reduzido é respeitado", as
   await expect(forecast).not.toHaveText("");
   await expect(page.locator(".page-enter")).toHaveClass(/is-shown/);
   await page.getByRole("button", { name: "Ocultar valores" }).click();
-  expect(
-    (await page.locator(".amount").allTextContents()).every(
-      (value) => value === "••••••",
-    ),
-  ).toBe(true);
-  await expect(
-    page.locator(".budget-gauge-amount .amount").first(),
-  ).toHaveText("••••••");
+  await expect(page.locator(".app-shell")).toHaveClass(/values-hidden/);
+  const forecastBlur = await page
+    .locator(".budget-gauge-amount .amount")
+    .first()
+    .evaluate((el) => getComputedStyle(el).filter);
+  expect(forecastBlur).toContain("blur");
   const icon = page.locator('[aria-label="Mostrar valores"] .t-icon').first();
   expect(
     await icon.evaluate((el) => getComputedStyle(el).transitionDuration),

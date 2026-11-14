@@ -29,7 +29,7 @@ export function ClaraAgentComposerSend({
         hasText ? "Enviar" : voiceMode ? "Encerrar modo voz" : "Modo voz"
       }
       size="icon"
-      variant={hasText ? "default" : "quiet"}
+      variant={mode === "close" ? "quiet" : "default"}
       disabled={pending && hasText}
       className={cn(
         "clara-agent-composer-send",

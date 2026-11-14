@@ -191,8 +191,8 @@ export function FinanceCommandBar({
       {
         id: "nav-clara",
         section: "Páginas",
-        label: "Agente",
-        keywords: "clara agente assistente chat duvidas contas",
+        label: "Conversar",
+        keywords: "clara agente assistente chat conversar duvidas",
         icon: <ChatCircle size={16} />,
         shortcut: key("G", "K"),
         run: () => go("clara"),
@@ -408,9 +408,7 @@ export function FinanceCommandBar({
         section: "Lançamentos",
         label: row.description,
         detail: `${dateLabel(row.date, { year: true })} · ${row.category || "Sem categoria"}`,
-        amount: hidden
-          ? "••••"
-          : `${row.kind === "expense" ? "− " : row.kind === "income" ? "+ " : ""}${money(row.amount, row.currency)}`,
+        amount: `${row.kind === "expense" ? "− " : row.kind === "income" ? "+ " : ""}${money(row.amount, row.currency)}`,
         icon: (
           <TransactionAvatar transaction={row} categories={data?.categories} />
         ),
@@ -420,7 +418,7 @@ export function FinanceCommandBar({
         },
       }));
     return [...matchingTransactions, ...matchingCommands];
-  }, [commands, query, data, hidden, onOpenChange, openForm]);
+  }, [commands, query, data, onOpenChange, openForm]);
 
   const sections = useMemo(() => {
     const order = ["Lançamentos", "Páginas", "Criar", "Ações"];
@@ -508,7 +506,7 @@ export function FinanceCommandBar({
                             )}
                           </span>
                           {item.amount && (
-                            <span className="command-bar-item-amount">
+                            <span className="command-bar-item-amount amount">
                               {item.amount}
                             </span>
                           )}

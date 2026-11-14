@@ -93,9 +93,11 @@ test("navegação mobile, tema, privacidade e telas sem erro de execução", asy
   await page.getByRole("button", { name: "Abrir menu" }).click();
   await page.getByRole("button", { name: "Ocultar valores" }).click();
   await expect(page.locator(".app-shell")).toHaveClass(/values-hidden/);
-  expect(await page.locator(".amount").allTextContents()).toEqual(
-    expect.arrayContaining(["••••••"]),
-  );
+  const amountBlur = await page
+    .locator(".amount")
+    .first()
+    .evaluate((el) => getComputedStyle(el).filter);
+  expect(amountBlur).toContain("blur");
   await page.getByRole("button", { name: "Usar tema escuro" }).click();
   await expect(page.locator("html")).toHaveClass(/dark/);
   await page

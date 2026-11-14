@@ -17,6 +17,7 @@ import {
 } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { ClaraMark } from "@/components/clara-mark";
+import { useClaraVoiceSession } from "@/hooks/use-clara-voice-session";
 import {
   appendClaraChatMessages,
   getClaraAgentStore,
@@ -25,7 +26,6 @@ import {
 } from "@/lib/clara-chat-session";
 import { cn } from "@/lib/utils";
 
-const BAR_COUNT = 18;
 const VOICE_REPLIES = [
   "Entendi, meu bem. Continua falando que eu te acompanho.",
   "Anotei. Quando quiser, manda o mesmo pelo texto pra eu agir na tela.",
@@ -39,42 +39,48 @@ type VoiceTurn = {
   text: string;
 };
 
-type VoicePhase = "listening" | "thinking" | "speaking";
-
 function nextId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function VoiceWaveform({
-  levels,
+  userLevels,
+  agentLevels,
   reduced,
   muted,
 }: {
-  levels: number[];
+  userLevels: number[];
+  agentLevels: number[];
   reduced: boolean;
   muted: boolean;
 }) {
+  const count = Math.max(userLevels.length, agentLevels.length);
   return (
     <div
       className="clara-voice-wave"
       role="img"
       aria-label="Medidor de volume"
     >
-      {levels.map((level, index) => {
-        const height = reduced ? 5 : Math.max(4, Math.round(level * 28));
+      {Array.from({ length: count }, (_, index) => {
+        const user = userLevels[index] ?? 0.08;
+        const agent = agentLevels[index] ?? 0.08;
+        const userHeight = reduced ? 5 : Math.max(4, Math.round(user * 28));
+        const agentHeight = reduced
+          ? 4
+          : Math.max(3, Math.round(agent * 28 * 0.7));
         return (
           <span key={index} className="clara-voice-wave-slot">
             <span
               className="clara-voice-wave-bar is-agent"
               style={{
-                height: reduced ? 4 : Math.max(3, Math.round(height * 0.7)),
+                height: agentHeight,
                 opacity: muted ? 0.12 : 0.28,
               }}
             />
             <span
               className="clara-voice-wave-bar is-user"
               style={{
-                height,
+                height: userHeight,
                 opacity: muted ? 0.35 : 1,
               }}
             />
@@ -92,16 +98,47 @@ export function ClaraAgentVoiceOverlay() {
   const [muted, setMuted] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
-  const [levels, setLevels] = useState(() =>
-    Array.from({ length: BAR_COUNT }, () => 0.12),
-  );
   const [turns, setTurns] = useState<VoiceTurn[]>([]);
-  const [phase, setPhase] = useState<VoicePhase>("listening");
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [speakText, setSpeakText] = useState<string | null>(null);
   const startedAtRef = useRef(0);
   const replyIndexRef = useRef(0);
-  const phaseRef = useRef<VoicePhase>("listening");
-  const mutedRef = useRef(false);
+  const replyTimerRef = useRef(0);
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  const handleUserUtterance = useCallback((text: string) => {
+    const cleaned = text.trim();
+    if (!cleaned) return;
+
+    setTurns((current) => [
+      ...current,
+      { id: nextId(), role: "user", text: cleaned },
+    ]);
+    setVoiceBusy(true);
+    setSpeakText(null);
+    window.clearTimeout(replyTimerRef.current);
+    replyTimerRef.current = window.setTimeout(() => {
+      const reply =
+        VOICE_REPLIES[replyIndexRef.current % VOICE_REPLIES.length] ??
+        VOICE_REPLIES[0];
+      replyIndexRef.current += 1;
+      setTurns((current) => [
+        ...current,
+        { id: nextId(), role: "assistant", text: reply },
+      ]);
+      setSpeakText(reply);
+      setVoiceBusy(false);
+    }, 1100);
+  }, []);
+
+  const { phase, userLevels, agentLevels, interim, error, stopSpeaking } =
+    useClaraVoiceSession({
+      active: open,
+      muted,
+      busy: voiceBusy,
+      speakText,
+      onFinalTranscript: handleUserUtterance,
+    });
 
   useLayoutEffect(() => {
     setPortalHost(document.body);
@@ -114,79 +151,17 @@ export function ClaraAgentVoiceOverlay() {
   }, []);
 
   useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
-
-  useEffect(() => {
-    mutedRef.current = muted;
-  }, [muted]);
-
-  useEffect(() => {
     if (!open) {
       setMuted(false);
       setSettingsOpen(false);
       setTranscriptOpen(false);
       setTurns([]);
-      setPhase("listening");
+      setVoiceBusy(false);
+      setSpeakText(null);
+      window.clearTimeout(replyTimerRef.current);
       return;
     }
     startedAtRef.current = Date.now();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || muted || reduceMotion) {
-      setLevels(Array.from({ length: BAR_COUNT }, () => 0.1));
-      return;
-    }
-    const tick = window.setInterval(() => {
-      const speaking = phaseRef.current === "speaking";
-      setLevels(
-        Array.from({ length: BAR_COUNT }, () => {
-          const base = speaking ? 0.35 : 0.14;
-          const span = speaking ? 0.55 : 0.7;
-          return base + Math.random() * span;
-        }),
-      );
-    }, 90);
-    return () => window.clearInterval(tick);
-  }, [open, muted, reduceMotion]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    let thinkTimer = 0;
-    let speakTimer = 0;
-    const loop = window.setInterval(() => {
-      if (mutedRef.current) return;
-      if (phaseRef.current !== "listening") return;
-
-      setTurns((current) => [
-        ...current,
-        { id: nextId(), role: "user", text: "…" },
-      ]);
-      setPhase("thinking");
-
-      thinkTimer = window.setTimeout(() => {
-        const reply =
-          VOICE_REPLIES[replyIndexRef.current % VOICE_REPLIES.length] ??
-          VOICE_REPLIES[0];
-        replyIndexRef.current += 1;
-        setTurns((current) => [
-          ...current,
-          { id: nextId(), role: "assistant", text: reply },
-        ]);
-        setPhase("speaking");
-        speakTimer = window.setTimeout(() => {
-          setPhase("listening");
-        }, 2200);
-      }, 1200);
-    }, 5600);
-
-    return () => {
-      window.clearInterval(loop);
-      window.clearTimeout(thinkTimer);
-      window.clearTimeout(speakTimer);
-    };
   }, [open]);
 
   useEffect(() => {
@@ -201,6 +176,8 @@ export function ClaraAgentVoiceOverlay() {
   }, [settingsOpen]);
 
   const endSession = useCallback(() => {
+    stopSpeaking();
+    window.clearTimeout(replyTimerRef.current);
     const durationMs = Math.max(0, Date.now() - startedAtRef.current);
     const seconds = Math.max(1, Math.round(durationMs / 1000));
     appendClaraChatMessages({
@@ -209,7 +186,7 @@ export function ClaraAgentVoiceOverlay() {
       text: `Sessão de voz encerrada (${seconds}s). Se quiser, meu bem, manda a mesma pergunta por texto que eu cuido da tela.`,
     });
     setClaraVoiceMode(false);
-  }, []);
+  }, [stopSpeaking]);
 
   useEffect(() => {
     if (!open) return;
@@ -233,13 +210,17 @@ export function ClaraAgentVoiceOverlay() {
   if (!portalHost) return null;
 
   const statusLabel =
-    muted
-      ? "Microfone mutado"
-      : phase === "thinking"
-        ? "Clara pensando…"
-        : phase === "speaking"
-          ? "Clara falando…"
-          : "Ouvindo…";
+    error && (phase === "denied" || phase === "unsupported")
+      ? error
+      : muted || phase === "muted"
+        ? "Microfone mutado"
+        : phase === "thinking"
+          ? "Clara pensando…"
+          : phase === "speaking"
+            ? "Clara falando…"
+            : phase === "hearing"
+              ? interim || "Ouvindo…"
+              : "Ouvindo…";
 
   return createPortal(
     <AnimatePresence>
@@ -261,16 +242,17 @@ export function ClaraAgentVoiceOverlay() {
             <div className="clara-voice-bar-head">
               <div className="clara-voice-bar-main">
                 <span className="clara-voice-bar-icon" aria-hidden>
-                  {muted ? (
+                  {muted || phase === "muted" || phase === "denied" ? (
                     <MicrophoneSlash size={16} weight="fill" />
                   ) : (
                     <Microphone size={16} weight="fill" />
                   )}
                 </span>
                 <VoiceWaveform
-                  levels={levels}
+                  userLevels={userLevels}
+                  agentLevels={agentLevels}
                   reduced={Boolean(reduceMotion)}
-                  muted={muted}
+                  muted={muted || phase === "muted"}
                 />
               </div>
 
@@ -300,8 +282,9 @@ export function ClaraAgentVoiceOverlay() {
                         />
                       </label>
                       <p className="clara-voice-settings-note">
-                        Modo voz mock — a Clara responde com frases prontas. O
-                        chat de texto fica separado até você encerrar.
+                        A Clara ouve pelo microfone e responde com frases
+                        prontas. O chat de texto fica separado até você
+                        encerrar.
                       </p>
                     </div>
                   ) : null}
@@ -349,7 +332,7 @@ export function ClaraAgentVoiceOverlay() {
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.18 }}
                 >
-                  {turns.length === 0 ? (
+                  {turns.length === 0 && !interim ? (
                     <p className="clara-voice-transcript-empty">
                       A conversa por voz aparece aqui.
                     </p>
@@ -366,6 +349,11 @@ export function ClaraAgentVoiceOverlay() {
                           {turn.text}
                         </li>
                       ))}
+                      {interim ? (
+                        <li className="clara-voice-transcript-item is-user">
+                          {interim}
+                        </li>
+                      ) : null}
                     </ul>
                   )}
                 </m.div>

@@ -182,7 +182,15 @@ export function FinanceForm({
       !form.contribute &&
       body.completed === true &&
       !row?.completed
-        ? prepareGoalCelebration()
+        ? prepareGoalCelebration({
+            goalId: typeof row?.id === "string" ? row.id : undefined,
+            goalName:
+              typeof body.name === "string"
+                ? body.name
+                : typeof row?.name === "string"
+                  ? row.name
+                  : undefined,
+          })
         : undefined;
     try {
       await mutate(

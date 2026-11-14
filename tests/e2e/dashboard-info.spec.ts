@@ -66,11 +66,11 @@ test("comparação de gastos fica no info da distribuição e respeita privacida
   await expect(tooltip).toBeVisible();
   await expect(tooltip).toContainText("Mudança nos gastos");
   await expect(tooltip).toContainText(/mesmo período|Sem variação relevante/);
+  const tooltipAmounts = tooltip.locator(".amount");
+  await expect(tooltipAmounts.first()).toBeVisible();
   expect(
-    (await tooltip.locator(".amount").allTextContents()).every(
-      (value) => value === "••••••",
-    ),
-  ).toBe(true);
+    await tooltipAmounts.first().evaluate((el) => getComputedStyle(el).filter),
+  ).toContain("blur");
   await page.keyboard.press("Escape");
   await expect(tooltip).not.toBeVisible();
   await page

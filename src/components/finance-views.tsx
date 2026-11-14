@@ -32,6 +32,7 @@ import {
   Lightning,
   PencilSimple,
   Plant,
+  Plugs,
   Plus,
   ShieldCheck,
   Warning,
@@ -178,8 +179,6 @@ export function Amount({
   motion?: "none" | "reel";
 }) {
   const hidden = useContext(PrivacyContext);
-  if (hidden)
-    return <span className={`amount ${className}`.trim()}>••••••</span>;
   if (motion === "reel") {
     return (
       <SpinningAmount
@@ -190,29 +189,12 @@ export function Amount({
       />
     );
   }
+  const text = prefix + money(value, currency);
   return (
     <span className={`amount ${className}`.trim()}>
-      {prefix + money(value, currency)}
+      {hidden ? <span className="sr-only">Valor oculto</span> : null}
+      <span aria-hidden={hidden || undefined}>{text}</span>
     </span>
-  );
-}
-function CardTitle({
-  title,
-  subtitle,
-  action,
-}: {
-  title: string;
-  subtitle?: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="card-heading">
-      <div>
-        <h2>{title}</h2>
-        {subtitle && <p>{subtitle}</p>}
-      </div>
-      {action}
-    </div>
   );
 }
 function TextLink({
@@ -268,7 +250,7 @@ function SignalTag({
   );
 }
 
-function StatusTag({
+export function StatusTag({
   tone,
   icon,
   children,
@@ -2934,17 +2916,28 @@ export function TransactionsView(props: Props) {
           }
         />
       </div>
-      <FinanceSurface render={<section />} className="finance-card full-table">
-        <CardTitle
-          title="Lançamentos"
-          subtitle={`${filtered.length} registros`}
-          action={
-            <Button variant="outline" size="sm" onClick={exportCsv}>
-              <DownloadSimple size={15} />
-              Exportar CSV
-            </Button>
-          }
-        />
+      <FinanceSurface
+        render={<section />}
+        className="finance-card full-table"
+        header={
+          <ShellHeader
+            as="h2"
+            icon={ArrowsLeftRight}
+            title="Lançamentos"
+            subtitle={`${filtered.length} registros`}
+            aside={
+              <Button
+                variant="outline"
+                className="add-button"
+                onClick={exportCsv}
+              >
+                <DownloadSimple size={17} />
+                Exportar CSV
+              </Button>
+            }
+          />
+        }
+      >
         <div className="table-filters">
           <label className="search-field">
             <MagnifyingGlass size={17} />
@@ -3098,9 +3091,9 @@ export function MiniStat({
 }: {
   label: string;
   value: number;
-  icon?: React.ReactNode;
+  icon?: React.ComponentProps<typeof StatCard>["icon"];
   visual?: React.ReactNode;
-  color: string;
+  color?: string;
   detail?: string;
 }) {
   return (
@@ -3126,36 +3119,40 @@ export function InvestmentsView({ data, month, category, openForm }: Props) {
         <MiniStat
           label="Patrimônio investido · BRL"
           value={stats.invested}
-          icon={<Plant />}
-          color="green"
+          icon={Plant}
         />
         <MiniStat
           label="Em renda fixa · BRL"
           value={fixed}
-          icon={<ShieldCheck />}
-          color="neutral"
+          icon={ShieldCheck}
         />
         <MiniStat
           label="Outros investimentos · BRL"
           value={stats.invested - fixed}
-          icon={<ArrowUpRight />}
-          color="amber"
+          icon={ArrowUpRight}
         />
       </div>
       <FinanceSurface
         render={<section />}
         className="finance-card investment-page"
+        header={
+          <ShellHeader
+            as="h2"
+            icon={Plant}
+            title="Carteira"
+            subtitle="Posições e valorização"
+            aside={
+              <Button
+                className="add-button"
+                onClick={() => openForm({ resource: "investments" })}
+              >
+                <Plus size={17} />
+                Adicionar posição
+              </Button>
+            }
+          />
+        }
       >
-        <CardTitle
-          title="Carteira"
-
-          action={
-            <Button onClick={() => openForm({ resource: "investments" })}>
-              <Plus size={15} />
-              Adicionar posição
-            </Button>
-          }
-        />
         {all.length ? (
           <div className="investment-positions">
             {all.map((row) => (
@@ -3232,141 +3229,145 @@ export function GoalsView({ data, openForm, mutate, category }: Props) {
   const goals = data.goals.filter((goal) =>
     matchesCategoryFilter(goal.category, category),
   );
-  const inProgressCount = goals.filter((goal) => !goal.completed).length;
+  const activeGoals = goals.filter((goal) => !goal.completed);
+  const completedGoals = [...goals]
+    .filter((goal) => goal.completed)
+    .sort((a, b) =>
+      (b.completedAt || "").localeCompare(a.completedAt || ""),
+    );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const selectedGoal = data.goals.find((goal) => goal.id === selectedId);
+  const openGoal = (id: string) => {
+    setSelectedId(id);
+    setDetailsOpen(true);
+  };
   return (
     <>
       <div className="section-top">
         <span>
-          <strong>{inProgressCount}</strong>{" "}
-          {inProgressCount === 1 ? "meta em progresso" : "metas em progresso"}
+          <strong>{activeGoals.length}</strong>{" "}
+          {activeGoals.length === 1 ? "meta em progresso" : "metas em progresso"}
         </span>
       </div>
-      {[false, true].map((completed) => {
-        const sectionGoals = goals.filter(
-          (goal) => Boolean(goal.completed) === completed,
-        );
-        return (
-          <section key={String(completed)} className="goals-section">
-            {completed && <h2>Metas concluídas</h2>}
-            {sectionGoals.length ? (
-              completed ? (
-                <div className="completed-goals-scroll">
-                  <table className="completed-goals-table">
-                    <caption className="sr-only">Metas concluídas</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">Meta</th>
-                        <th scope="col">Categoria</th>
-                        <th scope="col">Valor reservado</th>
-                        <th scope="col">Valor da meta</th>
-                        <th scope="col">Criada em</th>
-                        <th scope="col">Concluída em</th>
-                        <th scope="col">
-                          <span className="sr-only">Ações</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...sectionGoals]
-                        .sort((a, b) =>
-                          (b.completedAt || "").localeCompare(
-                            a.completedAt || "",
-                          ),
-                        )
-                        .map((goal) => (
-                          <GoalContextMenu
-                            key={goal.id}
-                            goal={goal}
-                            openForm={openForm}
-                            mutate={mutate}
-                            row
-                            onView={() => {
-                              setSelectedId(goal.id);
-                              setDetailsOpen(true);
-                            }}
+      {activeGoals.length ? (
+        <div className="goals-page-grid">
+          {activeGoals.map((goal) => (
+            <GoalContextMenu
+              key={goal.id}
+              goal={goal}
+              openForm={openForm}
+              mutate={mutate}
+              onView={() => openGoal(goal.id)}
+            >
+              {(menu) => (
+                <GoalCard
+                  actions={menu}
+                  goal={goal}
+                  categories={data.categories}
+                  onDetails={() => openGoal(goal.id)}
+                />
+              )}
+            </GoalContextMenu>
+          ))}
+        </div>
+      ) : (
+        <FinanceSurface render={<section />} className="finance-card">
+          <Empty
+            title="Nenhuma meta em andamento"
+            action={
+              <Button onClick={() => openForm({ resource: "goals" })}>
+                Nova meta
+              </Button>
+            }
+          />
+        </FinanceSurface>
+      )}
+      <FinanceSurface
+        render={<section />}
+        className="finance-card full-table completed-goals-card"
+        header={
+          <ShellHeader
+            as="h2"
+            icon={CheckCircle}
+            title="Metas concluídas"
+            subtitle={
+              completedGoals.length === 1
+                ? "1 registro"
+                : `${completedGoals.length} registros`
+            }
+          />
+        }
+      >
+        {completedGoals.length ? (
+          <div className="completed-goals-scroll">
+            <table className="completed-goals-table">
+              <caption className="sr-only">Metas concluídas</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Meta</th>
+                  <th scope="col">Categoria</th>
+                  <th scope="col">Valor reservado</th>
+                  <th scope="col">Valor da meta</th>
+                  <th scope="col">Criada em</th>
+                  <th scope="col">Concluída em</th>
+                  <th scope="col">
+                    <span className="sr-only">Ações</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {completedGoals.map((goal) => (
+                  <GoalContextMenu
+                    key={goal.id}
+                    goal={goal}
+                    openForm={openForm}
+                    mutate={mutate}
+                    row
+                    onView={() => openGoal(goal.id)}
+                  >
+                    {(menu) => (
+                      <>
+                        <td>
+                          <button
+                            type="button"
+                            className="completed-goal-name"
+                            onClick={() => openGoal(goal.id)}
                           >
-                            {(menu) => (
-                              <>
-                                <td>
-                                  <button
-                                    type="button"
-                                    className="completed-goal-name"
-                                    onClick={() => {
-                                      setSelectedId(goal.id);
-                                      setDetailsOpen(true);
-                                    }}
-                                  >
-                                    {goal.imageSlug ? (
-                                      <CategoryImage
-                                        name={goal.imageSlug}
-                                        size={36}
-                                      />
-                                    ) : (
-                                      <Illustration
-                                        name={assetNames[goal.icon] || "target"}
-                                      />
-                                    )}
-                                    <span>{goal.name}</span>
-                                  </button>
-                                </td>
-                                <td>{goal.category || "Sem categoria"}</td>
-                                <td>
-                                  <Amount value={goal.current} />
-                                </td>
-                                <td>
-                                  <Amount value={goal.target} />
-                                </td>
-                                <td>{goalHistoryDate(goal.createdAt)}</td>
-                                <td>{goalHistoryDate(goal.completedAt)}</td>
-                                <td>{menu}</td>
-                              </>
+                            {goal.imageSlug ? (
+                              <CategoryImage
+                                name={goal.imageSlug}
+                                size={36}
+                              />
+                            ) : (
+                              <Illustration
+                                name={assetNames[goal.icon] || "target"}
+                              />
                             )}
-                          </GoalContextMenu>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="goals-page-grid">
-                  {sectionGoals.map((goal) => (
-                    <GoalContextMenu
-                      key={goal.id}
-                      goal={goal}
-                      openForm={openForm}
-                      mutate={mutate}
-                      onView={() => {
-                        setSelectedId(goal.id);
-                        setDetailsOpen(true);
-                      }}
-                    >
-                      {(menu) => (
-                        <GoalCard
-                          actions={menu}
-                          goal={goal}
-                          categories={data.categories}
-                          onDetails={() => {
-                            setSelectedId(goal.id);
-                            setDetailsOpen(true);
-                          }}
-                        />
-                      )}
-                    </GoalContextMenu>
-                  ))}
-                </div>
-              )
-            ) : (
-              <p className="goals-empty">
-                {completed
-                  ? "Nenhuma meta concluída."
-                  : "Nenhuma meta em andamento."}
-              </p>
-            )}
-          </section>
-        );
-      })}
+                            <span>{goal.name}</span>
+                          </button>
+                        </td>
+                        <td>{goal.category || "Sem categoria"}</td>
+                        <td>
+                          <Amount value={goal.current} />
+                        </td>
+                        <td>
+                          <Amount value={goal.target} />
+                        </td>
+                        <td>{goalHistoryDate(goal.createdAt)}</td>
+                        <td>{goalHistoryDate(goal.completedAt)}</td>
+                        <td>{menu}</td>
+                      </>
+                    )}
+                  </GoalContextMenu>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty title="Nenhuma meta concluída" />
+        )}
+      </FinanceSurface>
       <Dialog
         open={detailsOpen && !!selectedGoal}
         onOpenChange={setDetailsOpen}
@@ -3468,11 +3469,15 @@ export function CategoriesHeader({
   categoryView,
   onCategoryViewChange,
   openForm,
+  leadingAction,
 }: {
   categoryView: CategoryViewState;
   onCategoryViewChange: (value: CategoryViewState) => void;
   openForm: Props["openForm"];
+  leadingAction?: React.ReactNode;
 }) {
+  const showActions =
+    Boolean(leadingAction) || categoryView.view === "categories";
   return (
     <>
       <div className="page-heading-start">
@@ -3481,12 +3486,15 @@ export function CategoriesHeader({
           onCategoryViewChange={onCategoryViewChange}
         />
       </div>
-      {categoryView.view === "categories" && (
+      {showActions && (
         <div className="page-heading-actions">
-          <Button onClick={() => openForm({ resource: "categories" })}>
-            <Plus size={16} />
-            Nova categoria
-          </Button>
+          {leadingAction}
+          {categoryView.view === "categories" && (
+            <Button onClick={() => openForm({ resource: "categories" })}>
+              <Plus size={16} />
+              Nova categoria
+            </Button>
+          )}
         </div>
       )}
     </>
@@ -3693,7 +3701,6 @@ export function AccountsView({
 }: Props & {
   sync: () => void;
   syncing: boolean;
-  onDemoChange: (enabled: boolean) => void;
 }) {
   return (
     <>
@@ -3701,58 +3708,112 @@ export function AccountsView({
         <FinanceSurface
           render={<section />}
           className="finance-card setup-card"
+          header={
+            <ShellHeader
+              as="h2"
+              icon={ShieldCheck}
+              title="Configuração"
+              subtitle="Conecte bancos pelo Pluggy"
+            />
+          }
         >
-          <CardTitle title="Configuração" />
-          <div className="setup-steps">
-            <div>
-              <span>1</span>
-              <h3>Conectar bancos</h3>
-              <p>Conecte seus bancos no Meu Pluggy.</p>
-              <a href="https://meu.pluggy.ai" target="_blank" rel="noreferrer">
-                Abrir Meu Pluggy
-                <ArrowSquareOut size={12} />
-              </a>
-            </div>
-            <div>
-              <span>2</span>
-              <h3>Autorizar MeuPluggy</h3>
-              <p>
-                Autorize o conector MeuPluggy no Dashboard e copie os itemIds.
-              </p>
-              <a
-                href="https://dashboard.pluggy.ai"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir Dashboard
-                <ArrowSquareOut size={12} />
-              </a>
-            </div>
-            <div>
-              <span>3</span>
-              <h3>Adicionar conexões</h3>
-              <p>
-                Preencha o .env.local, reinicie o app e adicione os itemIds.
-              </p>
-              <span
-                className={`config-status ${data.pluggyConfigured ? "configured" : ""}`}
-              >
+          <ol className="setup-steps">
+            <li className="setup-step">
+              <span className="setup-step-index" aria-hidden="true">
+                1
+              </span>
+              <div className="setup-step-body">
+                <div className="setup-step-copy">
+                  <h3>Conectar bancos</h3>
+                  <p>Abra o Meu Pluggy e conecte as instituições.</p>
+                </div>
+                <a
+                  href="https://meu.pluggy.ai"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={buttonVariants({
+                    variant: "secondary",
+                    size: "xs",
+                    className: "setup-step-action",
+                  })}
+                >
+                  Meu Pluggy
+                  <ArrowSquareOut size={12} />
+                </a>
+              </div>
+            </li>
+            <li className="setup-step">
+              <span className="setup-step-index" aria-hidden="true">
+                2
+              </span>
+              <div className="setup-step-body">
+                <div className="setup-step-copy">
+                  <h3>Autorizar MeuPluggy</h3>
+                  <p>
+                    Autorize o conector no Dashboard e copie os itemIds.
+                  </p>
+                </div>
+                <a
+                  href="https://dashboard.pluggy.ai"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={buttonVariants({
+                    variant: "secondary",
+                    size: "xs",
+                    className: "setup-step-action",
+                  })}
+                >
+                  Dashboard
+                  <ArrowSquareOut size={12} />
+                </a>
+              </div>
+            </li>
+            <li
+              className={`setup-step${data.pluggyConfigured ? " is-done" : ""}`}
+            >
+              <span className="setup-step-index" aria-hidden="true">
                 {data.pluggyConfigured ? (
-                  <>
-                    <Check size={13} />
-                    Credenciais configuradas
-                  </>
+                  <Check size={12} weight="bold" />
                 ) : (
-                  "Credenciais pendentes"
+                  "3"
                 )}
               </span>
-            </div>
-          </div>
+              <div className="setup-step-body">
+                <div className="setup-step-copy">
+                  <h3>Adicionar conexões</h3>
+                  <p>
+                    Configure o .env.local, reinicie o app e cadastre os
+                    itemIds.
+                  </p>
+                </div>
+                <StatusPill
+                  tone={data.pluggyConfigured ? "positive" : "warning"}
+                  size="sm"
+                  icon={data.pluggyConfigured ? CheckCircle : Warning}
+                  className="setup-step-status"
+                >
+                  {data.pluggyConfigured
+                    ? "Credenciais ok"
+                    : "Credenciais pendentes"}
+                </StatusPill>
+              </div>
+            </li>
+          </ol>
         </FinanceSurface>
       )}
       <div className="accounts-layout">
-        <FinanceSurface render={<section />} className="finance-card">
-          <CardTitle title="Contas" subtitle="Saldos da instituição" />
+        <FinanceSurface
+          render={<section />}
+          className="finance-card accounts-card"
+          header={
+            <ShellHeader
+              as="h2"
+              icon={Wallet}
+              title="Contas"
+              subtitle="Saldos da instituição"
+            />
+          }
+        >
           {data.accounts.length ? (
             <div className="bank-account-list">
               {data.accounts.map((account) => {
@@ -3796,23 +3857,28 @@ export function AccountsView({
             <Empty title="Nenhuma conta" />
           )}
         </FinanceSurface>
-        <FinanceSurface render={<section />} className="finance-card">
-          <CardTitle
-            title="Conexões"
-            action={
-              <button
-                className="icon-button"
-                aria-label="Sincronizar conexões"
-                onClick={sync}
-                disabled={syncing || data.mode === "demo"}
-              >
-                <ArrowsClockwise
-                  size={17}
-                  className={syncing ? "animate-spin" : ""}
+        <FinanceSurface
+          render={<section />}
+          className="finance-card accounts-card"
+          header={
+            <ShellHeader
+              as="h2"
+              icon={Plugs}
+              title="Conexões"
+              aside={
+                <IconButton
+                  icon={ArrowsClockwise}
+                  label={syncing ? "Sincronizando…" : "Sincronizar conexões"}
+                  size="icon-sm"
+                  variant="quiet"
+                  loading={syncing}
+                  disabled={syncing || data.mode === "demo"}
+                  onClick={sync}
                 />
-              </button>
-            }
-          />
+              }
+            />
+          }
+        >
           {data.connections.length ? (
             <div className="connections-list">
               {data.connections.map((connection) => (
