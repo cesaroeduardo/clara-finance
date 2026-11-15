@@ -24,6 +24,7 @@ import {
   CaretRight,
   Check,
   CheckCircle,
+  CircleNotch,
   Clock,
   CreditCard,
   ChartPieSlice,
@@ -35,6 +36,8 @@ import {
   Plugs,
   Plus,
   ShieldCheck,
+  Tag,
+  Target,
   Warning,
   Wallet,
   X,
@@ -115,6 +118,8 @@ import {
   monthLabel,
 } from "@/lib/format";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
+import { toast } from "sonner";
+import { prepareGoalCelebration } from "@/lib/goal-celebration";
 
 function shiftMonthKey(month: string, delta: number) {
   const date = new Date(`${month}-15T12:00:00`);
@@ -2336,66 +2341,95 @@ function GoalCard({
   onDetails: () => void;
 }) {
   const percent = Math.min(100, Math.round((goal.current / goal.target) * 100));
+  const category = goal.category || "Sem categoria";
+  const categoryMeta = categories.find((item) => item.name === category);
+  const deadline = new Intl.DateTimeFormat("pt-BR", {
+    month: "short",
+    year: "numeric",
+  }).format(new Date(goal.deadline + "T12:00:00"));
+  const visual = goal.imageSlug ? (
+    <CategoryImage name={goal.imageSlug} size={compact ? 56 : 72} />
+  ) : (
+    <Illustration name={assetNames[goal.icon] || "target"} />
+  );
+
+  if (compact) {
+    return (
+      <div className="goal-card compact">
+        <button
+          type="button"
+          className="goal-card-open"
+          aria-label={`Ver detalhes de ${goal.name}`}
+          onClick={onDetails}
+        />
+        <div className="goal-card-top">
+          {visual}
+          {actions}
+        </div>
+        <h3>{goal.name}</h3>
+        <div className="goal-amount">
+          <Amount value={goal.current} />
+          <span>
+            {" "}
+            de <Amount value={goal.target} />
+          </span>
+        </div>
+        <ProgressBar
+          value={percent}
+          label={`Progresso de ${goal.name}`}
+          tone={goal.current / goal.target >= 0.9 ? "positive" : "neutral"}
+          className="progress-track"
+        />
+        <div className="goal-card-footer">
+          <span>{percent}%</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`goal-card ${compact ? "compact" : ""}`}>
+    <FinanceSurface className="goal-metric">
       <button
         type="button"
         className="goal-card-open"
         aria-label={`Ver detalhes de ${goal.name}`}
         onClick={onDetails}
       />
-      <div className="goal-card-top">
-        {goal.imageSlug ? (
-          <CategoryImage name={goal.imageSlug} size={64} />
-        ) : (
-          <Illustration name={assetNames[goal.icon] || "target"} />
-        )}
-        {actions}
+      <div className="goal-metric-top">
+        <div className="goal-metric-copy">
+          <span className="goal-metric-pill">
+            <CategoryMark
+              name={category}
+              size={16}
+              color={categoryMeta?.color}
+              imageSlug={categoryMeta?.imageSlug}
+            />
+            {category}
+          </span>
+          <strong className="goal-metric-value">{goal.name}</strong>
+          {goal.description ? <GoalDescription text={goal.description} /> : null}
+        </div>
+        <div className="goal-metric-visual">
+          <div className="goal-metric-actions">{actions}</div>
+          <div className="goal-metric-illustration">{visual}</div>
+        </div>
       </div>
-      <h3>{goal.name}</h3>
-      {goal.description && <GoalDescription text={goal.description} />}
-      <div className="goal-amount">
-        <Amount value={goal.current} />
-        <span>
-          {" "}
-          de <Amount value={goal.target} />
-        </span>
-      </div>
+      <p className="goal-metric-label goal-metric-amount">
+        <Amount value={goal.current} /> de <Amount value={goal.target} />
+      </p>
       <ProgressBar
         value={percent}
         label={`Progresso de ${goal.name}`}
-        tone={goal.current / goal.target >= 0.9 ? "positive" : "neutral"}
-        className="progress-track"
+        tone={goal.current / goal.target >= 0.9 ? "positive" : "brand"}
+        size="lg"
+        striped
+        className="goal-metric-bar"
       />
-      <div className="goal-card-footer">
+      <div className="goal-metric-footer">
+        <span>Até {deadline}</span>
         <span>{percent}%</span>
       </div>
-      {!compact && (
-        <div className="goal-deadline">
-          <span>
-            Até{" "}
-            {new Intl.DateTimeFormat("pt-BR", {
-              month: "short",
-              year: "numeric",
-            }).format(new Date(goal.deadline + "T12:00:00"))}
-          </span>
-          <span className="goal-card-category">
-            <CategoryMark
-              name={goal.category || "Sem categoria"}
-              size={18}
-              color={
-                categories.find((item) => item.name === goal.category)?.color
-              }
-              imageSlug={
-                categories.find((item) => item.name === goal.category)
-                  ?.imageSlug
-              }
-            />
-            {goal.category || "Sem categoria"}
-          </span>
-        </div>
-      )}
-    </div>
+    </FinanceSurface>
   );
 }
 type TransactionSortColumn =
@@ -3244,35 +3278,44 @@ export function GoalsView({ data, openForm, mutate, category }: Props) {
   };
   return (
     <>
-      <div className="section-top">
-        <span>
-          <strong>{activeGoals.length}</strong>{" "}
-          {activeGoals.length === 1 ? "meta em progresso" : "metas em progresso"}
-        </span>
-      </div>
-      {activeGoals.length ? (
-        <div className="goals-page-grid">
-          {activeGoals.map((goal) => (
-            <GoalContextMenu
-              key={goal.id}
-              goal={goal}
-              openForm={openForm}
-              mutate={mutate}
-              onView={() => openGoal(goal.id)}
-            >
-              {(menu) => (
-                <GoalCard
-                  actions={menu}
-                  goal={goal}
-                  categories={data.categories}
-                  onDetails={() => openGoal(goal.id)}
-                />
-              )}
-            </GoalContextMenu>
-          ))}
-        </div>
-      ) : (
-        <FinanceSurface render={<section />} className="finance-card">
+      <FinanceSurface
+        render={<section />}
+        className="finance-card active-goals-card"
+        header={
+          <ShellHeader
+            as="h2"
+            icon={Target}
+            title="Metas em progresso"
+            subtitle={
+              activeGoals.length === 1
+                ? "1 meta"
+                : `${activeGoals.length} metas`
+            }
+          />
+        }
+      >
+        {activeGoals.length ? (
+          <div className="goals-page-grid">
+            {activeGoals.map((goal) => (
+              <GoalContextMenu
+                key={goal.id}
+                goal={goal}
+                openForm={openForm}
+                mutate={mutate}
+                onView={() => openGoal(goal.id)}
+              >
+                {(menu) => (
+                  <GoalCard
+                    actions={menu}
+                    goal={goal}
+                    categories={data.categories}
+                    onDetails={() => openGoal(goal.id)}
+                  />
+                )}
+              </GoalContextMenu>
+            ))}
+          </div>
+        ) : (
           <Empty
             title="Nenhuma meta em andamento"
             action={
@@ -3281,8 +3324,8 @@ export function GoalsView({ data, openForm, mutate, category }: Props) {
               </Button>
             }
           />
-        </FinanceSurface>
-      )}
+        )}
+      </FinanceSurface>
       <FinanceSurface
         render={<section />}
         className="finance-card full-table completed-goals-card"
@@ -3375,7 +3418,14 @@ export function GoalsView({ data, openForm, mutate, category }: Props) {
           if (!open) setSelectedId(null);
         }}
       >
-        {selectedGoal && <GoalDetails goal={selectedGoal} />}
+        {selectedGoal && (
+          <GoalDetails
+            goal={selectedGoal}
+            openForm={openForm}
+            mutate={mutate}
+            onClose={() => setDetailsOpen(false)}
+          />
+        )}
       </Dialog>
     </>
   );
@@ -3389,11 +3439,49 @@ function goalHistoryDate(value: string | null) {
     timeZone: "America/Sao_Paulo",
   }).format(new Date(value));
 }
-function GoalDetails({ goal }: { goal: Goal }) {
+function GoalDetails({
+  goal,
+  openForm,
+  mutate,
+  onClose,
+}: {
+  goal: Goal;
+  openForm: Props["openForm"];
+  mutate: Mutate;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
   const percent = Math.min(100, Math.round((goal.current / goal.target) * 100));
   const remaining = Math.max(0, goal.target - goal.current);
+
+  async function toggleCompleted() {
+    if (busy) return;
+    setBusy(true);
+    const celebrate = !goal.completed
+      ? prepareGoalCelebration({
+          goalId: goal.id,
+          goalName: goal.name,
+          imageSlug: goal.imageSlug,
+          icon: goal.icon,
+        })
+      : undefined;
+    try {
+      await mutate("goals", { ...goal, completed: !goal.completed }, "PATCH");
+      celebrate?.(true);
+    } catch (error) {
+      celebrate?.(false);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar a meta.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <DialogContent className="finance-dialog goal-details-dialog dialog-scrollable sm:max-w-[540px] p-7">
+    <DialogContent className="finance-dialog dialog-fixed-actions goal-details-dialog sm:max-w-[540px] p-7">
       <ScrollFade
         className="dialog-scroll-fade"
         contentClassName="dialog-scroll-body"
@@ -3462,42 +3550,69 @@ function GoalDetails({ goal }: { goal: Goal }) {
           )}
         </section>
       </ScrollFade>
+      <div className="form-actions">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy}
+          onClick={() => {
+            onClose();
+            openForm({ resource: "goals", record: { ...goal } });
+          }}
+        >
+          <PencilSimple size={16} />
+          Editar
+        </Button>
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => void toggleCompleted()}
+        >
+          {busy ? (
+            <CircleNotch size={16} className="animate-spin" />
+          ) : goal.completed ? null : (
+            <Check size={16} />
+          )}
+          {goal.completed ? "Reabrir" : "Concluir"}
+        </Button>
+      </div>
     </DialogContent>
   );
 }
 export function CategoriesHeader({
   categoryView,
-  onCategoryViewChange,
   openForm,
   leadingAction,
+  canAddRule = false,
+  onAddRule,
 }: {
   categoryView: CategoryViewState;
   onCategoryViewChange: (value: CategoryViewState) => void;
   openForm: Props["openForm"];
   leadingAction?: React.ReactNode;
+  canAddRule?: boolean;
+  onAddRule?: () => void;
 }) {
-  const showActions =
-    Boolean(leadingAction) || categoryView.view === "categories";
   return (
-    <>
-      <div className="page-heading-start">
-        <CategoriesViewSelector
-          categoryView={categoryView}
-          onCategoryViewChange={onCategoryViewChange}
-        />
-      </div>
-      {showActions && (
-        <div className="page-heading-actions">
-          {leadingAction}
-          {categoryView.view === "categories" && (
-            <Button onClick={() => openForm({ resource: "categories" })}>
-              <Plus size={16} />
-              Nova categoria
-            </Button>
-          )}
-        </div>
+    <div className="page-heading-actions">
+      {leadingAction}
+      {categoryView.view === "categories" ? (
+        <Button
+          className="add-button"
+          onClick={() => openForm({ resource: "categories" })}
+        >
+          <Plus size={17} /> Nova categoria
+        </Button>
+      ) : (
+        <Button
+          className="add-button"
+          disabled={!canAddRule}
+          onClick={onAddRule}
+        >
+          <Plus size={17} /> Adicionar regra
+        </Button>
       )}
-    </>
+    </div>
   );
 }
 function CategoriesViewSelector({
@@ -3530,11 +3645,14 @@ export function CategoriesView({
   mutate,
   categoryView,
   onCategoryViewChange,
+  createRuleKey = 0,
 }: Props & {
   categoryView: CategoryViewState;
   onCategoryViewChange: (value: CategoryViewState) => void;
+  createRuleKey?: number;
 }) {
   const categories = data.categories;
+  const isConfig = categoryView.view === "configuration";
   const usage = useMemo(() => {
     const counts = new Map<string, number>();
     for (const row of data.transactions) {
@@ -3552,20 +3670,46 @@ export function CategoriesView({
     }
     return counts;
   }, [data.transactions, data.recurrings, data.goals]);
-  if (categoryView.view === "configuration")
-    return (
-      <CategoryRulesTable
-        data={data}
-        mutate={mutate}
-        categoryId={categoryView.categoryId}
-        onCategoryChange={(categoryId) =>
-          onCategoryViewChange({ view: "configuration", categoryId })
-        }
-      />
-    );
+  const ruleCount = data.categoryRules.length;
   return (
-    <>
-      {categories.length ? (
+    <FinanceSurface
+      render={<section />}
+      className={`finance-card categories-card${isConfig ? " full-table" : ""}`}
+      header={
+        <ShellHeader
+          as="h2"
+          icon={Tag}
+          title={isConfig ? "Configuração" : "Categorias"}
+          subtitle={
+            isConfig
+              ? ruleCount === 1
+                ? "1 regra"
+                : `${ruleCount} regras`
+              : categories.length === 1
+                ? "1 categoria"
+                : `${categories.length} categorias`
+          }
+          aside={
+            <CategoriesViewSelector
+              categoryView={categoryView}
+              onCategoryViewChange={onCategoryViewChange}
+            />
+          }
+        />
+      }
+    >
+      {isConfig ? (
+        <CategoryRulesTable
+          data={data}
+          mutate={mutate}
+          embedded
+          createRuleKey={createRuleKey}
+          categoryId={categoryView.categoryId}
+          onCategoryChange={(categoryId) =>
+            onCategoryViewChange({ view: "configuration", categoryId })
+          }
+        />
+      ) : categories.length ? (
         <div className="categories-page-grid">
           {categories.map((category) => (
             <CategoryCard
@@ -3584,18 +3728,16 @@ export function CategoriesView({
           ))}
         </div>
       ) : (
-        <FinanceSurface render={<section />} className="finance-card">
-          <Empty
-            title="Nenhuma categoria"
-            action={
-              <Button onClick={() => openForm({ resource: "categories" })}>
-                Criar categoria
-              </Button>
-            }
-          />
-        </FinanceSurface>
+        <Empty
+          title="Nenhuma categoria"
+          action={
+            <Button onClick={() => openForm({ resource: "categories" })}>
+              Criar categoria
+            </Button>
+          }
+        />
       )}
-    </>
+    </FinanceSurface>
   );
 }
 function CategoryCard({

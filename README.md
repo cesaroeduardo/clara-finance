@@ -62,6 +62,26 @@ Defina `ALLOW_LAN_ACCESS=true` em `.env.local` e reinicie com `npm run dev` ou `
 
 O modo de rede continua **sem login**: qualquer dispositivo que alcance a porta pode ler e alterar seus dados. Use apenas em rede confiável, sem encaminhar a porta no roteador. Para webhook, use o túnel restrito descrito abaixo.
 
+### Voz sintética (opcional)
+
+O **modo voz** do agente funciona por padrão com o microfone e o `speechSynthesis` do navegador. A voz clonada via **Coqui XTTS** (sidecar Python local) é **opcional** e vem **desligada**.
+
+Para ativar a voz sintética:
+
+1. Prepare os áudios de referência e o sidecar (veja [`services/clara-xtts/README.md`](services/clara-xtts/README.md)).
+2. Em `.env.local`:
+
+```dotenv
+NEXT_PUBLIC_CLARA_XTTS=true
+CLARA_XTTS_URL=http://127.0.0.1:8020/tts
+# opcional: sobe Next + XTTS no mesmo npm run dev
+CLARA_XTTS_WITH_DEV=true
+```
+
+3. Reinicie o app. Com `CLARA_XTTS_WITH_DEV=true`, use `npm run dev`. Sem isso, rode o sidecar à parte (`services/clara-xtts/start.ps1`) ou `npm run dev:voice`.
+
+Sem `NEXT_PUBLIC_CLARA_XTTS=true`, o modo voz não chama o XTTS. O modelo XTTS é pesado (~2 GB) e usa CPU/GPU local; na primeira execução pode demorar a baixar.
+
 ### Configurar o Logo.dev (opcional)
 
 O Logo.dev fornece logos de instituições, estabelecimentos e algumas empresas exibidas no painel de mercado. O aplicativo funciona sem essa integração: quando não há logo disponível, usa os ícones e identificações locais. Arquivos locais, como o símbolo do Sicredi, não dependem dessa chave.

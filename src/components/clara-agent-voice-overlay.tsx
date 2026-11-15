@@ -6,17 +6,19 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import {
   ChatText,
-  GearSix,
   Microphone,
   MicrophoneSlash,
   X,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
+import type { Mutate } from "@/components/finance-form";
 import { ClaraMark } from "@/components/clara-mark";
+import { useClaraAgentChat } from "@/hooks/use-clara-agent-chat";
 import { useClaraVoiceSession } from "@/hooks/use-clara-voice-session";
 import {
   appendClaraChatMessages,
@@ -24,14 +26,9 @@ import {
   setClaraVoiceMode,
   subscribeClaraAgentStore,
 } from "@/lib/clara-chat-session";
+import type { ClaraView } from "@/lib/clara-mock-agent";
+import type { FinanceData } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const VOICE_REPLIES = [
-  "Entendi, meu bem. Continua falando que eu te acompanho.",
-  "Anotei. Quando quiser, manda o mesmo pelo texto pra eu agir na tela.",
-  "Ouvi sim. Pode repetir com mais detalhe se precisar afinar.",
-  "Beleza. Se for saldo ou gasto, é só pedir — por voz ou por escrito.",
-];
 
 type VoiceTurn = {
   id: string;
@@ -39,8 +36,41 @@ type VoiceTurn = {
   text: string;
 };
 
+const VOICE_PAD = 16;
+const savedVoicePos: { left: number | null; top: number | null } = {
+  left: null,
+  top: null,
+};
+
 function nextId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function defaultVoicePos(panel: HTMLElement | null) {
+  const w = panel?.offsetWidth || Math.min(320, window.innerWidth - 32);
+  return {
+    left: Math.max(VOICE_PAD, (window.innerWidth - w) / 2),
+    top: VOICE_PAD,
+  };
+}
+
+function clampVoicePos(
+  left: number,
+  top: number,
+  panel: HTMLElement | null,
+) {
+  const w = panel?.offsetWidth || Math.min(320, window.innerWidth - 32);
+  const h = panel?.offsetHeight || 120;
+  return {
+    left: Math.max(
+      VOICE_PAD,
+      Math.min(left, window.innerWidth - w - VOICE_PAD),
+    ),
+    top: Math.max(
+      VOICE_PAD,
+      Math.min(top, window.innerHeight - h - VOICE_PAD),
+    ),
+  };
 }
 
 function VoiceWaveform({
@@ -91,51 +121,81 @@ function VoiceWaveform({
   );
 }
 
-export function ClaraAgentVoiceOverlay() {
+type ClaraAgentVoiceOverlayProps = {
+  data: FinanceData;
+  currentView: ClaraView;
+  onNavigate: (view: ClaraView) => void;
+  mutate: Mutate;
+};
+
+export function ClaraAgentVoiceOverlay({
+  data,
+  currentView,
+  onNavigate,
+  mutate,
+}: ClaraAgentVoiceOverlayProps) {
   const reduceMotion = useReducedMotion();
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(() => getClaraAgentStore().voiceMode);
   const [muted, setMuted] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [turns, setTurns] = useState<VoiceTurn[]>([]);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [speakText, setSpeakText] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const startedAtRef = useRef(0);
-  const replyIndexRef = useRef(0);
-  const replyTimerRef = useRef(0);
-  const settingsRef = useRef<HTMLDivElement>(null);
+  const sendingRef = useRef(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragOriginRef = useRef<{
+    x: number;
+    y: number;
+    left: number;
+    top: number;
+  } | null>(null);
 
-  const handleUserUtterance = useCallback((text: string) => {
-    const cleaned = text.trim();
-    if (!cleaned) return;
+  const { send, pending } = useClaraAgentChat({
+    data,
+    currentView,
+    onNavigate,
+    mutate,
+  });
 
-    setTurns((current) => [
-      ...current,
-      { id: nextId(), role: "user", text: cleaned },
-    ]);
-    setVoiceBusy(true);
-    setSpeakText(null);
-    window.clearTimeout(replyTimerRef.current);
-    replyTimerRef.current = window.setTimeout(() => {
-      const reply =
-        VOICE_REPLIES[replyIndexRef.current % VOICE_REPLIES.length] ??
-        VOICE_REPLIES[0];
-      replyIndexRef.current += 1;
+  const handleUserUtterance = useCallback(
+    async (text: string) => {
+      const cleaned = text.trim();
+      if (!cleaned || sendingRef.current || pending) return;
+
+      sendingRef.current = true;
       setTurns((current) => [
         ...current,
-        { id: nextId(), role: "assistant", text: reply },
+        { id: nextId(), role: "user", text: cleaned },
       ]);
-      setSpeakText(reply);
-      setVoiceBusy(false);
-    }, 1100);
-  }, []);
+      setVoiceBusy(true);
+      setSpeakText(null);
+
+      try {
+        const reply = await send(cleaned);
+        if (reply) {
+          setTurns((current) => [
+            ...current,
+            { id: nextId(), role: "assistant", text: reply },
+          ]);
+          setSpeakText(reply);
+        }
+      } finally {
+        sendingRef.current = false;
+        setVoiceBusy(false);
+      }
+    },
+    [pending, send],
+  );
 
   const { phase, userLevels, agentLevels, interim, error, stopSpeaking } =
     useClaraVoiceSession({
       active: open,
       muted,
-      busy: voiceBusy,
+      busy: voiceBusy || pending,
       speakText,
       onFinalTranscript: handleUserUtterance,
     });
@@ -153,37 +213,116 @@ export function ClaraAgentVoiceOverlay() {
   useEffect(() => {
     if (!open) {
       setMuted(false);
-      setSettingsOpen(false);
       setTranscriptOpen(false);
       setTurns([]);
       setVoiceBusy(false);
       setSpeakText(null);
-      window.clearTimeout(replyTimerRef.current);
+      setDragging(false);
+      setPos(null);
+      dragOriginRef.current = null;
+      sendingRef.current = false;
       return;
     }
     startedAtRef.current = Date.now();
   }, [open]);
 
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (pos != null) return;
+    if (savedVoicePos.left != null && savedVoicePos.top != null) {
+      setPos(
+        clampVoicePos(
+          savedVoicePos.left,
+          savedVoicePos.top,
+          panelRef.current,
+        ),
+      );
+      return;
+    }
+    setPos(defaultVoicePos(null));
+  }, [open, pos]);
+
   useEffect(() => {
-    if (!settingsOpen) return;
-    const onPointer = (event: MouseEvent) => {
-      if (!settingsRef.current?.contains(event.target as Node)) {
-        setSettingsOpen(false);
-      }
+    if (!open || pos == null) return;
+    const onResize = () => {
+      setPos((current) => {
+        if (!current) return current;
+        const next = clampVoicePos(
+          current.left,
+          current.top,
+          panelRef.current,
+        );
+        savedVoicePos.left = next.left;
+        savedVoicePos.top = next.top;
+        return next;
+      });
     };
-    document.addEventListener("mousedown", onPointer);
-    return () => document.removeEventListener("mousedown", onPointer);
-  }, [settingsOpen]);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [open, pos]);
+
+  const onVoiceDragDown = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest("button, a, input, textarea")) return;
+      if (!pos) return;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      dragOriginRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        left: pos.left,
+        top: pos.top,
+      };
+      setDragging(true);
+    },
+    [pos],
+  );
+
+  const onVoiceDragMove = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      const origin = dragOriginRef.current;
+      if (!origin) return;
+      setPos(
+        clampVoicePos(
+          origin.left + (event.clientX - origin.x),
+          origin.top + (event.clientY - origin.y),
+          panelRef.current,
+        ),
+      );
+    },
+    [],
+  );
+
+  const onVoiceDragUp = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      if (!dragOriginRef.current) return;
+      dragOriginRef.current = null;
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        /* already released */
+      }
+      setPos((current) => {
+        if (current) {
+          savedVoicePos.left = current.left;
+          savedVoicePos.top = current.top;
+        }
+        return current;
+      });
+      setDragging(false);
+    },
+    [],
+  );
 
   const endSession = useCallback(() => {
     stopSpeaking();
-    window.clearTimeout(replyTimerRef.current);
     const durationMs = Math.max(0, Date.now() - startedAtRef.current);
     const seconds = Math.max(1, Math.round(durationMs / 1000));
     appendClaraChatMessages({
       id: nextId(),
       role: "assistant",
-      text: `Sessão de voz encerrada (${seconds}s). Se quiser, meu bem, manda a mesma pergunta por texto que eu cuido da tela.`,
+      text: `Sessão de voz encerrada (${seconds}s).`,
     });
     setClaraVoiceMode(false);
   }, [stopSpeaking]);
@@ -193,10 +332,6 @@ export function ClaraAgentVoiceOverlay() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      if (settingsOpen) {
-        setSettingsOpen(false);
-        return;
-      }
       if (transcriptOpen) {
         setTranscriptOpen(false);
         return;
@@ -205,7 +340,7 @@ export function ClaraAgentVoiceOverlay() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, settingsOpen, transcriptOpen, endSession]);
+  }, [open, transcriptOpen, endSession]);
 
   if (!portalHost) return null;
 
@@ -214,7 +349,7 @@ export function ClaraAgentVoiceOverlay() {
       ? error
       : muted || phase === "muted"
         ? "Microfone mutado"
-        : phase === "thinking"
+        : phase === "thinking" || voiceBusy || pending
           ? "Clara pensando…"
           : phase === "speaking"
             ? "Clara falando…"
@@ -224,102 +359,102 @@ export function ClaraAgentVoiceOverlay() {
 
   return createPortal(
     <AnimatePresence>
-      {open ? (
+      {open && pos ? (
         <div
           key="clara-voice-mode"
           className="clara-voice-root pointer-events-none fixed inset-0 z-[90] overflow-hidden"
         >
           <m.div
+            ref={panelRef}
             role="dialog"
             aria-modal="false"
             aria-label="Modo voz"
-            className="clara-voice-bar pointer-events-auto"
+            className={cn(
+              "clara-voice-bar pointer-events-auto",
+              dragging && "is-dragging",
+            )}
+            style={{ left: pos.left, top: pos.top }}
             initial={reduceMotion ? false : { opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
           >
-            <div className="clara-voice-bar-head">
-              <div className="clara-voice-bar-main">
-                <span className="clara-voice-bar-icon" aria-hidden>
-                  {muted || phase === "muted" || phase === "denied" ? (
-                    <MicrophoneSlash size={16} weight="fill" />
-                  ) : (
-                    <Microphone size={16} weight="fill" />
-                  )}
-                </span>
-                <VoiceWaveform
-                  userLevels={userLevels}
-                  agentLevels={agentLevels}
-                  reduced={Boolean(reduceMotion)}
-                  muted={muted || phase === "muted"}
-                />
-              </div>
-
-              <div className="clara-voice-bar-actions">
-                <div className="clara-voice-settings" ref={settingsRef}>
-                  <button
-                    type="button"
-                    className="clara-voice-icon-btn"
-                    aria-label="Configurações do modo voz"
-                    aria-expanded={settingsOpen}
-                    onClick={() => setSettingsOpen((value) => !value)}
-                  >
-                    <GearSix size={16} />
-                  </button>
-                  {settingsOpen ? (
-                    <div
-                      role="dialog"
-                      aria-label="Configurações do modo voz"
-                      className="clara-voice-settings-menu"
-                    >
-                      <label className="clara-voice-settings-row">
-                        <span>Silenciar microfone</span>
-                        <input
-                          type="checkbox"
-                          checked={muted}
-                          onChange={(event) => setMuted(event.target.checked)}
-                        />
-                      </label>
-                      <p className="clara-voice-settings-note">
-                        A Clara ouve pelo microfone e responde com frases
-                        prontas. O chat de texto fica separado até você
-                        encerrar.
-                      </p>
-                    </div>
-                  ) : null}
+            <div
+              className={cn(
+                "clara-voice-bar-drag",
+                dragging ? "is-dragging" : "is-grab",
+              )}
+              aria-label="Arrastar modo voz"
+              onPointerDown={onVoiceDragDown}
+              onPointerMove={onVoiceDragMove}
+              onPointerUp={onVoiceDragUp}
+              onPointerCancel={onVoiceDragUp}
+            >
+              <div className="clara-voice-bar-head">
+                <div className="clara-voice-bar-main">
+                  <span className="clara-voice-bar-icon" aria-hidden>
+                    <ClaraMark className="clara-voice-bar-logo clara-agent-mark brand-mark" />
+                  </span>
+                  <VoiceWaveform
+                    userLevels={userLevels}
+                    agentLevels={agentLevels}
+                    reduced={Boolean(reduceMotion)}
+                    muted={muted || phase === "muted"}
+                  />
                 </div>
 
-                <button
-                  type="button"
-                  className={cn(
-                    "clara-voice-icon-btn",
-                    transcriptOpen && "is-active",
-                  )}
-                  aria-label={
-                    transcriptOpen
-                      ? "Fechar transcrição"
-                      : "Abrir transcrição"
-                  }
-                  onClick={() => setTranscriptOpen((value) => !value)}
-                >
-                  <ChatText size={16} />
-                </button>
+                <div className="clara-voice-bar-actions">
+                  <button
+                    type="button"
+                    className={cn(
+                      "clara-voice-icon-btn",
+                      (muted || phase === "muted") && "is-active",
+                    )}
+                    aria-label={
+                      muted || phase === "muted"
+                        ? "Ativar microfone"
+                        : "Silenciar microfone"
+                    }
+                    aria-pressed={muted || phase === "muted"}
+                    onClick={() => setMuted((value) => !value)}
+                  >
+                    {muted || phase === "muted" ? (
+                      <MicrophoneSlash size={16} weight="fill" />
+                    ) : (
+                      <Microphone size={16} weight="fill" />
+                    )}
+                  </button>
 
-                <button
-                  type="button"
-                  className="clara-voice-icon-btn is-end"
-                  aria-label="Encerrar modo voz"
-                  onClick={endSession}
-                >
-                  <X size={15} weight="bold" />
-                </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "clara-voice-icon-btn",
+                      transcriptOpen && "is-active",
+                    )}
+                    aria-label={
+                      transcriptOpen
+                        ? "Fechar transcrição"
+                        : "Abrir transcrição"
+                    }
+                    onClick={() => setTranscriptOpen((value) => !value)}
+                  >
+                    <ChatText size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="clara-voice-icon-btn is-end"
+                    aria-label="Encerrar modo voz"
+                    onClick={endSession}
+                  >
+                    <X size={15} weight="bold" />
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="clara-voice-bar-status">
-              <ClaraMark className="clara-voice-bar-mark clara-agent-mark brand-mark" />
-              <p>{statusLabel}</p>
+              <div className="clara-voice-bar-status">
+                <p>{statusLabel}</p>
+              </div>
             </div>
 
             <AnimatePresence initial={false}>
@@ -334,7 +469,8 @@ export function ClaraAgentVoiceOverlay() {
                 >
                   {turns.length === 0 && !interim ? (
                     <p className="clara-voice-transcript-empty">
-                      A conversa por voz aparece aqui.
+                      A conversa por voz aparece aqui. Cartões e ações vão
+                      para o chat.
                     </p>
                   ) : (
                     <ul className="clara-voice-transcript-list">

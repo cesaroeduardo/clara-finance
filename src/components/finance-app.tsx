@@ -1,5 +1,11 @@
 "use client";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -49,8 +55,16 @@ const FinanceForm = dynamic(() =>
 );
 import type { CategoryViewState } from "./category-rules-editor";
 import { MerchantAssetsContext } from "./merchant-logo";
-import { Spinner } from "@/components/ui/loader";
-import { Skeleton, SkeletonGroup } from "@/components/ui/loading-skeleton";
+import { SkulletProvider } from "skullet/react";
+import { ClaraViewSkeleton } from "@/components/clara-view-skeleton";
+import { claraSkulletTheme } from "@/lib/skullet-theme";
+import {
+  applyClaraTheme,
+  readClaraTheme,
+  subscribeClaraTheme,
+  THEME_STORAGE_KEY,
+  type ClaraTheme,
+} from "@/lib/theme";
 import { PrivacyContext } from "./finance-privacy";
 import {
   AnimatedLabel,
@@ -152,10 +166,25 @@ function usePreference(key: string, fallback: string) {
   };
   return [value, save] as const;
 }
+
+function useClaraTheme() {
+  const theme = useSyncExternalStore(
+    subscribeClaraTheme,
+    readClaraTheme,
+    () => "light" as ClaraTheme,
+  );
+  const saveTheme = (next: ClaraTheme) => {
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+    applyClaraTheme(next);
+    window.dispatchEvent(new Event("clara-preferences"));
+  };
+  return [theme, saveTheme] as const;
+}
+
 export function FinanceApp() {
   const [view, setView] = useState<View>("dashboard"),
     [data, setData] = useState<FinanceData | null>(null);
-  const [theme, saveTheme] = usePreference("clara-theme", "light");
+  const [theme, saveTheme] = useClaraTheme();
   const [demoEnabled, saveDemoEnabled] = usePreference(
     "clara-demo-enabled",
     "false",
@@ -177,6 +206,7 @@ export function FinanceApp() {
     view: "categories",
     categoryId: "all",
   });
+  const [categoryRuleCreateKey, setCategoryRuleCreateKey] = useState(0);
   const [sidebar, setSidebar] = useState(false),
     [hidden, setHidden] = useState(false),
     [syncing, setSyncing] = useState(false),
@@ -217,8 +247,9 @@ export function FinanceApp() {
     };
   }, [sidebar]);
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
+    // Sempre lê storage/sistema: o snapshot SSR "light" não pode apagar o dark do boot.
+    applyClaraTheme(readClaraTheme());
+  }, [theme]);
   useEffect(() => {
     let pending: "g" | "c" | null = null;
     let timer = 0;
@@ -473,7 +504,47 @@ export function FinanceApp() {
           openTransactions,
         }
       : null;
+  // Primeiro paint após o skeleton: sem fade (opacity 0). Anima só troca de view.
+  const contentReadyRef = useRef(false);
+  const viewModeKey = `${view}-${mode}`;
+  const viewKeyRef = useRef(viewModeKey);
+  const viewChanged = viewKeyRef.current !== viewModeKey;
+  viewKeyRef.current = viewModeKey;
+  if (!props) contentReadyRef.current = false;
+  const firstContentPaint = Boolean(props) && !contentReadyRef.current;
+  if (props) contentReadyRef.current = true;
+  const animateEnter = Boolean(props) && !firstContentPaint && viewChanged;
+  const mainContent = props ? (
+    view === "dashboard" ? (
+      <DashboardView {...props} />
+    ) : view === "transactions" ? (
+      <TransactionsView {...props} />
+    ) : view === "recurring" ? (
+      <RecurringView {...props} />
+    ) : view === "investments" ? (
+      <InvestmentsView {...props} />
+    ) : view === "goals" ? (
+      <GoalsView {...props} />
+    ) : view === "categories" ? (
+      <CategoriesView
+        {...props}
+        categoryView={categoryView}
+        onCategoryViewChange={setCategoryView}
+        createRuleKey={categoryRuleCreateKey}
+      />
+    ) : view === "clara" ? (
+      <ClaraAgentView
+        data={props.data}
+        currentView={view}
+        onNavigate={navigate}
+        mutate={mutate}
+      />
+    ) : (
+      <AccountsView {...props} syncing={syncing} sync={sync} />
+    )
+  ) : null;
   return (
+    <SkulletProvider mode="system" theme={claraSkulletTheme} reveal="together">
     <PrivacyContext value={hidden}>
       <MerchantAssetsContext value={data?.merchantAssets ?? []}>
         <div className={`app-shell ${hidden ? "values-hidden" : ""}`}>
@@ -636,6 +707,10 @@ export function FinanceApp() {
                     categoryView={categoryView}
                     onCategoryViewChange={setCategoryView}
                     openForm={setForm}
+                    canAddRule={props.data.categories.length > 0}
+                    onAddRule={() =>
+                      setCategoryRuleCreateKey((key) => key + 1)
+                    }
                     leadingAction={
                       mode === "demo" ? (
                         <DemoStatusTag onClick={() => navigate("accounts")} />
@@ -766,56 +841,20 @@ export function FinanceApp() {
                   </Button>
                 </div>
               ) : !props ? (
-                <div className="loading-state">
-                  <Spinner size="lg" label="Carregando" showLabel />
-                  <SkeletonGroup
-                    className="grid w-full max-w-md gap-3"
-                    label="Carregando resumo"
-                  >
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-8 w-3/4" />
-                  </SkeletonGroup>
-                </div>
+                <ClaraViewSkeleton view={view} />
               ) : (
                 <div
                   className={cn(
-                    "view-content",
+                    animateEnter && "view-content",
                     view === "clara" && "view-content-agent",
                   )}
-                  key={`${view}-${mode}`}
+                  key={viewModeKey}
                 >
-                  <PageEnter>
-                    {view === "dashboard" ? (
-                      <DashboardView {...props} />
-                    ) : view === "transactions" ? (
-                      <TransactionsView {...props} />
-                    ) : view === "recurring" ? (
-                      <RecurringView {...props} />
-                    ) : view === "investments" ? (
-                      <InvestmentsView {...props} />
-                    ) : view === "goals" ? (
-                      <GoalsView {...props} />
-                    ) : view === "categories" ? (
-                      <CategoriesView
-                        {...props}
-                        categoryView={categoryView}
-                        onCategoryViewChange={setCategoryView}
-                      />
-                    ) : view === "clara" ? (
-                      <ClaraAgentView
-                        data={props.data}
-                        currentView={view}
-                        onNavigate={navigate}
-                        mutate={mutate}
-                      />
-                    ) : (
-                      <AccountsView
-                        {...props}
-                        syncing={syncing}
-                        sync={sync}
-                      />
-                    )}
-                  </PageEnter>
+                  {animateEnter ? (
+                    <PageEnter>{mainContent}</PageEnter>
+                  ) : (
+                    mainContent
+                  )}
                 </div>
               )}
             </main>
@@ -891,11 +930,17 @@ export function FinanceApp() {
                 onNavigate={navigate}
                 mutate={mutate}
               />
-              <ClaraAgentVoiceOverlay />
+              <ClaraAgentVoiceOverlay
+                data={data}
+                currentView={view}
+                onNavigate={navigate}
+                mutate={mutate}
+              />
             </>
           ) : null}
         </div>
       </MerchantAssetsContext>
     </PrivacyContext>
+    </SkulletProvider>
   );
 }

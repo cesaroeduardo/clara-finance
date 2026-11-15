@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  speakText,
+  stopAllSpeech,
+  type SpeakHandle,
+} from "@/lib/clara-neural-tts";
 
 export type ClaraVoicePhase =
   | "idle"
@@ -86,13 +91,12 @@ export function useClaraVoiceSession({
   const phaseRef = useRef<ClaraVoicePhase>("idle");
   phaseRef.current = phase;
   const lastSpokenRef = useRef<string | null>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speakHandleRef = useRef<SpeakHandle | null>(null);
 
   const stopSpeaking = useCallback(() => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-    utteranceRef.current = null;
+    speakHandleRef.current?.stop();
+    speakHandleRef.current = null;
+    stopAllSpeech();
     if (phaseRef.current === "speaking") {
       setPhase(mutedRef.current ? "muted" : "listening");
     }
@@ -366,35 +370,30 @@ export function useClaraVoiceSession({
     setPhase("speaking");
     setInterim("");
 
-    const finish = () => {
-      if (cancelled) return;
-      utteranceRef.current = null;
-      setPhase(mutedRef.current ? "muted" : "listening");
-    };
-
-    let fallbackTimer = 0;
-    const canSpeak =
-      typeof window !== "undefined" &&
-      typeof window.speechSynthesis !== "undefined";
-
-    if (canSpeak) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(speakPayload);
-      utterance.lang = "pt-BR";
-      utterance.rate = 1;
-      utterance.onend = finish;
-      utterance.onerror = finish;
-      utteranceRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
-    } else {
-      fallbackTimer = window.setTimeout(finish, 2200);
-    }
+    void (async () => {
+      try {
+        const handle = await speakText(speakPayload);
+        if (cancelled) {
+          handle.stop();
+          return;
+        }
+        speakHandleRef.current = handle;
+        await handle.done;
+        if (cancelled) return;
+        speakHandleRef.current = null;
+        setPhase(mutedRef.current ? "muted" : "listening");
+      } catch {
+        if (cancelled) return;
+        speakHandleRef.current = null;
+        setPhase(mutedRef.current ? "muted" : "listening");
+      }
+    })();
 
     return () => {
       cancelled = true;
-      if (fallbackTimer) window.clearTimeout(fallbackTimer);
-      if (canSpeak) window.speechSynthesis.cancel();
-      utteranceRef.current = null;
+      speakHandleRef.current?.stop();
+      speakHandleRef.current = null;
+      stopAllSpeech();
     };
   }, [active, speakPayload, muted]);
 

@@ -3,6 +3,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { Mutate } from "@/components/finance-form";
 import { getClaraAgent } from "@/lib/clara-agent-bridge";
+import { previewSidebarAgentPress } from "@/lib/clara-agent-sidebar-press";
 import {
   appendClaraChatMessages,
   getClaraAgentStore,
@@ -75,7 +76,17 @@ export function useClaraAgentChat({
     ) => {
       if (!steps?.length) return;
       try {
-        await getClaraAgent().act({ steps });
+        for (const step of steps) {
+          const release =
+            step.action === "press"
+              ? await previewSidebarAgentPress(step.ref)
+              : undefined;
+          try {
+            await getClaraAgent().act({ steps: [step] });
+          } finally {
+            await release?.();
+          }
+        }
       } catch {
         // Best-effort for the mock bridge.
       }
@@ -84,9 +95,9 @@ export function useClaraAgentChat({
   );
 
   const send = useCallback(
-    async (raw: string) => {
+    async (raw: string): Promise<string | null> => {
       const text = raw.trim();
-      if (!text || store.pending) return;
+      if (!text || store.pending) return null;
       setClaraSuggestions([]);
       const userMessage: ClaraChatMessage = {
         id: nextId(),
@@ -138,6 +149,8 @@ export function useClaraAgentChat({
             const celebrate = prepareGoalCelebration({
               goalId: goal.id,
               goalName: goal.name,
+              imageSlug: goal.imageSlug,
+              icon: goal.icon,
             });
             try {
               await mutate("goals", { ...goal, completed: true }, "PATCH");
@@ -170,7 +183,7 @@ export function useClaraAgentChat({
                 appendClaraChatMessages({
                   id: nextId(),
                   role: "assistant",
-                  text: `Pronto — “${last.label}” voltou pra ativas.`,
+                  text: `Pronto: “${last.label}” voltou pra ativas.`,
                 });
               } catch {
                 appendClaraChatMessages({
@@ -200,6 +213,8 @@ export function useClaraAgentChat({
         ) {
           await restorePipFocusAfterNav();
         }
+
+        return result.reply;
       } finally {
         setClaraPending(false);
       }

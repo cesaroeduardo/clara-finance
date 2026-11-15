@@ -10,11 +10,17 @@ import {
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 function useDocumentTheme(): NonNullable<ToasterProps["theme"]> {
-  const [theme, setTheme] = useState<NonNullable<ToasterProps["theme"]>>("light");
+  const [theme, setTheme] = useState<NonNullable<ToasterProps["theme"]>>(() =>
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light",
+  );
 
   useEffect(() => {
     const root = document.documentElement;
-    const sync = () => setTheme(root.classList.contains("dark") ? "dark" : "light");
+    const sync = () =>
+      setTheme(root.classList.contains("dark") ? "dark" : "light");
     sync();
     const observer = new MutationObserver(sync);
     observer.observe(root, { attributes: true, attributeFilter: ["class"] });

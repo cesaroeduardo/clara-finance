@@ -1,0 +1,11 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+numpy>=1.26.0
+soundfile>=0.12.1
+six>=1.16.0
+coqui-tts[codec]>=0.27.0
+# Instale o torch adequado à sua máquina (CUDA ou CPU) antes ou junto:
+#   GPU:  pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
+#   CPU:  pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+torch>=2.2.0
+torchaudio>=2.2.0

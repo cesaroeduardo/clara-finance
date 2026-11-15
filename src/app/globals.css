@@ -111,6 +111,46 @@
   --divider-bottom: rgba(255, 255, 255, 0.9);
 }
 
+/* Sistema dark antes do JS: evita flash light. `.light` força o claro. */
+@media (prefers-color-scheme: dark) {
+  html:not(.light) {
+    color-scheme: dark;
+    --background: #08090a;
+    --foreground: #f7f8f8;
+    --panel: #0f1011;
+    --card: #151617;
+    --card-foreground: #f7f8f8;
+    --popover: #1a1b1c;
+    --popover-foreground: #f7f8f8;
+    --primary: #ffffff;
+    --primary-foreground: #08090a;
+    --secondary: #1c1c1f;
+    --secondary-foreground: #d0d6e0;
+    --muted: #191a1b;
+    --muted-foreground: #8a8f98;
+    --accent: #232326;
+    --accent-foreground: #f7f8f8;
+    --destructive: #ff858a;
+    --destructive-soft: #2e171a;
+    --border: #23252a;
+    --input: #34343a;
+    --ring: #8a8f98;
+    --track: #232326;
+    --chart-grid: #23252a;
+    --chart-1: #f7f8f8;
+    --chart-2: #62666d;
+    --chart-3: #a3a6ac;
+    --chart-4: #34343a;
+    --chart-5: #d0d6e0;
+    --success: #4cc38a;
+    --success-soft: #10271b;
+    --warning: #efc46b;
+    --warning-soft: #2a2214;
+    --divider-top: rgba(0, 0, 0, 0.55);
+    --divider-bottom: rgba(255, 255, 255, 0.1);
+  }
+}
+
 .dark {
   color-scheme: dark;
   --background: #08090a;

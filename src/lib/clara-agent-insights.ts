@@ -346,11 +346,10 @@ export function wantsCompleteGoal(message: string) {
     /\b(conclui(?:r|a)?|completar?|completei|completou|finalizei|finaliza|alcancei|atingi|atingiu)\b/i.test(
       message,
     ) ||
+    // “Consegui a viagem…” / “consegui a meta…” — o nome da meta fecha o match.
+    /\bconsegui\b/i.test(message) ||
     /\b(bater|bateu|bati|batemos)\b.*\b(meta|objetivo)\b/i.test(message) ||
     /\b(meta|objetivo)\b.*\b(bater|bateu|bati|batemos)\b/i.test(message) ||
-    /\bconsegui\b.*\b(meta|objetivo|bater|conclui|completar?)\b/i.test(
-      message,
-    ) ||
     /\b(fechei|fechou|cheguei\s+na|chegou\s+na)\b.*\b(meta|objetivo)\b/i.test(
       message,
     ) ||
@@ -361,26 +360,84 @@ export function wantsCompleteGoal(message: string) {
   );
 }
 
+const GOAL_FOCUS_STOPWORDS = new Set([
+  "a",
+  "o",
+  "as",
+  "os",
+  "um",
+  "uma",
+  "de",
+  "da",
+  "do",
+  "das",
+  "dos",
+  "na",
+  "no",
+  "nas",
+  "nos",
+  "em",
+  "e",
+  "vo",
+  "vó",
+  "clara",
+  "meta",
+  "metas",
+  "objetivo",
+  "objetivos",
+  "consegui",
+  "completei",
+  "conclui",
+  "bater",
+  "bateu",
+  "bati",
+]);
+
+function goalFocusFromMessage(needle: string) {
+  const afterMeta = needle.match(
+    /\b(?:meta|objetivo)\s+(?:do|da|de|dos|das)?\s*(.+)$/i,
+  );
+  if (afterMeta?.[1]) return afterMeta[1].trim();
+
+  const afterConsegui = needle.match(
+    /\bconsegui\s+(?:a|o|as|os|uma|um)?\s*(.+)$/i,
+  );
+  if (afterConsegui?.[1]) {
+    return afterConsegui[1]
+      .replace(/\b(vo|vó|clara)\b.*$/i, "")
+      .trim();
+  }
+
+  return needle.trim();
+}
+
 export function resolveGoalFromMessage(
   message: string,
   data: FinanceData,
 ): Goal | null {
   const needle = normalizeText(message);
-  const afterMeta = needle.match(
-    /\b(?:meta|objetivo)\s+(?:do|da|de|dos|das)?\s*(.+)$/i,
-  );
-  const focus = (afterMeta?.[1] || needle).trim();
+  const focus = goalFocusFromMessage(needle);
+  const focusTokens = focus
+    .split(/\s+/)
+    .filter((token) => token.length > 1 && !GOAL_FOCUS_STOPWORDS.has(token));
 
   let best: { goal: Goal; score: number } | null = null;
   for (const goal of data.goals) {
     const key = normalizeText(goal.name);
     if (key.length < 2) continue;
+    const keyTokens = key.split(/\s+/).filter((token) => token.length > 1);
     const inFull = needle.includes(key);
-    const inFocus = focus.includes(key) || key.includes(focus);
+    const inFocus =
+      focus.includes(key) ||
+      (focus.length >= 3 && key.includes(focus)) ||
+      (focusTokens.length > 0 &&
+        keyTokens.every((token) => focusTokens.includes(token)));
     if (!inFull && !inFocus) continue;
     let score = key.length + (goal.completed ? 0 : 10);
     if (inFocus) score += 5;
-    if (focus === key) score += 20;
+    if (focus === key || focusTokens.join(" ") === keyTokens.join(" ")) {
+      score += 20;
+    }
     if (!best || score > best.score) best = { goal, score };
   }
   return best?.goal ?? null;
@@ -477,7 +534,7 @@ export function biggestExpenseReply(card: ClaraBiggestExpenseCard) {
   );
   return [
     `Achei o maior gasto de ${card.monthLabel}, meu bem:`,
-    `${card.transaction.description} — ${amount}.`,
+    `${card.transaction.description}: ${amount}.`,
     `Isso foi ${card.sharePercent}% das suas saídas do mês (${money(card.monthExpenseTotal)} no total). Olha o cartão abaixo com o detalhe.`,
   ].join(" ");
 }
@@ -539,11 +596,11 @@ export function netWorthCardReply(card: ClaraNetWorthCard) {
   }
   const change =
     card.change === 0
-      ? "sem variação em relação ao mês passado"
+      ? "Sem variação em relação ao mês passado"
       : card.change > 0
-        ? `subiu ${money(card.change)} em relação ao mês passado`
-        : `baixou ${money(Math.abs(card.change))} em relação ao mês passado`;
-  return `Patrimônio estimado: ${money(card.current)} — ${change}. Guarde um tempinho pra olhar com calma.`;
+        ? `Subiu ${money(card.change)} em relação ao mês passado`
+        : `Baixou ${money(Math.abs(card.change))} em relação ao mês passado`;
+  return `Patrimônio estimado: ${money(card.current)}. ${change}. Guarde um tempinho pra olhar com calma.`;
 }
 
 export function accountInsight(
@@ -634,10 +691,10 @@ export function periodSummaryInsight(
 export function periodSummaryReply(card: ClaraPeriodSummaryCard) {
   const result =
     card.balance >= 0
-      ? `sobrou ${money(card.balance)}`
-      : `faltou ${money(Math.abs(card.balance))}`;
+      ? `Sobrou ${money(card.balance)}`
+      : `Faltou ${money(Math.abs(card.balance))}`;
   return [
-    `Resumo de ${card.periodLabel}: entradas ${money(card.income)}, saídas ${money(card.expenses)} — ${result}.`,
+    `Resumo de ${card.periodLabel}: entradas ${money(card.income)}, saídas ${money(card.expenses)}. ${result}.`,
     card.pending > 0
       ? `Ainda há ${money(card.pending)} pendente.`
       : "Nada pendente nesse período.",

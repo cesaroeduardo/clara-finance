@@ -49,6 +49,14 @@ next-env.d.ts
 !.env.example
 /.reanimate/
 
+# Clara XTTS — áudio de referência e venv do sidecar
+/services/clara-xtts/.venv/
+/services/clara-xtts/.uv-cache/
+/services/clara-xtts/.tmp/
+/services/clara-xtts/voices/*
+!/services/clara-xtts/voices/.gitkeep
+/docs/audio-refs/
+
 # Conteudo privado, inclusive fora de data/
 .cursor/
 *.log
@@ -70,3 +78,7 @@ next-env.d.ts
 *.legacy-merchants.json
 exports/
 backups/
+
+__pycache__/
+*.py[cod]
+

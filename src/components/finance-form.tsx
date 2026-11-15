@@ -190,6 +190,18 @@ export function FinanceForm({
                 : typeof row?.name === "string"
                   ? row.name
                   : undefined,
+            imageSlug:
+              typeof body.imageSlug === "string"
+                ? body.imageSlug
+                : typeof row?.imageSlug === "string"
+                  ? row.imageSlug
+                  : null,
+            icon:
+              typeof body.icon === "string"
+                ? body.icon
+                : typeof row?.icon === "string"
+                  ? row.icon
+                  : undefined,
           })
         : undefined;
     try {

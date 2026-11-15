@@ -62,7 +62,12 @@ export function GoalContextMenu({
     if (busy) return;
     setBusy(true);
     const celebrate = !goal.completed
-      ? prepareGoalCelebration({ goalId: goal.id, goalName: goal.name })
+      ? prepareGoalCelebration({
+          goalId: goal.id,
+          goalName: goal.name,
+          imageSlug: goal.imageSlug,
+          icon: goal.icon,
+        })
       : undefined;
     try {
       await mutate("goals", { ...goal, completed: !goal.completed }, "PATCH");
@@ -126,7 +131,7 @@ export function GoalContextMenu({
         </Item>
         <Item disabled={busy} onSelect={() => void toggleCompleted()}>
           {goal.completed ? <X /> : <Check />}
-          {goal.completed ? "Marcar como não concluída" : "Concluir"}
+          {goal.completed ? "Reabrir" : "Concluir"}
         </Item>
         <Separator />
         <Item

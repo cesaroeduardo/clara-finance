@@ -53,7 +53,8 @@ import type { AgentStep } from "@ui-sdk/react/agent";
  */
 export const CLARA_PERSONA = `Você é a Clara, personagem do logo do app de finanças.
 Fale como uma vó carinhosa: tom afetuoso, indica o certo com calma, sem sermão longo.
-Use português do Brasil. Números claros em reais. Nunca invente contas.`;
+Use português do Brasil. Números claros em reais. Nunca invente contas.
+Nunca use travessão (—) nas respostas. Prefira ponto, vírgula ou dois-pontos.`;
 
 export type ClaraView =
   | "dashboard"
@@ -175,7 +176,7 @@ const VIEW_INTENTS: {
       new RegExp(`\\b(?:${GO_TO})\\b.*\\bcontas?\\b`, "i"),
       /\bcontas?\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
-    opened: "Pronto, meu bem — abri Contas pra você olhar com calma.",
+    opened: "Pronto, meu bem: abri Contas pra você olhar com calma.",
   },
   {
     view: "dashboard",
@@ -186,7 +187,7 @@ const VIEW_INTENTS: {
       ),
       /\b(vis[aã]o\s+geral|dashboard)\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
-    opened: "Vamos lá — deixei a Visão geral aberta pra você.",
+    opened: "Vamos lá: deixei a Visão geral aberta pra você.",
   },
   {
     view: "transactions",
@@ -205,7 +206,7 @@ const VIEW_INTENTS: {
       new RegExp(`\\b(?:${GO_TO})\\b.*\\brecorrentes?\\b`, "i"),
       /\brecorrentes?\b.*\b(abre|abra|abrir|mostra|mostre|quero\s+ir)\b/i,
     ],
-    opened: "Pronto — Recorrentes está aberta.",
+    opened: "Pronto: Recorrentes está aberta.",
   },
   {
     view: "investments",
@@ -376,7 +377,7 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
   if (destructiveRequest(text)) {
     return {
       reply:
-        "Isso eu não faço sozinha, meu bem — excluir ou sincronizar pede a sua confirmação na tela. Melhor você clicar com calma.",
+        "Isso eu não faço sozinha, meu bem: excluir ou sincronizar pede a sua confirmação na tela. Melhor você clicar com calma.",
       suggestions: [SUGGEST_BALANCES, SUGGEST_DASHBOARD],
     };
   }
@@ -400,7 +401,7 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
     }
     if (last.type === "complete-goal") {
       return {
-        reply: `Beleza — vou desfazer a conclusão da meta “${last.label}”.`,
+        reply: `Beleza: vou desfazer a conclusão da meta “${last.label}”.`,
         view: "goals",
         steps: openViewSteps("goals"),
         action: { type: "undo" },

@@ -1,7 +1,7 @@
 "use client";
 import { NumberInput } from "@/components/ui/number-input";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PencilSimple, Plus, Trash } from "@phosphor-icons/react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -30,11 +30,15 @@ export function CategoryRulesTable({
   data,
   mutate,
   onCategoryChange,
+  embedded = false,
+  createRuleKey = 0,
 }: {
   categoryId: string;
   data: FinanceData;
   mutate: Mutate;
   onCategoryChange: (categoryId: string) => void;
+  embedded?: boolean;
+  createRuleKey?: number;
 }) {
   const [editing, setEditing] = useState<CategoryRule | "new" | null>(null);
   const [query, setQuery] = useState("");
@@ -45,22 +49,30 @@ export function CategoryRulesTable({
         normalizeText(query.trim()),
       ),
   );
+  useEffect(() => {
+    if (createRuleKey > 0) setEditing("new");
+  }, [createRuleKey]);
+  const addRule = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={!data.categories.length}
+      onClick={() => setEditing("new")}
+    >
+      <Plus size={14} />
+      Adicionar regra
+    </Button>
+  );
   return (
     <>
-      <div className="section-top category-view-toolbar">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!data.categories.length}
-          onClick={() => setEditing("new")}
-        >
-          <Plus size={14} />
-          Adicionar regra
-        </Button>
-      </div>
-      <section
-        className="finance-card category-rules-card"
+      {!embedded && (
+        <div className="section-top category-view-toolbar">{addRule}</div>
+      )}
+      <div
+        className={
+          embedded ? "category-rules-card" : "finance-card category-rules-card"
+        }
         aria-label="Configuração de categorias"
       >
         <div className="category-rules-filters">
@@ -174,7 +186,7 @@ export function CategoryRulesTable({
                 : "Nenhuma regra para esta categoria."}
           </p>
         )}
-      </section>
+      </div>
       {editing && (
         <RuleDialog
           key={editing === "new" ? "new" : editing.id}

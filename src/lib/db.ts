@@ -68,7 +68,7 @@ export function listPlanMonths(
   return plans;
 }
 
-const SCHEMA_VERSION = 33;
+const SCHEMA_VERSION = 34;
 const globalDb = globalThis as unknown as {
   financeDb?: Database.Database;
   financeDbSchemaVersion?: number;
@@ -937,6 +937,19 @@ export function db() {
         .prepare("INSERT INTO schema_migrations(version) VALUES(33)")
         .run();
     })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=34").get()
+  )
+    database.transaction(() => {
+      database
+        .prepare(
+          "DELETE FROM investments WHERE mode='demo' AND id IN ('demo-etf','demo-petr4','demo-itub4')",
+        )
+        .run();
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(34)")
+        .run();
+    })();
   globalDb.financeDb = database;
   globalDb.financeDbSchemaVersion = SCHEMA_VERSION;
   return database;
@@ -1055,7 +1068,6 @@ function seedDemoInvestments(database: Database.Database) {
       3500000,
       3200000,
     ],
-    ["demo-etf", "IVVB11", "XP Investimentos", "ETF", 2500000, 2200000],
     [
       "demo-tesouro-selic",
       "Tesouro Selic 2029",
@@ -1064,8 +1076,6 @@ function seedDemoInvestments(database: Database.Database) {
       2000000,
       1900000,
     ],
-    ["demo-petr4", "PETR4", "XP Investimentos", "EQUITY", 1000000, 900000],
-    ["demo-itub4", "ITUB4", "Itaú", "EQUITY", 1500000, 1350000],
     [
       "demo-fund",
       "Fundo Multimercado",

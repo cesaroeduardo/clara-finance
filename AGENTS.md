@@ -12,6 +12,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 Use português direto, títulos funcionais e rótulos curtos. Não use slogans, frases motivacionais, linguagem emocional ou subtítulos decorativos. Inclua explicações apenas quando necessárias para operar o sistema ou interpretar os dados.
 
+## Textos da Clara (agente)
+
+Respostas do chat da Clara seguem a persona em `src/lib/clara-mock-agent.ts` (`CLARA_PERSONA`). Não use travessão (—) em nenhuma mensagem da Clara: prefira ponto, vírgula ou dois-pontos.
+
 ## Tema e tipografia
 
 Use a paleta neutra de `src/app/globals.css`, baseada em Vercel e Linear. A cor primária é preta no tema claro e branca no escuro. Use Geist Sans, gratuita e servida localmente por `next/font`. Controles, links, foco e gráficos gerais devem usar os tokens do tema; reserve cores para estados financeiros e categorias definidas pelo usuário. Não adicione azul como cor primária.

@@ -155,6 +155,16 @@ export function ClaraAgentFloat({
     return () => document.removeEventListener("keydown", onKey);
   }, [floating]);
 
+  useEffect(() => {
+    if (!floating || pos == null) return;
+    const timer = window.setTimeout(() => {
+      composerRef.current
+        ?.querySelector("textarea")
+        ?.focus({ preventScroll: true });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [floating, pos]);
+
   const handleClose = useCallback(() => {
     savedFloatPos.left = null;
     savedFloatPos.top = null;

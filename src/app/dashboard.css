@@ -2018,7 +2018,7 @@
 .recurring-page {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0;
 }
 .recurring-filters {
   justify-content: flex-start;

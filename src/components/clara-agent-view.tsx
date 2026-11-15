@@ -140,6 +140,12 @@ export function ClaraAgentView({
     node?.focus({ preventScroll: true });
   }
 
+  useEffect(() => {
+    if (!inline) return;
+    const frame = window.requestAnimationFrame(() => focusComposer());
+    return () => window.cancelAnimationFrame(frame);
+  }, [inline]);
+
   async function submitDraft() {
     const text = draft.trim();
     if (!text || pending) return;

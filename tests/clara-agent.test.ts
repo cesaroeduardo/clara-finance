@@ -444,6 +444,28 @@ test("mock entende consegui bater a meta do nome", () => {
   assert.match(result.reply, /GTA VI|orgulh|Metas/i);
 });
 
+test("mock entende consegui a viagem sem dizer meta", () => {
+  const data = {
+    ...fixtureAccounts,
+    goals: [
+      {
+        ...fixtureAccounts.goals[0]!,
+        id: "goal-europa",
+        name: "Viagem na Europa",
+      },
+    ],
+  };
+  const result = planClaraReply({
+    message: "Consegui a viagem na europa vó",
+    data,
+    currentView: "clara",
+  });
+  assert.equal(result.view, "goals");
+  assert.equal(result.action?.type, "complete-goal");
+  assert.equal(result.action?.goalId, "goal-europa");
+  assert.match(result.reply, /Viagem na Europa|orgulh|Metas/i);
+});
+
 test("mock desfaz última conclusão de meta", () => {
   const result = planClaraReply({
     message: "desfazer",

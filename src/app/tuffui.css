@@ -105,6 +105,17 @@
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
+.tuff-finance-shell > [data-slot="surface-header"] .type-switch {
+  margin: 0;
+  padding: 3px;
+  gap: 2px;
+}
+
+.tuff-finance-shell > [data-slot="surface-header"] .type-switch > button {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
 .home-forecast > .tuff-finance-body,
 .home-wealth > .tuff-finance-body,
 .home-investments > .tuff-finance-body,
@@ -257,11 +268,21 @@
 
 .setup-card > .tuff-finance-body:has(.empty-state),
 .accounts-card > .tuff-finance-body:has(.empty-state),
+.active-goals-card > .tuff-finance-body:has(.empty-state),
+.categories-card > .tuff-finance-body:has(.empty-state),
 .completed-goals-card > .tuff-finance-body:has(.empty-state),
 .investment-page > .tuff-finance-body:has(.empty-state) {
   padding: 8px 0 12px;
 }
 
+.active-goals-card > .tuff-finance-body,
+.categories-card > .tuff-finance-body {
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+}
+
+.categories-card.full-table > .tuff-finance-body,
 .full-table > .tuff-finance-body {
   padding: 0;
 }
