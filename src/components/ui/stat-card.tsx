@@ -1,7 +1,7 @@
 // Adapted from TUFFUI Stat Grid · MIT License · Copyright (c) 2026 TUFFUI contributors
 "use client";
 
-import type { Icon } from "@phosphor-icons/react";
+import type { Icon } from "@/components/icons";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { FinanceSurface } from "./finance-surface";

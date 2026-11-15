@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { ImageSquare } from "@phosphor-icons/react";
+import { ImageSquare } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { FieldSelect } from "@/components/ui/field-select";
 import { CategoryImage } from "./finance-icons";

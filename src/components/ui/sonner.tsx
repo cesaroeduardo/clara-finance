@@ -6,7 +6,7 @@ import {
   Info,
   WarningCircle,
   XCircle,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 function useDocumentTheme(): NonNullable<ToasterProps["theme"]> {

@@ -1,6 +1,6 @@
 "use client";
 
-import { HandPointing } from "@phosphor-icons/react";
+import { HandPointing } from "@/components/icons";
 import { ClaraMark } from "@/components/clara-mark";
 import { ClaraType } from "@/components/clara-type";
 

@@ -1,7 +1,7 @@
 // TUFFUI (https://tuffui.com) · MIT License · Copyright (c) 2026 TUFFUI contributors
 "use client";
 import { renderElement, type PartProps } from "@ui-sdk/react/primitive";
-import type { Icon } from "@phosphor-icons/react";
+import type { Icon } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 type DivProps = React.ComponentProps<"div">;

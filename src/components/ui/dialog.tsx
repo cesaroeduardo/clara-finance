@@ -5,7 +5,7 @@ import * as DialogPrimitive from "@ui-sdk/react/dialog";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
-import { X as XIcon } from "@phosphor-icons/react";
+import { X as XIcon } from "@/components/icons";
 
 function Dialog({
   ...props

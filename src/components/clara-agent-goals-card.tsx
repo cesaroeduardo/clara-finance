@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag } from "@phosphor-icons/react";
+import { Flag } from "@/components/icons";
 import { ClaraAgentRichCard } from "@/components/clara-agent-rich-card";
 import type { ClaraGoalsCard } from "@/lib/clara-agent-insights";
 import { dateLabel, money } from "@/lib/format";

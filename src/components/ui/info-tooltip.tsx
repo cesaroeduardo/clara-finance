@@ -1,6 +1,6 @@
 "use client";
 import { type ReactNode } from "react";
-import { Info } from "@phosphor-icons/react";
+import { Info } from "@/components/icons";
 import { IconButton } from "./button";
 import { Tooltip } from "./tooltip-hint";
 export function InfoTooltip({

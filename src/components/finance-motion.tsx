@@ -1,6 +1,6 @@
 "use client";
 import { useContext, useEffect, useId, useRef } from "react";
-import { CaretDown, IconContext } from "@phosphor-icons/react";
+import { CaretDown, IconContext } from "@/components/icons";
 import {
   AnimatePresence,
   domMax,

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Waveform, X } from "@phosphor-icons/react";
+import { ArrowUp, Waveform, X } from "@/components/icons";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

@@ -1,5 +1,5 @@
 "use client";
-import { MagnifyingGlass } from "@phosphor-icons/react";
+import { MagnifyingGlass } from "@/components/icons";
 import { Kbd, useIsMac } from "@/components/ui/key-hint";
 export type ShortcutPart =
   { type: "key"; value: string } | { type: "text"; value: string };

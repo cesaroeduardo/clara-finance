@@ -1,7 +1,7 @@
 // TUFFUI (https://tuffui.com) · MIT License · Copyright (c) 2026 TUFFUI contributors
 "use client";
 
-import { CircleNotch } from "@phosphor-icons/react";
+import { CircleNotch } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 const spinnerSizes = { sm: "size-3.5", md: "size-4", lg: "size-6" } as const;

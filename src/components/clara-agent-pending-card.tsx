@@ -1,6 +1,6 @@
 "use client";
 
-import { WarningCircle } from "@phosphor-icons/react";
+import { WarningCircle } from "@/components/icons";
 import { ClaraAgentRichCard } from "@/components/clara-agent-rich-card";
 import type { ClaraPendingBillsCard } from "@/lib/clara-agent-insights";
 import { dateLabel, money } from "@/lib/format";

@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { Minus, PictureInPicture, X } from "@phosphor-icons/react";
+import { Minus, PictureInPicture, X } from "@/components/icons";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { ClaraAgentComposerPlus } from "@/components/clara-agent-composer-plus";
 import { ClaraAgentComposerSend } from "@/components/clara-agent-composer-send";

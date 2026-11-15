@@ -12,7 +12,7 @@ import {
   PencilSimple,
   ArrowUp,
   ArrowDown,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import { ChartCard } from "./ui/chart-card";
 import { EmptyState } from "./ui/empty-state";
 import { FieldSelect } from "./ui/field-select";

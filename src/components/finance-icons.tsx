@@ -23,7 +23,7 @@ import {
   Target,
   TelevisionSimple,
   type Icon,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import Image from "next/image";
 import { categoryImageSource } from "@/lib/category-image";
 

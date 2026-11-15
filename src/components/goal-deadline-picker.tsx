@@ -14,7 +14,7 @@ import {
   CalendarWeekdays,
   CalendarWeeks,
 } from "@/components/ui/date-picker";
-import { CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight } from "@/components/icons";
 import { inputClassName } from "@/components/ui/input";
 import { localDate } from "@/lib/format";
 

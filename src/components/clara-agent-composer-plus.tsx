@@ -1,6 +1,6 @@
 "use client";
 
-import type { Icon } from "@phosphor-icons/react";
+import type { Icon } from "@/components/icons";
 import {
   ArrowsClockwise,
   Bank,
@@ -17,7 +17,7 @@ import {
   SquaresFour,
   Wallet,
   WarningCircle,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

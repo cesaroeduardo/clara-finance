@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowsClockwise } from "@phosphor-icons/react";
+import { ArrowsClockwise } from "@/components/icons";
 import { ClaraAgentRichCard } from "@/components/clara-agent-rich-card";
 import type { ClaraRecurringsCard } from "@/lib/clara-agent-insights";
 import { money } from "@/lib/format";

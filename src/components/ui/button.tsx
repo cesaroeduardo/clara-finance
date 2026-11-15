@@ -1,7 +1,7 @@
 // Adapted from TUFFUI Action Button · MIT License · Copyright (c) 2026 TUFFUI contributors
 "use client";
 import type * as React from "react";
-import { CircleNotch, type Icon } from "@phosphor-icons/react";
+import { CircleNotch, type Icon } from "@/components/icons";
 import { Button as ButtonPrimitive } from "@ui-sdk/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   CaretRight as ChevronRightIcon,
   Check as CheckIcon,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 
 function DropdownMenu({
   ...props

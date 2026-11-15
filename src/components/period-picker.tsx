@@ -6,7 +6,7 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import { CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight } from "@/components/icons";
 import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { AnimatedLabel } from "@/components/finance-motion";
 import {

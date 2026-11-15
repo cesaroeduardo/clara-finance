@@ -41,7 +41,7 @@ import {
   Warning,
   Wallet,
   X,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import { ChartCard } from "@/components/ui/chart-card";
 import { BudgetGauge } from "@/components/ui/budget-gauge";
 import {

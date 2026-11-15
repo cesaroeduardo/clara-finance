@@ -343,3 +343,9 @@
     width: 100%;
   }
 }
+
+/* Pixelarticons test: keep pixel edges crisp at any size */
+.pixel-icon {
+  image-rendering: pixelated;
+  shape-rendering: crispEdges;
+}

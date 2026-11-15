@@ -9,7 +9,7 @@ import {
   WarningCircle,
   XCircle,
   type Icon,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import { useId } from "react";
 import { cn } from "@/lib/utils";
 

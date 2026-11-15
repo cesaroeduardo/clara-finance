@@ -5,14 +5,14 @@ import { PrivateValue } from "./finance-privacy";
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Analytics,
   ArrowDownRight,
   ArrowUpRight,
   ChartLineUp,
   CurrencyBtc,
   CurrencyDollar,
   Plant,
-  Scales,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import { ChartCard } from "./ui/chart-card";
 import {
   Dialog,
@@ -465,7 +465,7 @@ export function MarketTickers({ data }: { data: FinanceData }) {
       header={
         <ShellHeader
           as="h2"
-          icon={Scales}
+          icon={Analytics}
           title="Mercado"
           aside={
             failed && !quotes.length ? <span>Indisponível</span> : undefined

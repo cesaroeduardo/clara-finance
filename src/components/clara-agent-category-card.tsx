@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartPieSlice } from "@phosphor-icons/react";
+import { ChartPieSlice } from "@/components/icons";
 import { ClaraAgentRichCard } from "@/components/clara-agent-rich-card";
 import type { ClaraCategorySpendCard } from "@/lib/clara-agent-insights";
 import { money } from "@/lib/format";

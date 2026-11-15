@@ -1,6 +1,6 @@
 "use client";
 
-import type { Icon } from "@phosphor-icons/react";
+import type { Icon } from "@/components/icons";
 import type { ReactNode } from "react";
 import { FinanceSurface } from "@/components/ui/finance-surface";
 import { ShellHeader } from "@/components/ui/surface";

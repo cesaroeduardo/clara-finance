@@ -16,7 +16,7 @@ import {
   SpeakerHigh,
   SpeakerSlash,
   X,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import type { Mutate } from "@/components/finance-form";
 import { ClaraMark } from "@/components/clara-mark";

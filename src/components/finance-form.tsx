@@ -5,7 +5,7 @@ import { Spinner } from "@/components/ui/loader";
 import { NumberInput } from "@/components/ui/number-input";
 import { useState } from "react";
 import { prepareGoalCelebration } from "@/lib/goal-celebration";
-import { ArrowRight, Trash } from "@phosphor-icons/react";
+import { ArrowRight, Trash } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { categoryFieldOptions } from "@/components/category-mark";
 import { FieldSelect } from "@/components/ui/field-select";

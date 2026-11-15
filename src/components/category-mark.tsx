@@ -1,4 +1,4 @@
-import { SquaresFour } from "@phosphor-icons/react";
+import { SquaresFour } from "@/components/icons";
 import { CategoryImage } from "./finance-icons";
 import { colorForCategory, imageForCategory } from "@/lib/categorize";
 import type { Category } from "@/lib/types";

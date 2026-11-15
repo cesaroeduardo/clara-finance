@@ -7,7 +7,7 @@ import {
   ChartDonut,
   ChartLine,
   ChartLineUp,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import {
   AnimatePresence,
   MotionConfig,

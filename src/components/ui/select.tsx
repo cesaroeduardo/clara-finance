@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   CaretDown as ChevronDownIcon,
   Check as CheckIcon,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 
 const Select = SelectPrimitive.Select;
 

@@ -2,7 +2,7 @@
 import { NumberInput } from "@/components/ui/number-input";
 
 import { useEffect, useState } from "react";
-import { PencilSimple, Plus, Trash } from "@phosphor-icons/react";
+import { PencilSimple, Plus, Trash } from "@/components/icons";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";

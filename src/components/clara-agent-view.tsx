@@ -8,7 +8,7 @@ import {
   PictureInPicture,
   Receipt,
   SquaresFour,
-} from "@phosphor-icons/react";
+} from "@/components/icons";
 import { m, useReducedMotion } from "motion/react";
 import { ClaraAgentComposerPlus } from "@/components/clara-agent-composer-plus";
 import { ClaraAgentComposerSend } from "@/components/clara-agent-composer-send";
