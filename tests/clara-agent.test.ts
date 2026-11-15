@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { JSDOM } from "jsdom";
 import type { FinanceData } from "../src/lib/types";
-import { planClaraReply } from "../src/lib/clara-mock-agent";
+import { planClaraReply, wantsClearChat } from "../src/lib/clara-mock-agent";
 
 const fixtureAccounts: FinanceData = {
   mode: "demo",
@@ -290,6 +290,15 @@ test("mock /help lista perguntas com card", () => {
   assert.match(result.reply, /perguntas|atalhos|campo/i);
 });
 
+test("wantsClearChat reconhece limpar o chat", () => {
+  assert.equal(wantsClearChat("limpa o chat"), true);
+  assert.equal(wantsClearChat("Limpar o chat"), true);
+  assert.equal(wantsClearChat("limpar conversa"), true);
+  assert.equal(wantsClearChat("/clear"), true);
+  assert.equal(wantsClearChat("limpa o campo da mensagem"), false);
+  assert.equal(wantsClearChat("quanto tenho nas contas?"), false);
+});
+
 test("mock responde maior gasto do mês com card", () => {
   const result = planClaraReply({
     message: "qual foi o meu maior gasto em novembro de 2026?",
@@ -410,6 +419,18 @@ test("mock conclui meta pelo nome com navegação e ação", () => {
   assert.equal(result.action?.type, "complete-goal");
   assert.equal(result.action?.goalId, "goal-1");
   assert.match(result.reply, /Reserva|orgulh|Metas/i);
+});
+
+test("mock conclui meta sem press na sidebar se já está em Metas", () => {
+  const result = planClaraReply({
+    message: "conclui a meta Reserva",
+    data: fixtureAccounts,
+    currentView: "goals",
+  });
+  assert.equal(result.view, "goals");
+  assert.equal(result.steps, undefined);
+  assert.equal(result.action?.type, "complete-goal");
+  assert.equal(result.action?.goalId, "goal-1");
 });
 
 test("mock pede o nome se a meta não for encontrada", () => {

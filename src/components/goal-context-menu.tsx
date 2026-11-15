@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollFade } from "@/components/ui/scroll-fade";
+import { setClaraLastUndo } from "@/lib/clara-chat-session";
 import { prepareGoalCelebration } from "@/lib/goal-celebration";
 import type { Goal } from "@/lib/types";
 import type { FormState, Mutate } from "./finance-form";
@@ -69,9 +70,24 @@ export function GoalContextMenu({
           icon: goal.icon,
         })
       : undefined;
+    const completing = !goal.completed;
     try {
-      await mutate("goals", { ...goal, completed: !goal.completed }, "PATCH");
+      await mutate(
+        "goals",
+        { ...goal, completed: !goal.completed },
+        "PATCH",
+        celebrate ? { silent: true } : undefined,
+      );
       celebrate?.(true);
+      if (completing) {
+        setClaraLastUndo({
+          type: "complete-goal",
+          goalId: goal.id,
+          label: goal.name,
+        });
+      } else {
+        setClaraLastUndo(null);
+      }
     } catch (error) {
       celebrate?.(false);
       toast.error(

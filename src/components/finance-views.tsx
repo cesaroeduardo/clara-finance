@@ -3473,7 +3473,12 @@ function GoalDetails({
         })
       : undefined;
     try {
-      await mutate("goals", { ...goal, completed: !goal.completed }, "PATCH");
+      await mutate(
+        "goals",
+        { ...goal, completed: !goal.completed },
+        "PATCH",
+        celebrate ? { silent: true } : undefined,
+      );
       celebrate?.(true);
     } catch (error) {
       celebrate?.(false);

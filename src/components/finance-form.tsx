@@ -40,10 +40,15 @@ export type FormState = {
   kind?: string;
   month?: string;
 };
+export type MutateOptions = {
+  /** Skip the success toast (e.g. goal celebration already confirms the save). */
+  silent?: boolean;
+};
 export type Mutate = (
   resource: string,
   body: Record<string, unknown>,
   method?: string,
+  options?: MutateOptions,
 ) => Promise<void>;
 export function FinanceForm({
   form,
@@ -209,6 +214,7 @@ export function FinanceForm({
         form.resource,
         body,
         form.resource === "plan" || row ? "PATCH" : "POST",
+        celebrate ? { silent: true } : undefined,
       );
       celebrate?.(true);
       close();

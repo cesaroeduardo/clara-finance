@@ -39,11 +39,37 @@ function prefersReducedMotion() {
   );
 }
 
+/** Keep the cursor above ui-sdk menus, which live in the browser top layer. */
+function promoteCursorLayer() {
+  if (!host || typeof host.showPopover !== "function") return;
+  try {
+    if (!host.hasAttribute("popover")) {
+      host.setAttribute("popover", "manual");
+    }
+    if (host.matches(":popover-open")) {
+      host.hidePopover();
+    }
+    host.showPopover();
+  } catch {
+    // Browsers without Popover API still get the high z-index fallback.
+  }
+}
+
+function hideCursorLayer() {
+  if (!host || typeof host.hidePopover !== "function") return;
+  try {
+    if (host.matches(":popover-open")) host.hidePopover();
+  } catch {
+    // ignore
+  }
+}
+
 function ensureRoot() {
   if (typeof document === "undefined") return null;
   if (!host) {
     host = document.createElement("div");
     host.className = "clara-agent-cursor-host";
+    host.setAttribute("popover", "manual");
     document.body.appendChild(host);
     root = createRoot(host);
   }
@@ -51,9 +77,11 @@ function ensureRoot() {
 }
 
 function paint(next: Partial<CursorFrame>) {
+  const wasVisible = frame.visible;
   frame = { ...frame, ...next };
   const r = ensureRoot();
   if (!r) return;
+  if (frame.visible && !wasVisible) promoteCursorLayer();
   r.render(
     createElement(ClaraAgentCursor, {
       x: frame.x,
@@ -75,6 +103,7 @@ function clear() {
     visible: false,
     moveMs: 0,
   };
+  hideCursorLayer();
   root?.render(null);
 }
 
@@ -86,6 +115,7 @@ function pointFromRect(rect: DOMRect): Point {
 }
 
 function startPoint(): Point {
+  if (frame.visible) return { x: frame.x, y: frame.y };
   const agent =
     document.querySelector<HTMLElement>(".clara-agent-float") ??
     document.querySelector<HTMLElement>(".clara-agent-launcher");
@@ -99,10 +129,92 @@ function startPoint(): Point {
   };
 }
 
-/** Glide the Clara cursor onto a control, show a press, then return release cleanup. */
-export async function playAgentCursorPress(target: HTMLElement) {
-  if (typeof document === "undefined") return;
+function cssEscape(value: string) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(value);
+  }
+  return value.replace(/["\\]/g, "\\$&");
+}
 
+function pointerInit(point: Point): PointerEventInit {
+  return {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    clientX: point.x,
+    clientY: point.y,
+    screenX: point.x,
+    screenY: point.y,
+    pointerId: 1,
+    pointerType: "mouse",
+    isPrimary: true,
+    buttons: 0,
+    view: window,
+  };
+}
+
+/** Drive ui-sdk menu highlight (`data-highlighted`) under the agent cursor. */
+function hoverAt(point: Point, prefer?: HTMLElement) {
+  let node: Element | null = prefer ?? null;
+  if (!node) {
+    node = document.elementFromPoint(point.x, point.y);
+  }
+  if (!(node instanceof Element)) return;
+
+  const item = node.closest(
+    '[role="menuitem"], [data-slot="dropdown-menu-item"]',
+  );
+  const target =
+    item instanceof HTMLElement
+      ? item
+      : node instanceof HTMLElement
+        ? node
+        : null;
+  if (!target) return;
+
+  const opts = pointerInit(point);
+  target.dispatchEvent(new PointerEvent("pointerover", opts));
+  target.dispatchEvent(
+    new PointerEvent("pointerenter", { ...opts, bubbles: false }),
+  );
+  target.dispatchEvent(new PointerEvent("pointermove", opts));
+  target.dispatchEvent(new MouseEvent("mouseover", opts));
+  target.dispatchEvent(
+    new MouseEvent("mouseenter", { ...opts, bubbles: false }),
+  );
+  target.dispatchEvent(new MouseEvent("mousemove", opts));
+}
+
+function easeOutCubic(t: number) {
+  return 1 - (1 - t) ** 3;
+}
+
+async function animateGlide(from: Point, to: Point, duration: number) {
+  const started = performance.now();
+  for (;;) {
+    const t = Math.min(1, (performance.now() - started) / duration);
+    const e = easeOutCubic(t);
+    const point = {
+      x: from.x + (to.x - from.x) * e,
+      y: from.y + (to.y - from.y) * e,
+    };
+    paint({
+      x: point.x,
+      y: point.y,
+      scale: 1,
+      pressing: false,
+      visible: true,
+      moveMs: 0,
+    });
+    hoverAt(point);
+    if (t >= 1) break;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  }
+}
+
+async function glideTo(target: HTMLElement) {
   target.scrollIntoView({ block: "nearest", inline: "nearest" });
   await wait(40);
 
@@ -111,7 +223,6 @@ export async function playAgentCursorPress(target: HTMLElement) {
   const to = pointFromRect(target.getBoundingClientRect());
   const moveMs = reduced ? 0 : 560;
 
-  // Park at the start without easing, then glide.
   paint({
     x: from.x,
     y: from.y,
@@ -126,9 +237,32 @@ export async function playAgentCursorPress(target: HTMLElement) {
     paint({ x: to.x, y: to.y, moveMs: 0 });
     await wait(70);
   } else {
-    paint({ x: to.x, y: to.y, moveMs });
-    await wait(moveMs);
+    await animateGlide(from, to, moveMs);
   }
+
+  hoverAt(to, target);
+  return { to, reduced };
+}
+
+async function fadeOut(to: Point, reduced: boolean) {
+  paint({
+    x: to.x,
+    y: to.y,
+    scale: 1,
+    pressing: false,
+    moveMs: reduced ? 0 : 120,
+  });
+  await wait(reduced ? 40 : 100);
+  paint({ visible: false, moveMs: 0 });
+  await wait(reduced ? 40 : 160);
+  clear();
+}
+
+/** Glide onto a control, show a press, then return release cleanup. */
+export async function playAgentCursorPress(target: HTMLElement) {
+  if (typeof document === "undefined") return;
+
+  const { to, reduced } = await glideTo(target);
 
   paint({
     x: to.x,
@@ -141,17 +275,113 @@ export async function playAgentCursorPress(target: HTMLElement) {
   await wait(reduced ? 70 : 200);
 
   return async () => {
-    paint({
-      x: to.x,
-      y: to.y,
-      scale: 1,
-      pressing: false,
-      moveMs: reduced ? 0 : 120,
-    });
-    await wait(reduced ? 40 : 120);
     target.removeAttribute("data-agent-press");
-    paint({ visible: false, moveMs: 0 });
-    await wait(reduced ? 40 : 160);
-    clear();
+    await fadeOut(to, reduced);
   };
+}
+
+/** Glide, press visually, fire a real click, then optionally keep the cursor up. */
+export async function playAgentCursorClick(
+  target: HTMLElement,
+  options?: { dismiss?: boolean },
+) {
+  if (typeof document === "undefined") return;
+
+  const dismiss = options?.dismiss ?? true;
+  const { to, reduced } = await glideTo(target);
+
+  paint({
+    x: to.x,
+    y: to.y,
+    scale: 0.92,
+    pressing: true,
+    moveMs: reduced ? 0 : 120,
+  });
+  target.setAttribute("data-agent-press", "");
+  await wait(reduced ? 50 : 140);
+  target.click();
+  target.removeAttribute("data-agent-press");
+  paint({
+    x: to.x,
+    y: to.y,
+    scale: 1,
+    pressing: false,
+    moveMs: reduced ? 0 : 100,
+  });
+  await wait(reduced ? 40 : 120);
+
+  if (dismiss) await fadeOut(to, reduced);
+}
+
+/** Glide onto a control and linger, without pressing. */
+export async function playAgentCursorPoint(target: HTMLElement) {
+  if (typeof document === "undefined") return;
+
+  const { to, reduced } = await glideTo(target);
+  target.setAttribute("data-agent-point", "");
+  await wait(reduced ? 120 : 420);
+  target.removeAttribute("data-agent-point");
+  await fadeOut(to, reduced);
+}
+
+async function waitForGoalRoot(goalId: string) {
+  const selector = `[data-goal-id="${cssEscape(goalId)}"]`;
+  for (let i = 0; i < 24; i++) {
+    const found = document.querySelector(selector);
+    if (found instanceof HTMLElement) return found;
+    await wait(50);
+  }
+  return null;
+}
+
+async function waitForMenuItem(label: string) {
+  for (let i = 0; i < 40; i++) {
+    const items = document.querySelectorAll<HTMLElement>(
+      '[role="menuitem"], [data-slot="dropdown-menu-item"]',
+    );
+    for (const item of items) {
+      const text = item.textContent?.replace(/\s+/g, " ").trim() ?? "";
+      if (!text.includes(label)) continue;
+      if (item.getAttribute("aria-disabled") === "true") continue;
+      if (item.hasAttribute("data-disabled")) continue;
+      return item;
+    }
+    await wait(50);
+  }
+  return null;
+}
+
+/** Open the goal ⋮ menu and click Concluir via the agent cursor. */
+export async function completeGoalWithAgentCursor(goal: {
+  id: string;
+  name: string;
+}): Promise<boolean> {
+  if (typeof document === "undefined") return false;
+
+  const rootEl = await waitForGoalRoot(goal.id);
+  if (!rootEl) return false;
+
+  const options =
+    rootEl.querySelector<HTMLElement>(
+      `button[aria-label="Opções da meta ${goal.name}"]`,
+    ) ??
+    document.querySelector<HTMLElement>(
+      `button[aria-label="Opções da meta ${goal.name}"]`,
+    );
+  if (!options) return false;
+
+  await playAgentCursorClick(options, { dismiss: false });
+
+  const conclude = await waitForMenuItem("Concluir");
+  if (!conclude) {
+    await fadeOut({ x: frame.x, y: frame.y }, prefersReducedMotion());
+    return false;
+  }
+
+  // Menu just entered the top layer; restack the cursor above it.
+  promoteCursorLayer();
+  await playAgentCursorClick(conclude, { dismiss: true });
+  // Let the menu mutate + celebration start before the chat continues.
+  await wait(120);
+  return true;
 }

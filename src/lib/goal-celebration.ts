@@ -19,6 +19,12 @@ const CARD_RATIO = 2 / 3;
 const CARD_WIDTH = 380;
 const CARD_HOLD_MS = 2200;
 const GOAL_COMPLETE_SOUND = "/sounds/goal-complete.mp3";
+const GOAL_COMPLETE_VIDEO = "/videos/goal-complete.mp4";
+const GOAL_SOUND_AT_SEC = 0.6;
+const VIDEO_PIXEL_BLOCK = 14;
+const VIDEO_OPACITY = 0.9;
+const VIDEO_FADE_IN_MS = 900;
+const VIDEO_FADE_OUT_MS = 820;
 const GOAL_ICON_ASSETS: Record<string, string> = {
   shield: "shield",
   plane: "airplane",
@@ -41,17 +47,12 @@ export function prepareGoalCelebration(
   });
   return (saved) => {
     if (!saved) return;
-    playGoalSound(sound);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      try {
-        throwConfetti(document.body, { maxMs: 1400 });
-      } catch {
-        // A visual effect must never interrupt saving a goal.
-      }
+      window.setTimeout(() => playGoalSound(sound), GOAL_SOUND_AT_SEC * 1000);
       return;
     }
     try {
-      void runCardCelebration(origin, { ...options, imageSrc });
+      void runCardCelebration(origin, { ...options, imageSrc }, sound);
     } catch {
       // A visual effect must never interrupt saving a goal.
     }
@@ -140,6 +141,7 @@ function cssEscape(value: string) {
 async function runCardCelebration(
   origin: CardOrigin | null,
   options: GoalCelebrationOptions,
+  sound?: HTMLAudioElement,
 ) {
   document.querySelector(".goal-celebration-overlay")?.remove();
 
@@ -153,8 +155,8 @@ async function runCardCelebration(
   overlay.className = "goal-celebration-overlay";
   overlay.setAttribute("aria-hidden", "true");
 
-  const confettiHost = document.createElement("div");
-  confettiHost.className = "goal-celebration-confetti-host";
+  const videoHost = document.createElement("div");
+  videoHost.className = "goal-celebration-video-host";
 
   const backdrop = document.createElement("div");
   backdrop.className = "goal-celebration-backdrop";
@@ -178,8 +180,8 @@ async function runCardCelebration(
 
   const shine = flyer.querySelector(".goal-lume-shine");
   stage.append(flyer);
-  // Confetti sits behind the blurred backdrop; card stays above.
-  overlay.append(confettiHost, backdrop, stage);
+  // Pixel video sits behind the dim overlay; card stays above.
+  overlay.append(videoHost, backdrop, stage);
   document.body.append(overlay);
 
   const centerLeft = (window.innerWidth - width) / 2;
@@ -195,24 +197,42 @@ async function runCardCelebration(
     transform: pose(0.88, 0, 12),
     opacity: "0",
   });
+  videoHost.style.opacity = "0";
 
-  let stopConfetti: (() => void) | undefined;
+  let stopVideo: (() => void) | undefined;
   const cleanup = () => {
-    stopConfetti?.();
+    stopVideo?.();
     overlay.remove();
     window.removeEventListener("pagehide", cleanup);
   };
   window.addEventListener("pagehide", cleanup, { once: true });
 
-  await animateElement(
-    backdrop,
-    [{ opacity: 0 }, { opacity: 1 }],
-    {
-      duration: 280,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      fill: "forwards",
-    },
-  );
+  try {
+    stopVideo = startCelebrationVideo(videoHost, sound);
+  } catch {
+    window.setTimeout(() => playGoalSound(sound), GOAL_SOUND_AT_SEC * 1000);
+  }
+
+  await Promise.all([
+    animateElement(
+      backdrop,
+      [{ opacity: 0 }, { opacity: 1 }],
+      {
+        duration: VIDEO_FADE_IN_MS,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "forwards",
+      },
+    ),
+    animateElement(
+      videoHost,
+      [{ opacity: 0 }, { opacity: VIDEO_OPACITY }],
+      {
+        duration: VIDEO_FADE_IN_MS,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "forwards",
+      },
+    ),
+  ]);
 
   // Rise from below center into the dialog position.
   await animateElement(
@@ -237,11 +257,6 @@ async function runCardCelebration(
   );
 
   flyer.classList.add("is-spinning");
-  try {
-    stopConfetti = throwConfetti(confettiHost);
-  } catch {
-    // Confetti is decorative.
-  }
 
   // Spin with luminous foil reflection sweeping across the face.
   if (shine instanceof HTMLElement) {
@@ -281,9 +296,6 @@ async function runCardCelebration(
   // Hold for reading before the card exits.
   await wait(CARD_HOLD_MS);
 
-  stopConfetti?.();
-  stopConfetti = undefined;
-
   // Exit below the center of the screen — keep the card fully opaque.
   await Promise.all([
     animateElement(
@@ -310,8 +322,18 @@ async function runCardCelebration(
       backdrop,
       [{ opacity: 1 }, { opacity: 0 }],
       {
-        duration: 420,
-        delay: 80,
+        duration: VIDEO_FADE_OUT_MS,
+        delay: 40,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        fill: "forwards",
+      },
+    ),
+    animateElement(
+      videoHost,
+      [{ opacity: VIDEO_OPACITY }, { opacity: 0 }],
+      {
+        duration: VIDEO_FADE_OUT_MS,
+        delay: 40,
         easing: "cubic-bezier(0.22, 1, 0.36, 1)",
         fill: "forwards",
       },
@@ -319,6 +341,134 @@ async function runCardCelebration(
   ]);
 
   cleanup();
+}
+
+function startCelebrationVideo(
+  host: HTMLElement,
+  sound?: HTMLAudioElement,
+) {
+  const video = document.createElement("video");
+  video.className = "goal-celebration-video-source";
+  video.src = GOAL_COMPLETE_VIDEO;
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.setAttribute("aria-hidden", "true");
+
+  const canvas = document.createElement("canvas");
+  canvas.className = "goal-celebration-video-canvas";
+  canvas.setAttribute("aria-hidden", "true");
+  const context = canvas.getContext("2d", { alpha: false });
+  if (!context) return () => {};
+
+  const buffer = document.createElement("canvas");
+  const bufferContext = buffer.getContext("2d", { alpha: false });
+  if (!bufferContext) return () => {};
+
+  host.append(canvas, video);
+
+  let frame = 0;
+  let stopped = false;
+  let soundPlayed = false;
+
+  function layout() {
+    const width = Math.max(1, window.innerWidth);
+    const height = Math.max(1, window.innerHeight);
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(width * ratio);
+    canvas.height = Math.floor(height * ratio);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+  }
+
+  function coverSource(
+    sourceWidth: number,
+    sourceHeight: number,
+    targetWidth: number,
+    targetHeight: number,
+  ) {
+    const scale = Math.max(targetWidth / sourceWidth, targetHeight / sourceHeight);
+    const drawWidth = targetWidth / scale;
+    const drawHeight = targetHeight / scale;
+    return {
+      sx: (sourceWidth - drawWidth) / 2,
+      sy: (sourceHeight - drawHeight) / 2,
+      sw: drawWidth,
+      sh: drawHeight,
+    };
+  }
+
+  function draw() {
+    if (stopped || !context || !bufferContext) return;
+    if (video.readyState >= 2 && video.videoWidth > 0) {
+      const width = canvas.width;
+      const height = canvas.height;
+      const smallW = Math.max(1, Math.floor(width / VIDEO_PIXEL_BLOCK));
+      const smallH = Math.max(1, Math.floor(height / VIDEO_PIXEL_BLOCK));
+      buffer.width = smallW;
+      buffer.height = smallH;
+      const src = coverSource(
+        video.videoWidth,
+        video.videoHeight,
+        smallW,
+        smallH,
+      );
+      bufferContext.filter = "grayscale(1) contrast(1.08)";
+      bufferContext.imageSmoothingEnabled = true;
+      bufferContext.drawImage(
+        video,
+        src.sx,
+        src.sy,
+        src.sw,
+        src.sh,
+        0,
+        0,
+        smallW,
+        smallH,
+      );
+      bufferContext.filter = "none";
+      context.imageSmoothingEnabled = false;
+      context.clearRect(0, 0, width, height);
+      context.drawImage(buffer, 0, 0, smallW, smallH, 0, 0, width, height);
+    }
+    if (!soundPlayed && video.currentTime >= GOAL_SOUND_AT_SEC) {
+      soundPlayed = true;
+      playGoalSound(sound);
+    }
+    frame = requestAnimationFrame(draw);
+  }
+
+  function onResize() {
+    layout();
+  }
+
+  function cleanup() {
+    if (stopped) return;
+    stopped = true;
+    cancelAnimationFrame(frame);
+    window.removeEventListener("resize", onResize);
+    window.removeEventListener("pagehide", cleanup);
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    canvas.remove();
+    video.remove();
+  }
+
+  layout();
+  window.addEventListener("resize", onResize);
+  window.addEventListener("pagehide", cleanup, { once: true });
+  frame = requestAnimationFrame(draw);
+  void video.play().catch(() => {
+    // Autoplay can fail; sound still fires from the time gate if frames advance.
+    window.setTimeout(() => {
+      if (!soundPlayed) {
+        soundPlayed = true;
+        playGoalSound(sound);
+      }
+    }, GOAL_SOUND_AT_SEC * 1000);
+  });
+  return cleanup;
 }
 
 function buildLumeCardHtml({
@@ -410,97 +560,3 @@ function escapeAttr(value: string) {
   return escapeHtml(value).replace(/'/g, "&#39;");
 }
 
-function throwConfetti(
-  host: HTMLElement = document.body,
-  options: { maxMs?: number } = {},
-) {
-  const canvas = document.createElement("canvas");
-  canvas.className = "goal-confetti";
-  canvas.setAttribute("aria-hidden", "true");
-  const context = canvas.getContext("2d");
-  if (!context) return () => {};
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  const ratio = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = width * ratio;
-  canvas.height = height * ratio;
-  context.scale(ratio, ratio);
-  const theme = getComputedStyle(document.documentElement);
-  const primary = theme.getPropertyValue("--primary").trim() || "#000000";
-  const primaryForeground =
-    theme.getPropertyValue("--primary-foreground").trim() || "#ffffff";
-  const foreground =
-    theme.getPropertyValue("--foreground").trim() || "#171717";
-  const background =
-    theme.getPropertyValue("--background").trim() || "#ececec";
-  const colors = [primary, primaryForeground, foreground, background];
-  const particles = Array.from({ length: 84 }, (_, index) => {
-    const side = index % 2 ? 1 : -1;
-    const size = 12 + Math.random() * 16;
-    return {
-      x: side === 1 ? 0 : width,
-      y: height * 0.55,
-      vx: side * (160 + Math.random() * Math.min(width * 0.7, 720)),
-      vy: -340 - Math.random() * 520,
-      rotation: Math.random() * Math.PI,
-      spin: (Math.random() - 0.5) * 12,
-      size,
-      tall: size * (0.35 + Math.random() * 0.45),
-      color: colors[index % colors.length],
-    };
-  });
-  host.append(canvas);
-  let previous = performance.now();
-  let frame = 0;
-  let stopped = false;
-  let timer = 0;
-  function cleanup() {
-    if (stopped) return;
-    stopped = true;
-    cancelAnimationFrame(frame);
-    if (timer) window.clearTimeout(timer);
-    canvas.remove();
-    window.removeEventListener("pagehide", cleanup);
-  }
-  window.addEventListener("pagehide", cleanup, { once: true });
-  if (options.maxMs) {
-    timer = window.setTimeout(cleanup, options.maxMs);
-  }
-  function draw(now: number) {
-    if (stopped) return;
-    const dt = Math.min((now - previous) / 1000, 0.04);
-    previous = now;
-    context!.clearRect(0, 0, width, height);
-    context!.globalAlpha = 1;
-    for (const particle of particles) {
-      particle.x += particle.vx * dt;
-      particle.y += particle.vy * dt;
-      particle.vx *= Math.exp(-0.55 * dt);
-      particle.vy += 540 * dt;
-      particle.rotation += particle.spin * dt;
-      // Recycle flakes that fall off-screen so confetti lasts the whole hold.
-      if (particle.y > height + 40) {
-        const side = Math.random() > 0.5 ? 1 : -1;
-        particle.x = side === 1 ? 0 : width;
-        particle.y = height * (0.35 + Math.random() * 0.3);
-        particle.vx =
-          side * (140 + Math.random() * Math.min(width * 0.55, 560));
-        particle.vy = -280 - Math.random() * 420;
-      }
-      context!.save();
-      context!.translate(particle.x, particle.y);
-      context!.rotate(particle.rotation);
-      context!.fillStyle = particle.color;
-      context!.fillRect(
-        -particle.size / 2,
-        -particle.tall / 2,
-        particle.size,
-        particle.tall,
-      );
-      context!.restore();
-    }
-    frame = requestAnimationFrame(draw);
-  }
-  frame = requestAnimationFrame(draw);
-  return cleanup;
-}

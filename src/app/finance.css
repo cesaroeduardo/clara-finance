@@ -4389,18 +4389,6 @@ body:has(.values-hidden) .amount {
   text-underline-offset: 3px;
 }
 
-.goal-confetti {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-body > .goal-confetti {
-  position: fixed;
-  z-index: 240;
-}
-
 .goal-celebration-overlay {
   position: fixed;
   inset: 0;
@@ -4408,12 +4396,31 @@ body > .goal-confetti {
   pointer-events: none;
   perspective: 1600px;
 }
-.goal-celebration-confetti-host {
+.goal-celebration-video-host {
   position: absolute;
   inset: 0;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
+  opacity: 0;
+  background: #000;
+  will-change: opacity;
+}
+.goal-celebration-video-source {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.goal-celebration-video-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 .goal-celebration-backdrop {
   position: absolute;
@@ -4422,12 +4429,10 @@ body > .goal-confetti {
   background:
     radial-gradient(
       ellipse 70% 55% at 50% 42%,
-      color-mix(in oklab, var(--foreground) 10%, transparent),
+      color-mix(in oklab, var(--foreground) 8%, transparent),
       transparent 70%
     ),
-    color-mix(in oklab, var(--background) 55%, transparent);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+    color-mix(in oklab, var(--background) 28%, transparent);
   opacity: 0;
 }
 .goal-celebration-stage {
@@ -5132,7 +5137,21 @@ html:not(.dark) .clara-agent-float-body {
   align-items: center;
   gap: 9px;
   width: fit-content;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   line-height: 1;
+  color: inherit;
+  cursor: pointer;
+}
+.clara-agent-topbar-brand:hover {
+  opacity: 0.78;
+}
+.clara-agent-topbar-brand:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: 8px;
 }
 .clara-agent-topbar-mark {
   width: 21px;
@@ -5767,18 +5786,32 @@ button.nav-item[data-slot="button"] {
   box-shadow: none;
 }
 
-/* Clara agent cursor (Figma-style press preview) */
+/* Clara agent cursor (Figma-style press preview).
+   Uses the Popover top layer so it stays above ui-sdk menus (z-index can't). */
 .clara-agent-cursor-host {
   position: fixed;
   inset: 0;
-  z-index: 320;
+  z-index: 2147483001;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
   pointer-events: none;
+}
+.clara-agent-cursor-host:popover-open {
+  display: block;
 }
 .clara-agent-cursor {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 321;
+  z-index: 1;
   pointer-events: none;
   opacity: 0;
   transform-origin: 10px 4px;
@@ -5829,6 +5862,12 @@ html.dark .clara-agent-cursor-type.brand-type {
 }
 .clara-agent-cursor[data-pressing] .clara-agent-cursor-label {
   filter: brightness(0.92);
+}
+.goal-context-trigger[data-agent-point] .goal-card,
+.goal-card[data-agent-point],
+[data-goal-id][data-agent-point] .goal-card {
+  outline: 2px solid color-mix(in srgb, var(--foreground) 22%, transparent);
+  outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
   .clara-agent-cursor {

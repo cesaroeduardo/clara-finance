@@ -89,7 +89,7 @@ export function ClaraAgentView({
   mutate,
 }: ClaraAgentViewProps) {
   const reduceMotion = useReducedMotion();
-  const { messages, pending, presentation, voiceMode, send } =
+  const { messages, pending, presentation, voiceMode, send, clearMessages } =
     useClaraAgentChat({ data, currentView, onNavigate, mutate });
   const [draft, setDraft] = useState("");
   const [composerH, setComposerH] = useState(88);
@@ -166,10 +166,15 @@ export function ClaraAgentView({
       {inline && !empty ? (
         <div className="clara-agent-topbar">
           <div className="clara-agent-topbar-inner">
-            <div className="clara-agent-topbar-brand">
+            <button
+              type="button"
+              className="clara-agent-topbar-brand"
+              aria-label="Limpar conversa"
+              onClick={() => clearMessages()}
+            >
               <ClaraMark className="clara-agent-topbar-mark clara-agent-mark brand-mark" />
               <ClaraType className="clara-agent-topbar-title brand-type" />
-            </div>
+            </button>
             <button
               type="button"
               className="clara-agent-topbar-action"

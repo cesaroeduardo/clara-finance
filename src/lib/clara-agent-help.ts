@@ -73,6 +73,12 @@ export const CLARA_HELP_PROMPTS: ClaraHelpPrompt[] = [
     detail: "Desfaz a última ação que a Clara fez.",
   },
   {
+    id: "clear-chat",
+    label: "Limpar conversa",
+    prompt: "Limpar o chat",
+    detail: "Apaga o histórico. Também dá pra clicar no logo.",
+  },
+  {
     id: "biggest",
     label: "Maior gasto do mês",
     prompt: "Qual foi o meu maior gasto este mês?",

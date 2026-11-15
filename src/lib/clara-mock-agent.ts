@@ -337,6 +337,16 @@ function wantsFocusComposer(message: string) {
   );
 }
 
+/** Limpa o histórico do chat (não o campo de mensagem). */
+export function wantsClearChat(message: string) {
+  const text = message.trim();
+  if (/^\/(clear|limpar|nova)\b/i.test(text)) return true;
+  if (/\b(nova\s+conversa|come[cç]ar\s+de\s+novo)\b/i.test(text)) return true;
+  return /\b(limpa|limpar|apaga|apagar|zera|zerar)\b.{0,24}\b(chat|conversa|hist[oó]rico)\b/i.test(
+    text,
+  );
+}
+
 function destructiveRequest(message: string) {
   return /\b(exclui|excluir|apaga|apagar|deleta|deletar|sincroniza|sincronizar|sync)\b/i.test(
     message,
@@ -458,18 +468,20 @@ export function planClaraReply(input: ClaraMockInput): ClaraMockResult {
         suggestions: [SUGGEST_GOALS, SUGGEST_HELP],
       };
     }
+    const goalsSteps =
+      input.currentView === "goals" ? undefined : openViewSteps("goals");
     if (goal.completed) {
       return {
         reply: completeGoalAlreadyReply(goal),
         suggestions: [SUGGEST_GOALS, SUGGEST_WORTH],
         view: "goals",
-        steps: openViewSteps("goals"),
+        steps: goalsSteps,
       };
     }
     return {
       reply: completeGoalReply(goal),
       view: "goals",
-      steps: openViewSteps("goals"),
+      steps: goalsSteps,
       action: { type: "complete-goal", goalId: goal.id },
       suggestions: [SUGGEST_GOALS, SUGGEST_WORTH],
     };

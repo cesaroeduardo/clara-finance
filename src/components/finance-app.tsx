@@ -395,7 +395,7 @@ export function FinanceApp() {
     navigate("transactions");
   };
   const mutate: Mutate = useCallback(
-    async (resource, body, method = "POST") => {
+    async (resource, body, method = "POST", options) => {
       const response = await fetch(`/api/manage/${resource}?mode=${mode}`, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -404,6 +404,7 @@ export function FinanceApp() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       setRefresh((v) => v + 1);
+      if (options?.silent) return;
       toast.success(method === "DELETE" ? "Registro excluído." : "Salvo.");
     },
     [mode],

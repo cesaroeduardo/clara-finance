@@ -3,6 +3,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { Mutate } from "@/components/finance-form";
 import { getClaraAgent } from "@/lib/clara-agent-bridge";
+import { completeGoalWithAgentCursor } from "@/lib/clara-agent-cursor";
 import { previewSidebarAgentPress } from "@/lib/clara-agent-sidebar-press";
 import {
   appendClaraChatMessages,
@@ -14,8 +15,11 @@ import {
   subscribeClaraAgentStore,
   type ClaraChatMessage,
 } from "@/lib/clara-chat-session";
-import { runClaraMock, type ClaraView } from "@/lib/clara-mock-agent";
-import { prepareGoalCelebration } from "@/lib/goal-celebration";
+import {
+  runClaraMock,
+  wantsClearChat,
+  type ClaraView,
+} from "@/lib/clara-mock-agent";
 import type { FinanceData } from "@/lib/types";
 
 function nextId() {
@@ -94,10 +98,21 @@ export function useClaraAgentChat({
     [],
   );
 
+  const clearMessages = useCallback(() => {
+    setClaraChatMessages([]);
+    setClaraSuggestions([]);
+    setClaraLastUndo(null);
+    setClaraPending(false);
+  }, []);
+
   const send = useCallback(
     async (raw: string): Promise<string | null> => {
       const text = raw.trim();
       if (!text || store.pending) return null;
+      if (wantsClearChat(text)) {
+        clearMessages();
+        return null;
+      }
       setClaraSuggestions([]);
       const userMessage: ClaraChatMessage = {
         id: nextId(),
@@ -140,28 +155,19 @@ export function useClaraAgentChat({
         const completeAction =
           result.action?.type === "complete-goal" ? result.action : null;
         if (completeAction) {
-          // Let Metas mount so the card can leave the active grid with celebration.
-          await new Promise((resolve) => setTimeout(resolve, 450));
+          // Wait for Metas only when we just navigated there.
+          await new Promise((resolve) =>
+            setTimeout(resolve, changingView ? 450 : 80),
+          );
           const goal = data.goals.find(
             (row) => row.id === completeAction.goalId,
           );
           if (goal && !goal.completed) {
-            const celebrate = prepareGoalCelebration({
-              goalId: goal.id,
-              goalName: goal.name,
-              imageSlug: goal.imageSlug,
-              icon: goal.icon,
+            const ok = await completeGoalWithAgentCursor({
+              id: goal.id,
+              name: goal.name,
             });
-            try {
-              await mutate("goals", { ...goal, completed: true }, "PATCH");
-              celebrate(true);
-              setClaraLastUndo({
-                type: "complete-goal",
-                goalId: goal.id,
-                label: goal.name,
-              });
-            } catch {
-              celebrate(false);
+            if (!ok) {
               appendClaraChatMessages({
                 id: nextId(),
                 role: "assistant",
@@ -220,6 +226,7 @@ export function useClaraAgentChat({
       }
     },
     [
+      clearMessages,
       currentView,
       data,
       mutate,
@@ -229,12 +236,6 @@ export function useClaraAgentChat({
       store.pending,
     ],
   );
-
-  const clearMessages = useCallback(() => {
-    setClaraChatMessages([]);
-    setClaraSuggestions([]);
-    setClaraLastUndo(null);
-  }, []);
 
   return { ...store, send, clearMessages };
 }
