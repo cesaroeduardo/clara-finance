@@ -68,7 +68,7 @@ export function listPlanMonths(
   return plans;
 }
 
-const SCHEMA_VERSION = 34;
+const SCHEMA_VERSION = 36;
 const globalDb = globalThis as unknown as {
   financeDb?: Database.Database;
   financeDbSchemaVersion?: number;
@@ -950,6 +950,36 @@ export function db() {
         .prepare("INSERT INTO schema_migrations(version) VALUES(34)")
         .run();
     })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=35").get()
+  )
+    database.transaction(() => {
+      const insert = database.prepare(`
+        INSERT OR IGNORE INTO transactions(id,mode,description,amount,kind,date,status,category,account_id,source,currency,installment_number,installment_total)
+        VALUES(?,'demo',?,?,'expense',?,?,?,'demo-nubank','manual','BRL',NULL,NULL)
+      `);
+      const currentMonth = monthKey();
+      for (const [id, description, amount, day, category] of [
+        ["barber", "Barbearia Corte Fino", 6500, "03", "Barbeiro"],
+        ["petz", "Petz", 18990, "11", "Pets"],
+        ["adobe", "Adobe Creative Cloud", 8900, "05", "Software"],
+        ["steam", "Steam", 12990, "22", "Jogos"],
+        ["alura", "Alura", 9900, "08", "Educação"],
+        ["bank-fee", "Tarifa TED", 1250, "23", "Taxas"],
+      ] as const) {
+        insert.run(
+          `demo-${id}`,
+          description,
+          amount,
+          `${currentMonth}-${day}`,
+          "paid",
+          category,
+        );
+      }
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(35)")
+        .run();
+    })();
   globalDb.financeDb = database;
   globalDb.financeDbSchemaVersion = SCHEMA_VERSION;
   return database;
@@ -1059,31 +1089,33 @@ function seedDemoInvestments(database: Database.Database) {
     "INSERT INTO investments(id,mode,name,institution,type,balance,invested) VALUES(?,'demo',?,?,?,?,?)",
   );
   const positions = [
-    ["demo-bitcoin", "Bitcoin", "Carteira digital", "OTHER", 3000000, 2600000],
+    ["demo-bitcoin", "Bitcoin", "Carteira digital", "OTHER", 2847391, 2618452],
     [
       "demo-tesouro",
       "Tesouro IPCA+ 2029",
       "Itaú",
       "FIXED_INCOME",
-      3500000,
-      3200000,
+      3482176,
+      3190840,
     ],
     [
       "demo-tesouro-selic",
       "Tesouro Selic 2029",
       "Itaú",
       "FIXED_INCOME",
-      2000000,
-      1900000,
+      2034587,
+      1927830,
     ],
     [
       "demo-fund",
       "Fundo Multimercado",
       "BTG Pactual",
       "MUTUAL_FUND",
-      1500000,
-      1450000,
+      1523841,
+      1478920,
     ],
+    ["demo-bbas3", "BBAS3", "XP Investimentos", "EQUITY", 876543, 812340],
+    ["demo-bova11", "BOVA11", "Clear", "ETF", 1234567, 1189340],
   ] as const;
   for (const position of positions) insert.run(...position);
 }
@@ -1436,6 +1468,84 @@ function seedDemo(database: Database.Database) {
         "paid",
 
         "Compras",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "barber",
+        "Barbearia Corte Fino",
+        6500,
+        "expense",
+        "03",
+        "paid",
+
+        "Barbeiro",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "petz",
+        "Petz",
+        18990,
+        "expense",
+        "11",
+        "paid",
+
+        "Pets",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "adobe",
+        "Adobe Creative Cloud",
+        8900,
+        "expense",
+        "05",
+        "paid",
+
+        "Software",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "steam",
+        "Steam",
+        12990,
+        "expense",
+        "22",
+        "paid",
+
+        "Jogos",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "alura",
+        "Alura",
+        9900,
+        "expense",
+        "08",
+        "paid",
+
+        "Educação",
+        "demo-nubank",
+        null,
+        null,
+      ],
+      [
+        "bank-fee",
+        "Tarifa TED",
+        1250,
+        "expense",
+        "23",
+        "paid",
+
+        "Taxas",
         "demo-nubank",
         null,
         null,
