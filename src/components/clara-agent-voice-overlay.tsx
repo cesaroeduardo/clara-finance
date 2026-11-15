@@ -13,6 +13,8 @@ import {
   ChatText,
   Microphone,
   MicrophoneSlash,
+  SpeakerHigh,
+  SpeakerSlash,
   X,
 } from "@phosphor-icons/react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
@@ -21,7 +23,8 @@ import { ClaraMark } from "@/components/clara-mark";
 import { useClaraAgentChat } from "@/hooks/use-clara-agent-chat";
 import { useClaraVoiceSession } from "@/hooks/use-clara-voice-session";
 import {
-  appendClaraChatMessages,
+  appendClaraVoiceEnded,
+  appendClaraVoiceStarted,
   getClaraAgentStore,
   setClaraVoiceMode,
   subscribeClaraAgentStore,
@@ -77,12 +80,14 @@ function VoiceWaveform({
   userLevels,
   agentLevels,
   reduced,
-  muted,
+  inputMuted,
+  outputMuted,
 }: {
   userLevels: number[];
   agentLevels: number[];
   reduced: boolean;
-  muted: boolean;
+  inputMuted: boolean;
+  outputMuted: boolean;
 }) {
   const count = Math.max(userLevels.length, agentLevels.length);
   return (
@@ -104,14 +109,14 @@ function VoiceWaveform({
               className="clara-voice-wave-bar is-agent"
               style={{
                 height: agentHeight,
-                opacity: muted ? 0.12 : 0.28,
+                opacity: outputMuted ? 0.1 : 0.28,
               }}
             />
             <span
               className="clara-voice-wave-bar is-user"
               style={{
                 height: userHeight,
-                opacity: muted ? 0.35 : 1,
+                opacity: inputMuted ? 0.3 : 1,
               }}
             />
           </span>
@@ -137,7 +142,10 @@ export function ClaraAgentVoiceOverlay({
   const reduceMotion = useReducedMotion();
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(() => getClaraAgentStore().voiceMode);
-  const [muted, setMuted] = useState(false);
+  const [inputMuted, setInputMuted] = useState(false);
+  const [outputMuted, setOutputMuted] = useState(false);
+  const outputMutedRef = useRef(false);
+  outputMutedRef.current = outputMuted;
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [turns, setTurns] = useState<VoiceTurn[]>([]);
   const [voiceBusy, setVoiceBusy] = useState(false);
@@ -182,6 +190,9 @@ export function ClaraAgentVoiceOverlay({
             { id: nextId(), role: "assistant", text: reply },
           ]);
           setSpeakText(reply);
+          if (outputMutedRef.current) {
+            setTranscriptOpen(true);
+          }
         }
       } finally {
         sendingRef.current = false;
@@ -194,7 +205,8 @@ export function ClaraAgentVoiceOverlay({
   const { phase, userLevels, agentLevels, interim, error, stopSpeaking } =
     useClaraVoiceSession({
       active: open,
-      muted,
+      inputMuted,
+      outputMuted,
       busy: voiceBusy || pending,
       speakText,
       onFinalTranscript: handleUserUtterance,
@@ -210,20 +222,33 @@ export function ClaraAgentVoiceOverlay({
     });
   }, []);
 
+  const sessionLiveRef = useRef(false);
+
   useEffect(() => {
-    if (!open) {
-      setMuted(false);
-      setTranscriptOpen(false);
-      setTurns([]);
-      setVoiceBusy(false);
-      setSpeakText(null);
-      setDragging(false);
-      setPos(null);
-      dragOriginRef.current = null;
-      sendingRef.current = false;
+    if (open) {
+      if (!sessionLiveRef.current) {
+        sessionLiveRef.current = true;
+        startedAtRef.current = Date.now();
+        appendClaraVoiceStarted();
+      }
       return;
     }
-    startedAtRef.current = Date.now();
+
+    if (sessionLiveRef.current) {
+      sessionLiveRef.current = false;
+      appendClaraVoiceEnded(Math.max(0, Date.now() - startedAtRef.current));
+    }
+
+    setInputMuted(false);
+    setOutputMuted(false);
+    setTranscriptOpen(false);
+    setTurns([]);
+    setVoiceBusy(false);
+    setSpeakText(null);
+    setDragging(false);
+    setPos(null);
+    dragOriginRef.current = null;
+    sendingRef.current = false;
   }, [open]);
 
   useLayoutEffect(() => {
@@ -317,13 +342,6 @@ export function ClaraAgentVoiceOverlay({
 
   const endSession = useCallback(() => {
     stopSpeaking();
-    const durationMs = Math.max(0, Date.now() - startedAtRef.current);
-    const seconds = Math.max(1, Math.round(durationMs / 1000));
-    appendClaraChatMessages({
-      id: nextId(),
-      role: "assistant",
-      text: `Sessão de voz encerrada (${seconds}s).`,
-    });
     setClaraVoiceMode(false);
   }, [stopSpeaking]);
 
@@ -344,18 +362,27 @@ export function ClaraAgentVoiceOverlay({
 
   if (!portalHost) return null;
 
+  const muteHints = [
+    inputMuted ? "Mic mutado" : null,
+    outputMuted ? "Voz mutada" : null,
+  ].filter(Boolean);
+  const muteSuffix =
+    muteHints.length > 0 ? ` · ${muteHints.join(" · ")}` : "";
+
   const statusLabel =
     error && (phase === "denied" || phase === "unsupported")
       ? error
-      : muted || phase === "muted"
-        ? "Microfone mutado"
+      : inputMuted && !(phase === "thinking" || voiceBusy || pending) && phase !== "speaking"
+        ? `Microfone mutado${outputMuted ? " · Voz mutada" : ""}`
         : phase === "thinking" || voiceBusy || pending
-          ? "Clara pensando…"
+          ? outputMuted
+            ? "Clara pensando… Resposta no chat."
+            : "Clara pensando…"
           : phase === "speaking"
             ? "Clara falando…"
             : phase === "hearing"
-              ? interim || "Ouvindo…"
-              : "Ouvindo…";
+              ? `${interim || "Ouvindo…"}${muteSuffix}`
+              : `Ouvindo…${muteSuffix}`;
 
   return createPortal(
     <AnimatePresence>
@@ -399,7 +426,8 @@ export function ClaraAgentVoiceOverlay({
                     userLevels={userLevels}
                     agentLevels={agentLevels}
                     reduced={Boolean(reduceMotion)}
-                    muted={muted || phase === "muted"}
+                    inputMuted={inputMuted}
+                    outputMuted={outputMuted}
                   />
                 </div>
 
@@ -408,20 +436,39 @@ export function ClaraAgentVoiceOverlay({
                     type="button"
                     className={cn(
                       "clara-voice-icon-btn",
-                      (muted || phase === "muted") && "is-active",
+                      inputMuted && "is-active",
                     )}
                     aria-label={
-                      muted || phase === "muted"
-                        ? "Ativar microfone"
-                        : "Silenciar microfone"
+                      inputMuted ? "Ativar microfone" : "Silenciar microfone"
                     }
-                    aria-pressed={muted || phase === "muted"}
-                    onClick={() => setMuted((value) => !value)}
+                    aria-pressed={inputMuted}
+                    onClick={() => setInputMuted((value) => !value)}
                   >
-                    {muted || phase === "muted" ? (
+                    {inputMuted ? (
                       <MicrophoneSlash size={16} weight="fill" />
                     ) : (
                       <Microphone size={16} weight="fill" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    className={cn(
+                      "clara-voice-icon-btn",
+                      outputMuted && "is-active",
+                    )}
+                    aria-label={
+                      outputMuted
+                        ? "Ativar voz da Clara"
+                        : "Silenciar voz da Clara"
+                    }
+                    aria-pressed={outputMuted}
+                    onClick={() => setOutputMuted((value) => !value)}
+                  >
+                    {outputMuted ? (
+                      <SpeakerSlash size={16} weight="fill" />
+                    ) : (
+                      <SpeakerHigh size={16} weight="fill" />
                     )}
                   </button>
 

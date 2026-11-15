@@ -37,7 +37,7 @@ export function Toaster({ ...props }: ToasterProps) {
     <Sonner
       theme={theme}
       className="clara-toaster"
-      position="bottom-right"
+      position="bottom-center"
       expand={false}
       visibleToasts={4}
       gap={12}

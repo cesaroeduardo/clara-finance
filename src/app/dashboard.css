@@ -418,10 +418,13 @@
   inset: 0;
 }
 .home-spending-list {
-  padding: 2px 0;
+  --spending-row: 36px;
+  --spending-gap: 4px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: safe center;
+  gap: var(--spending-gap);
 }
 .home-spending-row {
   display: grid;
@@ -429,12 +432,13 @@
   align-items: center;
   column-gap: 14px;
   width: 100%;
-  min-height: 40px;
+  height: var(--spending-row);
+  min-height: var(--spending-row);
   border: 0;
   background: transparent;
   border-radius: 8px;
   margin: 0;
-  padding: 8px 14px;
+  padding: 4px 12px;
   box-sizing: border-box;
   text-align: left;
   color: inherit;
@@ -463,22 +467,22 @@
 .home-spending-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
 }
 .home-category-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 25px;
-  height: 25px;
+  width: 22px;
+  height: 22px;
   background: var(--muted);
-  border-radius: 7px;
+  border-radius: 6px;
   flex-shrink: 0;
 }
 .home-category-icon.has-image {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   padding: 2px;
   overflow: hidden;
 }
@@ -1254,6 +1258,8 @@
   cursor: default;
 }
 .home-cards-track {
+  --home-card-width: min(280px, 86cqw);
+  container-type: inline-size;
   display: flex;
   gap: 12px;
   overflow-x: auto;
@@ -1266,6 +1272,12 @@
   touch-action: pan-x;
   user-select: none;
 }
+/* Espaço no fim para o último cartão alinhar no início. Sem isso o
+   scrollMax fica curto, o sync acha o cartão anterior e o 1º clique reverte. */
+.home-cards-track::after {
+  content: "";
+  flex: 0 0 calc(100cqw - var(--home-card-width));
+}
 .home-cards-track.dragging {
   cursor: grabbing;
   scroll-snap-type: none;
@@ -1274,7 +1286,7 @@
   display: none;
 }
 .home-credit-card-slot {
-  flex: 0 0 min(280px, 86%);
+  flex: 0 0 var(--home-card-width);
   scroll-snap-align: start;
 }
 .home-credit-card {
@@ -1804,7 +1816,6 @@
     width: clamp(260px, 20vw, 320px);
   }
   .home-spending-row {
-    min-height: 44px;
     column-gap: 16px;
   }
   .home-card-heading {
@@ -1854,7 +1865,7 @@
     width: 100%;
     position: relative;
     overflow: hidden;
-    min-height: 200px;
+    min-height: 226px;
   }
   .home-spending-scroll > .scroll-fade-viewport {
     position: absolute;
@@ -1979,7 +1990,7 @@
     width: 100%;
     position: relative;
     overflow: hidden;
-    min-height: 200px;
+    min-height: 226px;
   }
   .home-spending-scroll > .scroll-fade-viewport {
     position: absolute;
@@ -1988,8 +1999,6 @@
   .home-spending-row {
     grid-template-columns: minmax(0, 1fr) auto auto;
     column-gap: 12px;
-    min-height: 40px;
-    padding-block: 6px;
   }
   .home-spending-bar {
     display: none;

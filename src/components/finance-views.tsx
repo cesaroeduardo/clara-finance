@@ -1225,9 +1225,9 @@ function SpendingDistribution({
                       }}
                     >
                       {item.image ? (
-                        <CategoryImage name={item.image} size={28} />
+                        <CategoryImage name={item.image} size={22} />
                       ) : (
-                        <FinanceIcon name={item.icon} size={15} />
+                        <FinanceIcon name={item.icon} size={13} />
                       )}
                     </span>
                     <strong>{item.name}</strong>
@@ -1375,13 +1375,14 @@ function CreditCardsCard({
     const scrollBehavior = behavior ?? (reduced ? "auto" : "smooth");
     programmaticScrollRef.current = next;
     window.clearTimeout(programmaticClearRef.current);
-    // Mantém o índice escolhido até o scroll terminar; evita o sync
-    // reverter no meio da animação (efeito de "preciso clicar duas vezes").
+    // Cancela sync pendente: um scrollend cedo (antes do smooth começar)
+    // não pode liberar a guarda e deixar o debounce reverter o índice.
+    window.clearTimeout(scrollTimerRef.current);
     programmaticClearRef.current = window.setTimeout(
       () => {
         programmaticScrollRef.current = null;
       },
-      scrollBehavior === "auto" ? 50 : 450,
+      scrollBehavior === "auto" ? 100 : 650,
     );
     track.scrollTo({
       left,
@@ -1409,9 +1410,15 @@ function CreditCardsCard({
     };
 
     const onScrollEnd = () => {
-      if (programmaticScrollRef.current !== null) {
-        programmaticScrollRef.current = null;
-        window.clearTimeout(programmaticClearRef.current);
+      window.clearTimeout(scrollTimerRef.current);
+      const target = programmaticScrollRef.current;
+      if (target !== null) {
+        // Só libera a guarda ao chegar no cartão; scrollend prematuro
+        // (scrollLeft ainda no anterior) não deve reabrir o sync.
+        if (nearestCardIndex() === target) {
+          programmaticScrollRef.current = null;
+          window.clearTimeout(programmaticClearRef.current);
+        }
         return;
       }
       sync();

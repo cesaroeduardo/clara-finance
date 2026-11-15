@@ -15,6 +15,7 @@ import { ClaraAgentComposerSend } from "@/components/clara-agent-composer-send";
 import { ClaraAgentGreeting } from "@/components/clara-agent-greeting";
 import { ClaraAgentMessageCard } from "@/components/clara-agent-message-card";
 import { ClaraAgentThinking } from "@/components/clara-agent-thinking";
+import { ClaraAgentVoiceRecord } from "@/components/clara-agent-voice-record";
 import { ClaraMark } from "@/components/clara-mark";
 import { ClaraType } from "@/components/clara-type";
 import { Textarea } from "@/components/ui/textarea";
@@ -190,8 +191,23 @@ export function ClaraAgentView({
           aria-relevant="additions"
         >
           <div className="clara-agent-rail">
-            {messages.map((message) =>
-              message.role === "user" ? (
+            {messages.map((message, index) =>
+              message.role === "voice" ? (
+                <div
+                  key={message.id}
+                  className={cn(
+                    "clara-agent-voice-slot",
+                    messages[index - 1]?.role === "voice" && "is-tight",
+                  )}
+                >
+                  <ClaraAgentVoiceRecord
+                    event={
+                      message.voiceEvent === "started" ? "started" : "ended"
+                    }
+                    durationMs={message.durationMs}
+                  />
+                </div>
+              ) : message.role === "user" ? (
                 <div key={message.id} className="clara-agent-user">
                   <p className="clara-agent-user-text">{message.text}</p>
                 </div>

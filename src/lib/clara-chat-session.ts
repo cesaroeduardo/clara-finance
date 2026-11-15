@@ -4,13 +4,17 @@ import type {
   ClaraUndoEntry,
 } from "@/lib/clara-mock-agent";
 
-type ChatRole = "user" | "assistant";
+type ChatRole = "user" | "assistant" | "voice";
 
 export type ClaraChatMessage = {
   id: string;
   role: ChatRole;
   text: string;
   card?: ClaraAgentCard;
+  /** Só em `role: "voice"` — início ou fim da sessão. */
+  voiceEvent?: "started" | "ended";
+  /** Só em `voiceEvent: "ended"` — duração em ms. */
+  durationMs?: number;
 };
 
 /** inline = página Agente · float = PiP · minimized = pílula */
@@ -68,6 +72,37 @@ export function appendClaraChatMessages(...rows: ClaraChatMessage[]) {
   const messages = [...store.messages, ...rows];
   patch({ messages });
   return messages;
+}
+
+function nextVoiceId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+export function formatClaraVoiceDuration(ms: number): string {
+  const sec = Math.max(0, Math.round(ms / 1000));
+  const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
+
+export function appendClaraVoiceStarted() {
+  return appendClaraChatMessages({
+    id: nextVoiceId("voice-start"),
+    role: "voice",
+    text: "Sessão de voz iniciada",
+    voiceEvent: "started",
+  });
+}
+
+export function appendClaraVoiceEnded(durationMs: number) {
+  const ms = Math.max(0, durationMs);
+  return appendClaraChatMessages({
+    id: nextVoiceId("voice-end"),
+    role: "voice",
+    text: "Sessão de voz encerrada",
+    voiceEvent: "ended",
+    durationMs: ms,
+  });
 }
 
 export function setClaraSuggestions(next: ClaraSuggestion[]) {

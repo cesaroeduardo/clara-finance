@@ -13,7 +13,6 @@ export type ClaraVoicePhase =
   | "hearing"
   | "thinking"
   | "speaking"
-  | "muted"
   | "denied"
   | "unsupported";
 
@@ -56,7 +55,10 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
 
 type UseClaraVoiceSessionArgs = {
   active: boolean;
-  muted: boolean;
+  /** Quando true, o microfone fica desligado (não escuta). */
+  inputMuted: boolean;
+  /** Quando true, a Clara continua ouvindo mas não fala (só chat). */
+  outputMuted: boolean;
   busy: boolean;
   speakText: string | null;
   onFinalTranscript: (text: string) => void;
@@ -64,7 +66,8 @@ type UseClaraVoiceSessionArgs = {
 
 export function useClaraVoiceSession({
   active,
-  muted,
+  inputMuted,
+  outputMuted,
   busy,
   speakText: speakPayload,
   onFinalTranscript,
@@ -84,8 +87,10 @@ export function useClaraVoiceSession({
   const rafRef = useRef(0);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const wantListenRef = useRef(false);
-  const mutedRef = useRef(muted);
-  mutedRef.current = muted;
+  const inputMutedRef = useRef(inputMuted);
+  inputMutedRef.current = inputMuted;
+  const outputMutedRef = useRef(outputMuted);
+  outputMutedRef.current = outputMuted;
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const phaseRef = useRef<ClaraVoicePhase>("idle");
@@ -98,7 +103,7 @@ export function useClaraVoiceSession({
     speakHandleRef.current = null;
     stopAllSpeech();
     if (phaseRef.current === "speaking") {
-      setPhase(mutedRef.current ? "muted" : "listening");
+      setPhase("listening");
     }
   }, []);
 
@@ -124,13 +129,14 @@ export function useClaraVoiceSession({
         );
         const raw = (data[bin] ?? 0) / 255;
         const floor = 0.08 + (1 - dist) * 0.04;
-        if (mutedRef.current) return floor * 0.5;
+        if (inputMutedRef.current) return floor * 0.45;
         if (phaseRef.current === "speaking") return floor * 0.55;
         return Math.min(1, Math.max(floor, raw * envelope * 1.4));
       });
 
       const agentActive =
-        phaseRef.current === "speaking" || phaseRef.current === "thinking";
+        !outputMutedRef.current &&
+        (phaseRef.current === "speaking" || phaseRef.current === "thinking");
       const nextAgent = Array.from({ length: BAR_COUNT }, (_, i) => {
         const dist = Math.abs(i - mid) / mid;
         const envelope = 1 - dist * 0.55;
@@ -168,7 +174,7 @@ export function useClaraVoiceSession({
         }
         streamRef.current = stream;
         for (const track of stream.getAudioTracks()) {
-          track.enabled = !mutedRef.current;
+          track.enabled = !inputMutedRef.current;
         }
         const Ctx =
           window.AudioContext ||
@@ -189,8 +195,7 @@ export function useClaraVoiceSession({
         source.connect(analyser);
         analyserRef.current = analyser;
         rafRef.current = window.requestAnimationFrame(tick);
-        if (!mutedRef.current) setPhase("listening");
-        else setPhase("muted");
+        setPhase("listening");
       } catch {
         if (cancelled) return;
         setPhase("denied");
@@ -219,9 +224,9 @@ export function useClaraVoiceSession({
     const stream = streamRef.current;
     if (!stream) return;
     for (const track of stream.getAudioTracks()) {
-      track.enabled = !muted;
+      track.enabled = !inputMuted;
     }
-  }, [muted, active]);
+  }, [inputMuted, active]);
 
   useEffect(() => {
     if (!active) return;
@@ -245,7 +250,7 @@ export function useClaraVoiceSession({
     wantListenRef.current = true;
 
     recognition.onresult = (event) => {
-      if (mutedRef.current || busyRef.current) return;
+      if (inputMutedRef.current || busyRef.current) return;
       let interimText = "";
       let finalText = "";
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -281,7 +286,7 @@ export function useClaraVoiceSession({
 
     recognition.onend = () => {
       if (!wantListenRef.current) return;
-      if (mutedRef.current || busyRef.current) return;
+      if (inputMutedRef.current || busyRef.current) return;
       if (phaseRef.current === "speaking" || phaseRef.current === "denied") {
         return;
       }
@@ -295,7 +300,7 @@ export function useClaraVoiceSession({
     const sync = () => {
       const shouldListen =
         wantListenRef.current &&
-        !mutedRef.current &&
+        !inputMutedRef.current &&
         !busyRef.current &&
         phaseRef.current !== "speaking" &&
         phaseRef.current !== "denied";
@@ -343,10 +348,13 @@ export function useClaraVoiceSession({
   useEffect(() => {
     if (!active) return;
     if (phase === "denied" || phase === "unsupported") return;
-    if (muted) {
-      stopSpeaking();
-      setPhase("muted");
+    if (inputMuted) {
       setInterim("");
+      if (phase === "hearing") setPhase("listening");
+    }
+    if (outputMuted) {
+      stopSpeaking();
+      if (phase === "speaking") setPhase("listening");
       return;
     }
     if (busy) {
@@ -355,14 +363,17 @@ export function useClaraVoiceSession({
       setInterim("");
       return;
     }
-    if (phase === "muted" || phase === "thinking") {
+    if (phase === "thinking") {
       setPhase("listening");
     }
-  }, [active, muted, busy, phase, stopSpeaking]);
+  }, [active, inputMuted, outputMuted, busy, phase, stopSpeaking]);
 
   useEffect(() => {
     if (!active || !speakPayload) return;
-    if (muted) return;
+    if (outputMuted) {
+      lastSpokenRef.current = speakPayload;
+      return;
+    }
     if (lastSpokenRef.current === speakPayload) return;
 
     let cancelled = false;
@@ -381,11 +392,11 @@ export function useClaraVoiceSession({
         await handle.done;
         if (cancelled) return;
         speakHandleRef.current = null;
-        setPhase(mutedRef.current ? "muted" : "listening");
+        setPhase("listening");
       } catch {
         if (cancelled) return;
         speakHandleRef.current = null;
-        setPhase(mutedRef.current ? "muted" : "listening");
+        setPhase("listening");
       }
     })();
 
@@ -395,7 +406,7 @@ export function useClaraVoiceSession({
       speakHandleRef.current = null;
       stopAllSpeech();
     };
-  }, [active, speakPayload, muted]);
+  }, [active, speakPayload, outputMuted]);
 
   useEffect(() => {
     if (active) return;

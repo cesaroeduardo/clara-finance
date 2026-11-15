@@ -80,13 +80,13 @@ export function ClaraViewSkeleton({ view }: { view: string }) {
             height={240}
             radius="12px"
           />
-          <div className="home-spending-list flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-3">
+          <div className="home-spending-list flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-1">
             {Array.from({ length: 5 }, (_, index) => (
               <div
                 key={index}
-                className="grid grid-cols-[28px_minmax(0,1fr)_auto_auto] items-center gap-3"
+                className="grid grid-cols-[22px_minmax(0,1fr)_auto_auto] items-center gap-3"
               >
-                <SkeletonBox width={28} height={28} radius="8px" />
+                <SkeletonBox width={22} height={22} radius="6px" />
                 <Line width="70%" height={12} />
                 <Line width={36} height={10} />
                 <Line width={56} height={12} />

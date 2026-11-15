@@ -5181,7 +5181,8 @@ html:not(.dark) .clara-agent-float-body {
   margin: 0 auto;
 }
 .clara-agent-user,
-.clara-agent-turn {
+.clara-agent-turn,
+.clara-agent-voice-slot {
   width: 100%;
   max-width: 100%;
   padding: 0;
@@ -5189,6 +5190,52 @@ html:not(.dark) .clara-agent-float-body {
 .clara-agent-user {
   display: flex;
   justify-content: flex-end;
+}
+.clara-agent-voice-slot {
+  display: flex;
+  justify-content: center;
+}
+.clara-agent-voice-slot.is-tight {
+  margin-top: -4px;
+}
+.clara-agent-voice-record {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.clara-agent-voice-record-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  color: color-mix(in srgb, var(--foreground) 45%, transparent);
+  font-size: 12.5px;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+.clara-agent-voice-record.is-compact .clara-agent-voice-record-inner {
+  font-size: 12px;
+  gap: 5px;
+}
+.clara-agent-voice-record-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.clara-agent-voice-record.is-compact .clara-agent-voice-record-wave {
+  height: 11px;
+}
+.clara-agent-voice-record-bar {
+  display: block;
+  width: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.7;
+}
+.clara-agent-voice-record-time {
+  font-variant-numeric: tabular-nums;
 }
 .clara-agent-user-text,
 .clara-agent-turn-text {
@@ -5718,6 +5765,75 @@ button.nav-item[data-slot="button"] {
   border-radius: 12px;
   font-weight: 450;
   box-shadow: none;
+}
+
+/* Clara agent cursor (Figma-style press preview) */
+.clara-agent-cursor-host {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  pointer-events: none;
+}
+.clara-agent-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 321;
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: 10px 4px;
+  will-change: transform, opacity;
+}
+.clara-agent-cursor[data-visible="true"] {
+  opacity: 1;
+}
+.clara-agent-cursor-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.clara-agent-cursor-pointer {
+  color: var(--primary);
+  filter: drop-shadow(0 0 0.5px var(--primary-foreground))
+    drop-shadow(0 1px 2px color-mix(in srgb, var(--foreground) 28%, transparent));
+}
+.clara-agent-cursor-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 14px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+.clara-agent-cursor-mark {
+  width: 14px;
+  height: 17px;
+  color: var(--primary-foreground);
+}
+.clara-agent-cursor-type.brand-type {
+  display: block;
+  height: 11px;
+  width: auto;
+  margin-top: 0;
+}
+/* Wordmark reads light-on-dark; keep that on the black pill, invert on the white pill. */
+html:not(.dark) .clara-agent-cursor-type.brand-type {
+  filter: none;
+}
+html.dark .clara-agent-cursor-type.brand-type {
+  filter: invert(1);
+}
+.clara-agent-cursor[data-pressing] .clara-agent-cursor-label {
+  filter: brightness(0.92);
+}
+@media (prefers-reduced-motion: reduce) {
+  .clara-agent-cursor {
+    transition: opacity 120ms ease-out !important;
+  }
 }
 
 /* Clara agent PiP */

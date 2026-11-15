@@ -68,7 +68,7 @@ export function listPlanMonths(
   return plans;
 }
 
-const SCHEMA_VERSION = 36;
+const SCHEMA_VERSION = 38;
 const globalDb = globalThis as unknown as {
   financeDb?: Database.Database;
   financeDbSchemaVersion?: number;
@@ -1018,6 +1018,66 @@ export function db() {
         .prepare("INSERT INTO schema_migrations(version) VALUES(36)")
         .run();
     })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=37").get()
+  )
+    database.transaction(() => {
+      database
+        .prepare(
+          "DELETE FROM investments WHERE mode='demo' AND id='demo-bova11'",
+        )
+        .run();
+      const insert = database.prepare(
+        "INSERT OR IGNORE INTO investments(id,mode,name,institution,type,balance,invested) VALUES(?,'demo',?,?,?,?,?)",
+      );
+      insert.run(
+        "demo-etf-ibov",
+        "ETF Ibovespa",
+        "Clear",
+        "ETF",
+        1234567,
+        1189340,
+      );
+      insert.run(
+        "demo-prev",
+        "Previdência PGBL",
+        "Itaú",
+        "SECURITY",
+        1876432,
+        1750890,
+      );
+      insert.run(
+        "demo-coe",
+        "COE XP Estruturado",
+        "XP Investimentos",
+        "COE",
+        984321,
+        1000000,
+      );
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(37)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=38").get()
+  )
+    database.transaction(() => {
+      database
+        .prepare(
+          "INSERT OR IGNORE INTO investments(id,mode,name,institution,type,balance,invested) VALUES(?,'demo',?,?,?,?,?)",
+        )
+        .run(
+          "demo-caixinha",
+          "Caixinha Reserva",
+          "Nubank",
+          "FIXED_INCOME",
+          642817,
+          620000,
+        );
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(38)")
+        .run();
+    })();
   globalDb.financeDb = database;
   globalDb.financeDbSchemaVersion = SCHEMA_VERSION;
   return database;
@@ -1153,7 +1213,38 @@ function seedDemoInvestments(database: Database.Database) {
       1478920,
     ],
     ["demo-bbas3", "BBAS3", "XP Investimentos", "EQUITY", 876543, 812340],
-    ["demo-bova11", "BOVA11", "Clear", "ETF", 1234567, 1189340],
+    [
+      "demo-etf-ibov",
+      "ETF Ibovespa",
+      "Clear",
+      "ETF",
+      1234567,
+      1189340,
+    ],
+    [
+      "demo-prev",
+      "Previdência PGBL",
+      "Itaú",
+      "SECURITY",
+      1876432,
+      1750890,
+    ],
+    [
+      "demo-coe",
+      "COE XP Estruturado",
+      "XP Investimentos",
+      "COE",
+      984321,
+      1000000,
+    ],
+    [
+      "demo-caixinha",
+      "Caixinha Reserva",
+      "Nubank",
+      "FIXED_INCOME",
+      642817,
+      620000,
+    ],
   ] as const;
   for (const position of positions) insert.run(...position);
 }
