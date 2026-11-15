@@ -1,3 +1,6 @@
+<img width="2252" height="1168" alt="Frame 4" src="https://github.com/user-attachments/assets/e158cf5d-3b85-45d5-98d4-2fa4e670e001" />
+
+
 # Clara Finance
 
 **Clara Finance** (`clara-finance`) é um aplicativo de finanças pessoais para acompanhar receitas, despesas, contas bancárias, faturas de cartão, investimentos e metas em um só lugar. Permite registrar lançamentos manualmente, organizar categorias e regras de classificação, acompanhar recorrências e consultar os resultados por período.
@@ -10,13 +13,18 @@ Construído com **Next.js 16, React, TypeScript, Tailwind CSS 4, shadcn/ui e Rec
 
 ## Telas
 
+<img width="1918" height="989" alt="image" src="https://github.com/user-attachments/assets/b1c57a40-12c5-44eb-b49b-1fe010096795" />
+
 Visão geral com dados fictícios: gastos por categoria, investimentos e faturas dos cartões.
 
-![Visão geral do Clara Finance no tema escuro](docs/screenshots/visao-geral.png)
+<img width="1919" height="990" alt="image" src="https://github.com/user-attachments/assets/91cc00b5-82a8-400c-a4d3-f8eaf651effd" />
 
 Metas com valores reservados, prazos e acompanhamento do progresso.
 
-![Página de metas do Clara Finance no tema escuro](docs/screenshots/metas.png)
+<img width="1919" height="988" alt="image" src="https://github.com/user-attachments/assets/2f4d6c1e-3056-4b36-9cc5-e57a5db01c3b" />
+
+Agente com componentes agênticos.
+
 
 ## Começar
 
