@@ -980,6 +980,44 @@ export function db() {
         .prepare("INSERT INTO schema_migrations(version) VALUES(35)")
         .run();
     })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=36").get()
+  )
+    database.transaction(() => {
+      const update = database.prepare(
+        "UPDATE investments SET balance=?, invested=? WHERE mode='demo' AND id=?",
+      );
+      for (const [id, balance, invested] of [
+        ["demo-bitcoin", 2847391, 2618452],
+        ["demo-tesouro", 3482176, 3190840],
+        ["demo-tesouro-selic", 2034587, 1927830],
+        ["demo-fund", 1523841, 1478920],
+      ] as const) {
+        update.run(balance, invested, id);
+      }
+      const insert = database.prepare(
+        "INSERT OR IGNORE INTO investments(id,mode,name,institution,type,balance,invested) VALUES(?,'demo',?,?,?,?,?)",
+      );
+      insert.run(
+        "demo-bbas3",
+        "BBAS3",
+        "XP Investimentos",
+        "EQUITY",
+        876543,
+        812340,
+      );
+      insert.run(
+        "demo-bova11",
+        "BOVA11",
+        "Clear",
+        "ETF",
+        1234567,
+        1189340,
+      );
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(36)")
+        .run();
+    })();
   globalDb.financeDb = database;
   globalDb.financeDbSchemaVersion = SCHEMA_VERSION;
   return database;
