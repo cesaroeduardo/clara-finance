@@ -3,9 +3,7 @@
 
 # Clara Finance
 
-**Clara Finance** (`clara-finance`) é um aplicativo de finanças pessoais para acompanhar receitas, despesas, contas bancárias, faturas de cartão, investimentos e metas em um só lugar. Permite registrar lançamentos manualmente, organizar categorias e regras de classificação, acompanhar recorrências e consultar os resultados por período.
-
-Repositório: [cesaroeduardo/clara-finance](https://github.com/cesaroeduardo/clara-finance).
+**Clara Finance** (`clara-finance`) é um aplicativo de finanças pessoais, com um design refinado e um agente integrado, feito para você cuidar do seu dinheiro (como a Vó Clarinda sempre ensinou). Nele você acompanha receitas, despesas, contas bancárias conectadas via open-finance, faturas de cartão, investimentos e metas em um só lugar. Também permite registrar lançamentos manualmente, organizar categorias e regras de classificação, acompanhar recorrências e consultar os resultados por período.
 
 O aplicativo roda no seu computador e armazena os dados em **SQLite local**. A integração com **Meu Pluggy** é opcional e importa contas, transações e investimentos autorizados por você. Também é possível testar a interface com dados fictícios, separados dos dados pessoais, sem configurar credenciais bancárias.
 
