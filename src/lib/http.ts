@@ -24,10 +24,16 @@ export function isLocalNetworkHost(hostname: string): boolean {
   return false;
 }
 
+/** Preview público (Vercel): libera hosts remotos só com opt-in explícito. */
+export function isAllowedRequestHost(hostname: string): boolean {
+  if (process.env.ALLOW_PUBLIC_PREVIEW === "true") return true;
+  return isLocalNetworkHost(hostname);
+}
+
 export function modeOf(request: NextRequest): Mode {
   const host = request.headers.get("host") || request.nextUrl.host;
   const hostname = new URL(`http://${host}`).hostname;
-  if (!isLocalNetworkHost(hostname))
+  if (!isAllowedRequestHost(hostname))
     throw new AppError(
       "Este aplicativo aceita apenas acesso na rede local.",
       403,

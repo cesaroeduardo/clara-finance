@@ -4,7 +4,11 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { NextRequest } from "next/server";
-import { isLocalNetworkHost, modeOf } from "../src/lib/http";
+import {
+  isAllowedRequestHost,
+  isLocalNetworkHost,
+  modeOf,
+} from "../src/lib/http";
 import {
   initializeMerchantAssets,
   listMerchantAssets,
@@ -35,6 +39,28 @@ test("rede local exige opt-in explicito e preserva bloqueio de hosts publicos", 
   } finally {
     if (previous === undefined) delete process.env.ALLOW_LAN_ACCESS;
     else process.env.ALLOW_LAN_ACCESS = previous;
+  }
+});
+
+test("preview público libera hosts remotos só com ALLOW_PUBLIC_PREVIEW", () => {
+  const previous = process.env.ALLOW_PUBLIC_PREVIEW;
+  try {
+    delete process.env.ALLOW_PUBLIC_PREVIEW;
+    assert.equal(isAllowedRequestHost("clara.cesaroeduardo.com"), false);
+    assert.throws(() =>
+      modeOf(new NextRequest("https://clara.cesaroeduardo.com/api/data")),
+    );
+    process.env.ALLOW_PUBLIC_PREVIEW = "true";
+    assert.equal(isAllowedRequestHost("clara.cesaroeduardo.com"), true);
+    assert.equal(
+      modeOf(
+        new NextRequest("https://clara.cesaroeduardo.com/api/data?mode=demo"),
+      ),
+      "demo",
+    );
+  } finally {
+    if (previous === undefined) delete process.env.ALLOW_PUBLIC_PREVIEW;
+    else process.env.ALLOW_PUBLIC_PREVIEW = previous;
   }
 });
 
