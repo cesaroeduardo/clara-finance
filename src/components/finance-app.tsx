@@ -187,7 +187,7 @@ export function FinanceApp() {
   const [theme, saveTheme] = useClaraTheme();
   const [demoEnabled, saveDemoEnabled] = usePreference(
     "clara-demo-enabled",
-    "false",
+    process.env.NEXT_PUBLIC_DEMO_DEFAULT === "true" ? "true" : "false",
   );
   const mode = demoEnabled === "true" ? "demo" : "personal";
   const dark = theme === "dark";

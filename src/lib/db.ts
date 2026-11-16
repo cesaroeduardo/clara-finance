@@ -89,12 +89,16 @@ export function db() {
     globalDb.financeDb.close();
     globalDb.financeDb = undefined;
   }
+  const onVercel = Boolean(process.env.VERCEL);
   const file =
     process.env.DATABASE_PATH ||
-    path.join(process.cwd(), "data", "finances.sqlite");
+    (onVercel
+      ? path.join("/tmp", "clara-finances.sqlite")
+      : path.join(process.cwd(), "data", "finances.sqlite"));
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const database = new Database(file);
-  database.pragma("journal_mode = WAL");
+  // Em serverless o filesystem é efêmero; DELETE evita arquivos -wal/-shm em /tmp.
+  database.pragma(onVercel ? "journal_mode = DELETE" : "journal_mode = WAL");
   database.pragma("foreign_keys = ON");
   database.pragma("busy_timeout = 5000");
   database.exec(
