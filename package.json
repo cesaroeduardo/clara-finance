@@ -2,6 +2,7 @@
   "name": "clara-finance",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "node scripts/serve.cjs dev",
     "dev:voice": "node scripts/with-xtts.cjs dev",
