@@ -68,7 +68,7 @@ export function listPlanMonths(
   return plans;
 }
 
-const SCHEMA_VERSION = 39;
+const SCHEMA_VERSION = 40;
 const globalDb = globalThis as unknown as {
   financeDb?: Database.Database;
   financeDbSchemaVersion?: number;
@@ -1102,6 +1102,143 @@ export function db() {
         .prepare("INSERT INTO schema_migrations(version) VALUES(39)")
         .run();
     })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=40").get()
+  )
+    database.transaction(() => {
+      database.exec(`
+        UPDATE plan_settings
+          SET monthly_limit=400000, fixed_cost=60000, monthly_savings=40000,
+              expected_salary=450000, expected_freelance=120000
+          WHERE mode='demo';
+        UPDATE plan_months
+          SET monthly_limit=400000, fixed_cost=60000, monthly_savings=40000,
+              expected_salary=450000, expected_freelance=120000
+          WHERE mode='demo';
+        UPDATE accounts SET balance=-86400, available_credit_limit=1413600
+          WHERE mode='demo' AND id='demo-credit';
+        UPDATE accounts SET balance=-51500, available_credit_limit=448500
+          WHERE mode='demo' AND id='demo-credit-sicredi';
+        UPDATE transactions SET amount=20000
+          WHERE mode='demo' AND id LIKE 'demo-nubank-phone-%';
+        UPDATE transactions SET amount=25000
+          WHERE mode='demo' AND id LIKE 'demo-nubank-sofa-%';
+        UPDATE transactions SET amount=15000
+          WHERE mode='demo' AND id LIKE 'demo-nubank-market-%';
+        UPDATE transactions SET amount=5590
+          WHERE mode='demo' AND id LIKE 'demo-nubank-streaming-%';
+        UPDATE transactions SET amount=18000
+          WHERE mode='demo' AND id LIKE 'demo-nubank-travel-%';
+        UPDATE transactions SET amount=20000
+          WHERE mode='demo' AND id LIKE 'demo-sicredi-notebook-%';
+        UPDATE transactions SET amount=15000
+          WHERE mode='demo' AND id LIKE 'demo-sicredi-market-%';
+        UPDATE transactions SET amount=12000
+          WHERE mode='demo' AND id LIKE 'demo-sicredi-fuel-%';
+        UPDATE transactions SET amount=4500
+          WHERE mode='demo' AND id LIKE 'demo-sicredi-restaurant-%';
+      `);
+      const update = database.prepare(
+        "UPDATE transactions SET amount=? WHERE mode='demo' AND id=?",
+      );
+      for (const [id, amount] of [
+        ["salary", 450000],
+        ["prev-salary", 450000],
+        ["freelance", 120000],
+        ["rent", 110000],
+        ["prev-rent", 110000],
+        ["smartfit", 10990],
+        ["prev-smartfit", 10990],
+        ["amil", 25000],
+        ["prev-amil", 25000],
+        ["market", 32000],
+        ["prev-market", 30100],
+        ["coffee", 1800],
+        ["uber", 2200],
+        ["netflix", 5590],
+        ["prev-netflix", 5590],
+        ["electric", 15000],
+        ["prev-electric", 14100],
+        ["internet", 9990],
+        ["prev-internet", 9390],
+        ["gym", 2190],
+        ["prev-gym", 2190],
+        ["condo", 35000],
+        ["prev-condo", 32900],
+        ["iphone", 20000],
+        ["prev-iphone", 20000],
+        ["sofa", 25000],
+        ["dinner", 7900],
+        ["pharmacy", 4500],
+        ["ifood", 3800],
+        ["prev-ifood", 3500],
+        ["mercadolivre", 6990],
+        ["cursor", 10000],
+        ["prev-cursor", 10000],
+        ["ride99", 1500],
+        ["youtube", 2490],
+        ["amazon", 4990],
+        ["barber", 5500],
+        ["petz", 8900],
+        ["adobe", 5500],
+        ["steam", 3990],
+        ["alura", 9900],
+        ["bank-fee", 990],
+        ["investment", 50000],
+      ] as const) {
+        update.run(amount, `demo-${id}`);
+      }
+      const currentMonth = monthKey();
+      const previousMonth = shiftMonth(currentMonth, -1);
+      const ensure = database.prepare(`
+        INSERT OR IGNORE INTO transactions(
+          id,mode,description,amount,kind,date,status,category,account_id,source,currency
+        ) VALUES(?,'demo',?,?,?,?,?,?,?,'manual','BRL')
+      `);
+      ensure.run(
+        "demo-smartfit",
+        "Smart Fit",
+        10990,
+        "expense",
+        `${currentMonth}-02`,
+        "paid",
+        "Saúde",
+        "demo-nubank",
+      );
+      ensure.run(
+        "demo-prev-smartfit",
+        "Smart Fit",
+        10990,
+        "expense",
+        `${previousMonth}-02`,
+        "paid",
+        "Saúde",
+        "demo-nubank",
+      );
+      ensure.run(
+        "demo-amil",
+        "AMIL Saúde",
+        25000,
+        "expense",
+        `${currentMonth}-04`,
+        "paid",
+        "Saúde",
+        "demo-nubank",
+      );
+      ensure.run(
+        "demo-prev-amil",
+        "AMIL Saúde",
+        25000,
+        "expense",
+        `${previousMonth}-04`,
+        "paid",
+        "Saúde",
+        "demo-nubank",
+      );
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(40)")
+        .run();
+    })();
   globalDb.financeDb = database;
   globalDb.financeDbSchemaVersion = SCHEMA_VERSION;
   return database;
@@ -1307,9 +1444,9 @@ function seedDemo(database: Database.Database) {
       "Ultravioleta",
       "Nubank",
       "CREDIT",
-      -214790,
+      -86400,
       "#5a1a8f",
-      1285210,
+      1413600,
       1500000,
     );
     account.run(
@@ -1317,9 +1454,9 @@ function seedDemo(database: Database.Database) {
       "Visa Internacional",
       "Sicredi",
       "CREDIT",
-      -98650,
+      -51500,
       "#3fb449",
-      401350,
+      448500,
       500000,
     );
     const add = database.prepare(
@@ -1329,7 +1466,7 @@ function seedDemo(database: Database.Database) {
       [
         "salary",
         "Salário",
-        1250000,
+        450000,
         "income",
         "05",
         "paid",
@@ -1342,7 +1479,7 @@ function seedDemo(database: Database.Database) {
       [
         "freelance",
         "Projeto freelance",
-        180000,
+        120000,
         "income",
         "08",
         "paid",
@@ -1355,7 +1492,7 @@ function seedDemo(database: Database.Database) {
       [
         "rent",
         "Aluguel",
-        150000,
+        110000,
         "expense",
         "02",
         "paid",
@@ -1381,7 +1518,7 @@ function seedDemo(database: Database.Database) {
       [
         "amil",
         "AMIL Saúde",
-        45000,
+        25000,
         "expense",
         "04",
         "paid",
@@ -1394,7 +1531,7 @@ function seedDemo(database: Database.Database) {
       [
         "market",
         "Carrefour",
-        48762,
+        32000,
         "expense",
         "09",
         "paid",
@@ -1407,7 +1544,7 @@ function seedDemo(database: Database.Database) {
       [
         "coffee",
         "Starbucks",
-        2890,
+        1800,
         "expense",
         "10",
         "paid",
@@ -1420,7 +1557,7 @@ function seedDemo(database: Database.Database) {
       [
         "uber",
         "Uber",
-        2470,
+        2200,
         "expense",
         "09",
         "paid",
@@ -1446,7 +1583,7 @@ function seedDemo(database: Database.Database) {
       [
         "electric",
         "RGE Sul",
-        42000,
+        15000,
         "expense",
         "12",
         "pending",
@@ -1459,7 +1596,7 @@ function seedDemo(database: Database.Database) {
       [
         "internet",
         "Unifique",
-        18000,
+        9990,
         "expense",
         "15",
         "pending",
@@ -1485,7 +1622,7 @@ function seedDemo(database: Database.Database) {
       [
         "condo",
         "Condomínio",
-        95000,
+        35000,
         "expense",
         "20",
         "pending",
@@ -1498,7 +1635,7 @@ function seedDemo(database: Database.Database) {
       [
         "iphone",
         "Apple iPhone 11/12",
-        40000,
+        20000,
         "expense",
         "06",
         "paid",
@@ -1511,7 +1648,7 @@ function seedDemo(database: Database.Database) {
       [
         "sofa",
         "Magazine Luiza Sofá 1/10",
-        65000,
+        25000,
         "expense",
         "10",
         "pending",
@@ -1524,7 +1661,7 @@ function seedDemo(database: Database.Database) {
       [
         "dinner",
         "Outback",
-        18650,
+        7900,
         "expense",
         "07",
         "paid",
@@ -1537,7 +1674,7 @@ function seedDemo(database: Database.Database) {
       [
         "pharmacy",
         "Droga Raia",
-        9780,
+        4500,
         "expense",
         "06",
         "paid",
@@ -1550,7 +1687,7 @@ function seedDemo(database: Database.Database) {
       [
         "ifood",
         "iFood",
-        6740,
+        3800,
         "expense",
         "13",
         "paid",
@@ -1563,7 +1700,7 @@ function seedDemo(database: Database.Database) {
       [
         "mercadolivre",
         "Mercado Livre",
-        15990,
+        6990,
         "expense",
         "14",
         "paid",
@@ -1589,7 +1726,7 @@ function seedDemo(database: Database.Database) {
       [
         "ride99",
         "99 App",
-        1850,
+        1500,
         "expense",
         "17",
         "paid",
@@ -1602,7 +1739,7 @@ function seedDemo(database: Database.Database) {
       [
         "youtube",
         "YouTube Premium",
-        3490,
+        2490,
         "expense",
         "19",
         "paid",
@@ -1615,7 +1752,7 @@ function seedDemo(database: Database.Database) {
       [
         "amazon",
         "Amazon",
-        8990,
+        4990,
         "expense",
         "21",
         "paid",
@@ -1628,7 +1765,7 @@ function seedDemo(database: Database.Database) {
       [
         "barber",
         "Barbearia Corte Fino",
-        6500,
+        5500,
         "expense",
         "03",
         "paid",
@@ -1641,7 +1778,7 @@ function seedDemo(database: Database.Database) {
       [
         "petz",
         "Petz",
-        18990,
+        8900,
         "expense",
         "11",
         "paid",
@@ -1654,7 +1791,7 @@ function seedDemo(database: Database.Database) {
       [
         "adobe",
         "Adobe Creative Cloud",
-        8900,
+        5500,
         "expense",
         "05",
         "paid",
@@ -1667,7 +1804,7 @@ function seedDemo(database: Database.Database) {
       [
         "steam",
         "Steam",
-        12990,
+        3990,
         "expense",
         "22",
         "paid",
@@ -1693,7 +1830,7 @@ function seedDemo(database: Database.Database) {
       [
         "bank-fee",
         "Tarifa TED",
-        1250,
+        990,
         "expense",
         "23",
         "paid",
@@ -1706,7 +1843,7 @@ function seedDemo(database: Database.Database) {
       [
         "investment",
         "Aporte na reserva",
-        200000,
+        50000,
         "transfer",
         "06",
         "paid",
@@ -1850,7 +1987,7 @@ function seedDemo(database: Database.Database) {
         `INSERT INTO plan_settings(
            mode, monthly_limit, fixed_cost, monthly_savings, expected_salary, expected_freelance
          )
-         VALUES('demo', 700000, 250000, 150000, 450000, 120000)
+         VALUES('demo', 400000, 60000, 40000, 450000, 120000)
          ON CONFLICT(mode) DO UPDATE SET
            monthly_limit=excluded.monthly_limit,
            fixed_cost=excluded.fixed_cost,
@@ -1865,7 +2002,7 @@ function seedDemo(database: Database.Database) {
         `INSERT INTO plan_months(
            mode, month, monthly_limit, fixed_cost, monthly_savings,
            expected_salary, expected_freelance
-         ) VALUES('demo', ?, 700000, 250000, 150000, 450000, 120000)
+         ) VALUES('demo', ?, 400000, 60000, 40000, 450000, 120000)
          ON CONFLICT(mode, month) DO UPDATE SET
            monthly_limit=excluded.monthly_limit,
            fixed_cost=excluded.fixed_cost,
