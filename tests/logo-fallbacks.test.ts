@@ -19,6 +19,8 @@ test("sem chave do Logo.dev usa fallbacks locais do demo", () => {
     assert.equal(marketLogoUrl("ibov"), "/market/b3.png");
     assert.equal(marketLogoUrl("aapl"), "/market/apple.png");
     assert.equal(marketLogoUrl("bbas3"), "/market/bb.png");
+    assert.equal(marketLogoUrl("btc"), "/market/bitcoin.png");
+    assert.match(String(marketLogoUrl("usd")), /flagcdn\.com/);
   } finally {
     if (previous === undefined) delete process.env.NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY;
     else process.env.NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY = previous;

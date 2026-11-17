@@ -28,6 +28,7 @@ const logos = [
   { dir: "market", file: "bb.png", domain: "bb.com.br", theme: "light" },
   { dir: "market", file: "cpfl.png", domain: "cpfl.com.br" },
   { dir: "market", file: "b3.png", domain: "b3.com.br" },
+  { dir: "market", file: "bitcoin.png", domain: "bitcoin.org" },
   { dir: "market", file: "spacex.png", domain: "spacex.com" },
   // Estabelecimentos do demo
   { dir: "merchants", file: "smartfit.png", domain: "smartfit.com.br" },

@@ -146,5 +146,9 @@
   "merchants/petz.png": {
     "domain": "petz.com.br",
     "theme": null
+  },
+  "market/bitcoin.png": {
+    "domain": "bitcoin.org",
+    "theme": null
   }
 }

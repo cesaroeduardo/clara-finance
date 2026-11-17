@@ -1,3 +1,5 @@
+import { demoFxFallbackQuotes } from "./market-fx-fallback";
+
 export type MarketHistoryPoint = {
   date: string;
   price: number;
@@ -67,6 +69,8 @@ export const MARKET_LOGOS: Record<string, MarketLogoConfig> = {
   cpfe3: { domain: "cpfl.com.br", src: "/market/cpfl.png" },
   ibov: { src: "/market/b3.png", fit: "contain" },
   spx: { src: "flag:us", fit: "cover" },
+  usd: { src: "flag:us", fit: "cover" },
+  btc: { domain: "bitcoin.org", src: "/market/bitcoin.png", fit: "contain" },
   spacex: { domain: "spacex.com", src: "/market/spacex.png" },
 };
 
@@ -531,31 +535,40 @@ function b3Instrument(ticker: string): YahooInstrument {
 }
 
 async function getFxQuotes(): Promise<MarketQuote[]> {
-  const [latest, usdDaily, btcDaily] = await Promise.all([
-    fetchJson<Record<string, AwesomeQuote>>(
+  try {
+    const latest = await fetchJson<Record<string, AwesomeQuote>>(
       `${AWESOME_BASE}/last/USD-BRL,BTC-BRL`,
-    ),
-    fetchJson<AwesomeDaily[]>(`${AWESOME_BASE}/daily/USD-BRL/30`),
-    fetchJson<AwesomeDaily[]>(`${AWESOME_BASE}/daily/BTC-BRL/30`),
-  ]);
-  return [
-    toFxQuote(
-      "usd",
-      "Dólar",
-      "USD",
-      latest.USDBRL,
-      parseAwesomeHistory(usdDaily),
-      "Cotação do dólar americano em reais. Fonte: AwesomeAPI.",
-    ),
-    toFxQuote(
-      "btc",
-      "Bitcoin",
-      "BTC",
-      latest.BTCBRL,
-      parseAwesomeHistory(btcDaily),
-      "Cotação do Bitcoin em reais. Fonte: AwesomeAPI.",
-    ),
-  ];
+    );
+    const [usdDaily, btcDaily] = await Promise.all([
+      fetchJson<AwesomeDaily[]>(`${AWESOME_BASE}/daily/USD-BRL/30`).catch(
+        () => [] as AwesomeDaily[],
+      ),
+      fetchJson<AwesomeDaily[]>(`${AWESOME_BASE}/daily/BTC-BRL/30`).catch(
+        () => [] as AwesomeDaily[],
+      ),
+    ]);
+    if (!latest.USDBRL || !latest.BTCBRL) return demoFxFallbackQuotes();
+    return [
+      toFxQuote(
+        "usd",
+        "Dólar",
+        "USD",
+        latest.USDBRL,
+        parseAwesomeHistory(usdDaily),
+        "Cotação do dólar americano em reais. Fonte: AwesomeAPI.",
+      ),
+      toFxQuote(
+        "btc",
+        "Bitcoin",
+        "BTC",
+        latest.BTCBRL,
+        parseAwesomeHistory(btcDaily),
+        "Cotação do Bitcoin em reais. Fonte: AwesomeAPI.",
+      ),
+    ];
+  } catch {
+    return demoFxFallbackQuotes();
+  }
 }
 
 export async function getMarketQuotes(options?: {
@@ -581,7 +594,7 @@ export async function getMarketQuotes(options?: {
   const [equities, featured, fx] = await Promise.all([
     Promise.all(portfolioPromises),
     Promise.all(featuredPromises),
-    getFxQuotes().catch(() => [] as MarketQuote[]),
+    getFxQuotes(),
   ]);
 
   const byId = new Map<string, MarketQuote>();
