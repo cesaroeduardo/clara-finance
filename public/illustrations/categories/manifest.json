@@ -78,5 +78,10 @@
     "alt": "Hair Clipper",
     "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-sJjJk7TerWIrNq2XCFB98gh1heHj7a.png",
     "file": "barbeiro.webp"
+  },
+  "educacao": {
+    "alt": "Graduation Cap",
+    "url": "https://lftz25oez4aqbxpq.public.blob.vercel-storage.com/image-iZKfmUSHuQtDn1W2NBIwoLZ0epsnzZ.png",
+    "file": "educacao.webp"
   }
 }

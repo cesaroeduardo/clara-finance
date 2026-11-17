@@ -68,7 +68,7 @@ export function listPlanMonths(
   return plans;
 }
 
-const SCHEMA_VERSION = 38;
+const SCHEMA_VERSION = 39;
 const globalDb = globalThis as unknown as {
   financeDb?: Database.Database;
   financeDbSchemaVersion?: number;
@@ -1082,6 +1082,26 @@ export function db() {
         .prepare("INSERT INTO schema_migrations(version) VALUES(38)")
         .run();
     })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=39").get()
+  )
+    database.transaction(() => {
+      database.exec(`
+        UPDATE plan_settings
+          SET expected_salary=450000, expected_freelance=120000
+          WHERE mode='demo';
+        UPDATE plan_months
+          SET expected_salary=450000, expected_freelance=120000
+          WHERE mode='demo';
+        UPDATE categories
+          SET image_slug='educacao'
+          WHERE name='Educação'
+            AND (image_slug IS NULL OR image_slug='');
+      `);
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(39)")
+        .run();
+    })();
   globalDb.financeDb = database;
   globalDb.financeDbSchemaVersion = SCHEMA_VERSION;
   return database;
@@ -1830,7 +1850,7 @@ function seedDemo(database: Database.Database) {
         `INSERT INTO plan_settings(
            mode, monthly_limit, fixed_cost, monthly_savings, expected_salary, expected_freelance
          )
-         VALUES('demo', 700000, 250000, 150000, 900000, 100000)
+         VALUES('demo', 700000, 250000, 150000, 450000, 120000)
          ON CONFLICT(mode) DO UPDATE SET
            monthly_limit=excluded.monthly_limit,
            fixed_cost=excluded.fixed_cost,
@@ -1845,7 +1865,7 @@ function seedDemo(database: Database.Database) {
         `INSERT INTO plan_months(
            mode, month, monthly_limit, fixed_cost, monthly_savings,
            expected_salary, expected_freelance
-         ) VALUES('demo', ?, 700000, 250000, 150000, 900000, 100000)
+         ) VALUES('demo', ?, 700000, 250000, 150000, 450000, 120000)
          ON CONFLICT(mode, month) DO UPDATE SET
            monthly_limit=excluded.monthly_limit,
            fixed_cost=excluded.fixed_cost,

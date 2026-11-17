@@ -20,6 +20,7 @@ const picks = {
   software: { q: "laptop", prefer: /laptop|notebook|macbook/i },
   pets: { q: "dog", prefer: /^dog$|puppy|corgi|retriever/i },
   jogos: { q: "game controller", prefer: /controller|gamepad|joystick/i },
+  educacao: { q: "graduation cap", prefer: /graduation cap|graduation|diploma/i },
   taxas: { q: "receipt", prefer: /receipt|invoice/i },
   investimentos: { q: "coins", prefer: /coin|stack of coins|gold coins/i },
   transferencias: { q: "wallet", prefer: /wallet|money clip/i },

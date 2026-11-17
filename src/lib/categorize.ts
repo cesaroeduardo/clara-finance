@@ -57,6 +57,7 @@ export const categoryImages: Record<string, string> = {
   Software: "software",
   Pets: "pets",
   Jogos: "jogos",
+  Educação: "educacao",
   Taxas: "taxas",
   Investimentos: "investimentos",
   Transferências: "transferencias",
