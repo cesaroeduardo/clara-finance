@@ -1,0 +1,150 @@
+{
+  "institutions/nubank.png": {
+    "domain": "nubank.com.br",
+    "theme": null
+  },
+  "institutions/itau.png": {
+    "domain": "itau.com.br",
+    "theme": "light"
+  },
+  "institutions/btg.png": {
+    "domain": "btgpactual.com",
+    "theme": null
+  },
+  "institutions/xp.png": {
+    "domain": "xpi.com.br",
+    "theme": null
+  },
+  "institutions/clear.png": {
+    "domain": "clear.com.br",
+    "theme": null
+  },
+  "market/apple.png": {
+    "domain": "apple.com",
+    "theme": "light"
+  },
+  "market/nvidia.png": {
+    "domain": "nvidia.com",
+    "theme": null
+  },
+  "market/bb.png": {
+    "domain": "bb.com.br",
+    "theme": "light"
+  },
+  "market/cpfl.png": {
+    "domain": "cpfl.com.br",
+    "theme": null
+  },
+  "market/b3.png": {
+    "domain": "b3.com.br",
+    "theme": null
+  },
+  "market/spacex.png": {
+    "domain": "spacex.com",
+    "theme": null
+  },
+  "merchants/smartfit.png": {
+    "domain": "smartfit.com.br",
+    "theme": null
+  },
+  "merchants/amil.png": {
+    "domain": "amil.com.br",
+    "theme": null
+  },
+  "merchants/carrefour.png": {
+    "domain": "carrefour.com.br",
+    "theme": null
+  },
+  "merchants/starbucks.png": {
+    "domain": "starbucks.com",
+    "theme": null
+  },
+  "merchants/uber.png": {
+    "domain": "uber.com",
+    "theme": null
+  },
+  "merchants/netflix.png": {
+    "domain": "netflix.com",
+    "theme": null
+  },
+  "merchants/rge.png": {
+    "domain": "rge-rs.com.br",
+    "theme": null
+  },
+  "merchants/unifique.png": {
+    "domain": "unifique.com.br",
+    "theme": null
+  },
+  "merchants/spotify.png": {
+    "domain": "spotify.com",
+    "theme": null
+  },
+  "merchants/apple.png": {
+    "domain": "apple.com",
+    "theme": "light"
+  },
+  "merchants/magalu.png": {
+    "domain": "magazineluiza.com.br",
+    "theme": null
+  },
+  "merchants/outback.png": {
+    "domain": "outback.com",
+    "theme": null
+  },
+  "merchants/drogaraia.png": {
+    "domain": "drogaraia.com.br",
+    "theme": null
+  },
+  "merchants/ifood.png": {
+    "domain": "ifood.com.br",
+    "theme": null
+  },
+  "merchants/mercadolivre.png": {
+    "domain": "mercadolivre.com.br",
+    "theme": null
+  },
+  "merchants/cursor.png": {
+    "domain": "cursor.com",
+    "theme": null
+  },
+  "merchants/99.png": {
+    "domain": "99app.com",
+    "theme": null
+  },
+  "merchants/youtube.png": {
+    "domain": "youtube.com",
+    "theme": null
+  },
+  "merchants/amazon.png": {
+    "domain": "amazon.com.br",
+    "theme": null
+  },
+  "merchants/steam.png": {
+    "domain": "steampowered.com",
+    "theme": null
+  },
+  "merchants/shell.png": {
+    "domain": "shell.com.br",
+    "theme": null
+  },
+  "merchants/latam.png": {
+    "domain": "latamairlines.com",
+    "theme": null
+  },
+  "merchants/nubank.png": {
+    "domain": "nubank.com.br",
+    "theme": null
+  },
+  "merchants/adobe.png": {
+    "domain": "adobe.com",
+    "theme": null
+  },
+  "merchants/alura.png": {
+    "domain": "alura.com.br",
+    "theme": null
+  },
+  "merchants/petz.png": {
+    "domain": "petz.com.br",
+    "theme": null
+  }
+}

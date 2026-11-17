@@ -106,7 +106,18 @@ const institutionDomains: ReadonlyArray<{ match: string; domain: string }> = [
   { match: "c6", domain: "c6bank.com.br" },
   { match: "btg", domain: "btgpactual.com" },
   { match: "xp", domain: "xpi.com.br" },
+  { match: "clear", domain: "clear.com.br" },
 ];
+
+/** Fallback local para preview/demo sem `NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY`. */
+const institutionLocalLogos: Record<string, string> = {
+  "nubank.com.br": "/institutions/nubank.png",
+  "sicredi.com.br": "/institutions/sicredi.png",
+  "itau.com.br": "/institutions/itau.png",
+  "btgpactual.com": "/institutions/btg.png",
+  "xpi.com.br": "/institutions/xp.png",
+  "clear.com.br": "/institutions/clear.png",
+};
 
 export function institutionDomainFor(institution: string) {
   const text = normalize(institution || "");
@@ -117,18 +128,21 @@ export function institutionDomainFor(institution: string) {
 }
 
 export function institutionLogoUrl(institution: string, size = 64) {
-  if (normalize(institution || "").includes("sicredi"))
-    return "/institutions/sicredi.png";
   const domain = institutionDomainFor(institution);
+  const local = domain ? institutionLocalLogos[domain] || null : null;
+  // Arquivo oficial do Sicredi: sempre local.
+  if (domain === "sicredi.com.br") return local;
   const token = process.env.NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY;
-  if (!domain || !token) return null;
-  const params = new URLSearchParams({
-    token,
-    size: String(size),
-    format: "png",
-    fallback: "404",
-  });
-  return `https://img.logo.dev/${domain}?${params.toString()}`;
+  if (domain && token) {
+    const params = new URLSearchParams({
+      token,
+      size: String(size),
+      format: "png",
+      fallback: "404",
+    });
+    return `https://img.logo.dev/${domain}?${params.toString()}`;
+  }
+  return local;
 }
 
 /** Corrige instituições agregadoras já gravadas, usando o nome da conexão. */

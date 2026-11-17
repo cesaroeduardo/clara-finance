@@ -90,7 +90,7 @@ Sem `NEXT_PUBLIC_CLARA_XTTS=true`, o modo voz não chama o XTTS. O modelo XTTS �
 
 ### Configurar o Logo.dev (opcional)
 
-O Logo.dev fornece logos de instituições, estabelecimentos e algumas empresas exibidas no painel de mercado. O aplicativo funciona sem essa integração: quando não há logo disponível, usa os ícones e identificações locais. Arquivos locais, como o símbolo do Sicredi, não dependem dessa chave.
+O Logo.dev fornece logos de instituições, estabelecimentos e algumas empresas exibidas no painel de mercado. O aplicativo funciona sem essa integração: o demo e o preview usam PNGs locais em `public/institutions`, `public/merchants` e `public/market` (regeneráveis com `scripts/download-demo-logos.mjs`). O símbolo do Sicredi continua sendo o arquivo oficial da marca.
 
 1. Crie uma conta no [Logo.dev](https://www.logo.dev/) e abra [API keys no dashboard](https://www.logo.dev/dashboard/api-keys).
 2. Copie a **Publishable key**, que começa com `pk_`. A **Secret key** (`sk_`) não é usada neste projeto.

@@ -49,15 +49,25 @@ function flagCdnUrl(country: "br" | "us", size: number) {
   return `https://flagcdn.com/w${width}/${country}.png`;
 }
 
-/** Logos por id/símbolo do indicador. */
+/** Logos por id/símbolo do indicador (`src` = fallback local sem Logo.dev). */
 export const MARKET_LOGOS: Record<string, MarketLogoConfig> = {
-  aapl: { domain: "apple.com", theme: "light", fit: "contain" },
-  nvda: { domain: "nvidia.com" },
-  bbas3: { domain: "bb.com.br", theme: "light", fit: "contain" },
-  cpfe3: { domain: "cpfl.com.br" },
-  ibov: { src: "flag:br", fit: "cover" },
+  aapl: {
+    domain: "apple.com",
+    src: "/market/apple.png",
+    theme: "light",
+    fit: "contain",
+  },
+  nvda: { domain: "nvidia.com", src: "/market/nvidia.png" },
+  bbas3: {
+    domain: "bb.com.br",
+    src: "/market/bb.png",
+    theme: "light",
+    fit: "contain",
+  },
+  cpfe3: { domain: "cpfl.com.br", src: "/market/cpfl.png" },
+  ibov: { src: "/market/b3.png", fit: "contain" },
   spx: { src: "flag:us", fit: "cover" },
-  spacex: { domain: "spacex.com" },
+  spacex: { domain: "spacex.com", src: "/market/spacex.png" },
 };
 
 const KNOWN_B3: Record<
@@ -155,20 +165,20 @@ export function marketLogoUrl(idOrSymbol: string, size = 64) {
   if (!config) return null;
   if (config.src === "flag:br") return flagCdnUrl("br", size);
   if (config.src === "flag:us") return flagCdnUrl("us", size);
-  if (config.src) return config.src;
-  if (!config.domain) return null;
   const token = process.env.NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY;
-  if (!token) return null;
-  const params = new URLSearchParams({
-    token,
-    size: String(size),
-    format: "png",
-    fallback: "404",
-    retina: "true",
-  });
-  if (config.theme) params.set("theme", config.theme);
-  if (config.greyscale) params.set("greyscale", "true");
-  return `https://img.logo.dev/${config.domain}?${params.toString()}`;
+  if (config.domain && token) {
+    const params = new URLSearchParams({
+      token,
+      size: String(size),
+      format: "png",
+      fallback: "404",
+      retina: "true",
+    });
+    if (config.theme) params.set("theme", config.theme);
+    if (config.greyscale) params.set("greyscale", "true");
+    return `https://img.logo.dev/${config.domain}?${params.toString()}`;
+  }
+  return config.src || null;
 }
 
 type AwesomeQuote = {
