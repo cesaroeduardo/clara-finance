@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+const args = new Set(process.argv.slice(2));
+const format = args.has("--webp") ? "webp" : args.has("--mp4") ? "mp4" : "webp";
+const theme = args.has("--dark") ? "dark" : "light";
+
 const BASE =
   "M9 0h4v1h-4zM8 1h6v1h-6zM7 2h8v1h-8zM7 3h8v1h-8zM8 4h6v1h-6zM6 5h10v1h-10zM5 6h12v1h-12zM4 7h14v1h-14zM3 8h7v1h-7zM12 8h7v1h-7zM3 9h6v1h-6zM13 9h6v1h-6zM2 10h6v1h-6zM14 10h6v1h-6zM2 11h5v1h-5zM15 11h5v1h-5zM1 12h5v1h-5zM16 12h5v1h-5zM1 13h4v1h-4zM17 13h4v1h-4zM0 14h4v1h-4zM18 14h4v1h-4zM0 15h3v1h-3zM4 15h6v1h-6zM12 15h6v1h-6zM19 15h3v1h-3zM0 16h2v1h-2zM3 16h1v1h-1zM10 16h2v1h-2zM18 16h1v1h-1zM20 16h2v1h-2zM0 17h2v1h-2zM3 17h1v1h-1zM10 17h2v1h-2zM18 17h1v1h-1zM20 17h2v1h-2zM0 18h2v1h-2zM3 18h1v1h-1zM10 18h2v1h-2zM18 18h1v1h-1zM20 18h2v1h-2zM0 19h2v1h-2zM3 19h1v1h-1zM10 19h2v1h-2zM18 19h1v1h-1zM20 19h2v1h-2zM1 20h1v1h-1zM4 20h6v1h-6zM12 20h6v1h-6zM20 20h1v1h-1zM1 21h1v1h-1zM20 21h1v1h-1zM2 22h1v1h-1zM10 22h2v1h-2zM19 22h1v1h-1zM3 23h1v1h-1zM18 23h1v1h-1zM4 24h2v1h-2zM16 24h2v1h-2zM6 25h10v1h-10z";
 
@@ -23,18 +27,21 @@ const markPxH = MARK_H * SCALE;
 const ox = Math.floor((SIZE - markPxW) / 2);
 const oy = Math.floor((SIZE - markPxH) / 2);
 
+const bg = theme === "light" ? "#ffffff" : "#000000";
+const fg = theme === "light" ? "#000000" : "#ffffff";
+
 function svgFor(eyes) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
-  <rect width="${SIZE}" height="${SIZE}" fill="#000000"/>
-  <g transform="translate(${ox} ${oy}) scale(${SCALE})" fill="#ffffff" shape-rendering="crispEdges">
+  <rect width="${SIZE}" height="${SIZE}" fill="${bg}"/>
+  <g transform="translate(${ox} ${oy}) scale(${SCALE})" fill="${fg}" shape-rendering="crispEdges">
     <path d="${BASE}"/>
     <path d="${eyes}"/>
   </g>
 </svg>`;
 }
 
-const outDir = path.join(ROOT, "exports", "clara-mark-blink-frames");
+const outDir = path.join(ROOT, "exports", `clara-mark-blink-frames-${theme}`);
 fs.mkdirSync(outDir, { recursive: true });
 
 const openPath = path.join(outDir, "open.png");
@@ -64,31 +71,56 @@ for (let c = 0; c < 2; c++) {
 lines.push(`file '${path.resolve(outDir, "open.png").replaceAll("\\", "/")}'`);
 fs.writeFileSync(listPath, lines.join("\n"));
 
-const outMp4 = path.join(ROOT, "exports", "clara-mark-blink.mp4");
-execFileSync(
-  "ffmpeg",
-  [
-    "-y",
-    "-f",
-    "concat",
-    "-safe",
-    "0",
-    "-i",
-    listPath,
-    "-fps_mode",
-    "cfr",
-    "-r",
-    "30",
-    "-pix_fmt",
-    "yuv420p",
-    "-c:v",
-    "libx264",
-    "-movflags",
-    "+faststart",
-    outMp4,
-  ],
-  { stdio: "inherit" },
-);
+const suffix = theme === "light" ? "-light" : "";
+const outFile = path.join(ROOT, "exports", `clara-mark-blink${suffix}.${format}`);
 
-const st = fs.statSync(outMp4);
-console.log(`Wrote ${outMp4} (${Math.round(st.size / 1024)} KB)`);
+const ffmpegArgs =
+  format === "webp"
+    ? [
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        listPath,
+        "-fps_mode",
+        "cfr",
+        "-r",
+        "30",
+        "-c:v",
+        "libwebp",
+        "-quality",
+        "90",
+        "-compression_level",
+        "6",
+        "-loop",
+        "0",
+        "-an",
+        outFile,
+      ]
+    : [
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        listPath,
+        "-fps_mode",
+        "cfr",
+        "-r",
+        "30",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:v",
+        "libx264",
+        "-movflags",
+        "+faststart",
+        outFile,
+      ];
+
+execFileSync("ffmpeg", ffmpegArgs, { stdio: "inherit" });
+
+const st = fs.statSync(outFile);
+console.log(`Wrote ${outFile} (${Math.round(st.size / 1024)} KB)`);
