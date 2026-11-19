@@ -527,16 +527,29 @@ export function biggestExpenseInsight(
   };
 }
 
+function categoryCatchphrase(category: string) {
+  if (category === "Alimentação") {
+    return "Mas é isso aí, a gente tem que comer bem.";
+  }
+  if (category === "Compras") {
+    return "O importante é a gente ter nossas coisinhas.";
+  }
+  return null;
+}
+
 export function biggestExpenseReply(card: ClaraBiggestExpenseCard) {
   const amount = money(
     card.transaction.amount,
     card.transaction.currency || "BRL",
   );
-  return [
+  const parts = [
     `Achei o maior gasto de ${card.monthLabel}, meu bem:`,
     `${card.transaction.description}: ${amount}.`,
     `Isso foi ${card.sharePercent}% das suas saídas do mês (${money(card.monthExpenseTotal)} no total). Olha o cartão abaixo com o detalhe.`,
-  ].join(" ");
+  ];
+  const phrase = categoryCatchphrase(card.transaction.category);
+  if (phrase) parts.push(phrase);
+  return parts.join(" ");
 }
 
 export function emptyBiggestExpenseReply(month: string) {
@@ -864,16 +877,20 @@ export function categorySpendReply(card: ClaraCategorySpendCard) {
     if (!card.focusAmount) {
       return `Em ${card.monthLabel} não vejo gastos em ${card.focusCategory}, meu bem.`;
     }
-    return `Em ${card.monthLabel}, ${card.focusCategory} somou ${money(card.focusAmount)}.`;
+    const base = `Em ${card.monthLabel}, ${card.focusCategory} somou ${money(card.focusAmount)}.`;
+    const phrase = categoryCatchphrase(card.focusCategory);
+    return phrase ? `${base} ${phrase}` : base;
   }
   if (card.categories.length === 0) {
     return `Em ${card.monthLabel} ainda não tem gastos por categoria pra eu mostrar.`;
   }
   const top = card.categories[0]!;
-  return [
+  const base = [
     `Em ${card.monthLabel}, o maior bloco foi ${top.name} (${money(top.amount)}, ${top.sharePercent}% das saídas).`,
     `Total categorizado: ${money(card.total)}.`,
   ].join(" ");
+  const phrase = categoryCatchphrase(top.name);
+  return phrase ? `${base} ${phrase}` : base;
 }
 
 export function goalsInsight(data: FinanceData): ClaraGoalsCard {

@@ -68,7 +68,7 @@ export function listPlanMonths(
   return plans;
 }
 
-const SCHEMA_VERSION = 40;
+const SCHEMA_VERSION = 43;
 const globalDb = globalThis as unknown as {
   financeDb?: Database.Database;
   financeDbSchemaVersion?: number;
@@ -1239,6 +1239,84 @@ export function db() {
         .prepare("INSERT INTO schema_migrations(version) VALUES(40)")
         .run();
     })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=41").get()
+  )
+    database.transaction(() => {
+      const update = database.prepare(
+        "UPDATE transactions SET amount=? WHERE mode='demo' AND id=?",
+      );
+      update.run(185000, "demo-market");
+      update.run(174000, "demo-prev-market");
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(41)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=42").get()
+  )
+    database.transaction(() => {
+      const update = database.prepare(
+        "UPDATE transactions SET amount=? WHERE mode='demo' AND id=?",
+      );
+      for (const [id, amount] of [
+        ["market", 140000],
+        ["prev-market", 131600],
+        ["rent", 100000],
+        ["prev-rent", 100000],
+        ["condo", 15000],
+        ["prev-condo", 14100],
+        ["electric", 8000],
+        ["prev-electric", 7520],
+        ["internet", 4000],
+        ["prev-internet", 3760],
+        ["sofa", 3000],
+      ] as const) {
+        update.run(amount, `demo-${id}`);
+      }
+      database
+        .prepare(
+          `DELETE FROM transactions
+           WHERE mode='demo' AND (
+             id LIKE 'demo-nubank-market-%' OR id LIKE 'demo-sicredi-market-%'
+           )`,
+        )
+        .run();
+      database
+        .prepare(
+          `UPDATE transactions SET amount=3000
+           WHERE mode='demo' AND id LIKE 'demo-nubank-sofa-%'`,
+        )
+        .run();
+      database
+        .prepare(
+          "UPDATE accounts SET balance=?, available_credit_limit=? WHERE mode='demo' AND id=?",
+        )
+        .run(-46590, 1453410, "demo-credit");
+      database
+        .prepare(
+          "UPDATE accounts SET balance=?, available_credit_limit=? WHERE mode='demo' AND id=?",
+        )
+        .run(-36500, 463500, "demo-credit-sicredi");
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(42)")
+        .run();
+    })();
+  if (
+    !database.prepare("SELECT 1 FROM schema_migrations WHERE version=43").get()
+  )
+    database.transaction(() => {
+      database
+        .prepare(
+          `UPDATE transactions
+           SET date=printf('%s-10', substr(date, 1, 7))
+           WHERE mode='demo' AND id IN ('demo-condo', 'demo-prev-condo')`,
+        )
+        .run();
+      database
+        .prepare("INSERT INTO schema_migrations(version) VALUES(43)")
+        .run();
+    })();
   globalDb.financeDb = database;
   globalDb.financeDbSchemaVersion = SCHEMA_VERSION;
   return database;
@@ -1492,7 +1570,7 @@ function seedDemo(database: Database.Database) {
       [
         "rent",
         "Aluguel",
-        110000,
+        100000,
         "expense",
         "02",
         "paid",
@@ -1531,7 +1609,7 @@ function seedDemo(database: Database.Database) {
       [
         "market",
         "Carrefour",
-        32000,
+        140000,
         "expense",
         "09",
         "paid",
@@ -1583,7 +1661,7 @@ function seedDemo(database: Database.Database) {
       [
         "electric",
         "RGE Sul",
-        15000,
+        8000,
         "expense",
         "12",
         "pending",
@@ -1596,7 +1674,7 @@ function seedDemo(database: Database.Database) {
       [
         "internet",
         "Unifique",
-        9990,
+        4000,
         "expense",
         "15",
         "pending",
@@ -1622,9 +1700,9 @@ function seedDemo(database: Database.Database) {
       [
         "condo",
         "Condomínio",
-        35000,
+        15000,
         "expense",
-        "20",
+        "10",
         "pending",
 
         "Contas da casa",
@@ -1648,7 +1726,7 @@ function seedDemo(database: Database.Database) {
       [
         "sofa",
         "Magazine Luiza Sofá 1/10",
-        25000,
+        3000,
         "expense",
         "10",
         "pending",

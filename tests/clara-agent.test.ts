@@ -385,11 +385,86 @@ test("mock detalha gasto em categoria nomeada", () => {
     currentView: "clara",
   });
   assert.equal(result.card?.type, "category-spend");
+  assert.match(result.reply, /a gente tem que comer bem/i);
   assert.ok(
     result.card?.type === "category-spend" &&
       result.card.focusCategory === "Alimentação" &&
       result.card.focusAmount === 42_050,
   );
+});
+
+test("mock inclui frase de efeito quando o maior gasto é Alimentação", () => {
+  const data: FinanceData = {
+    ...fixtureAccounts,
+    transactions: [
+      {
+        id: "tx-food",
+        description: "Carrefour",
+        amount: 300_000,
+        kind: "expense",
+        date: "2026-11-09",
+        status: "paid",
+        category: "Alimentação",
+        accountId: "acc-1",
+        source: "manual",
+        currency: "BRL",
+        installmentNumber: null,
+        installmentTotal: null,
+      },
+      {
+        id: "tx-rent-small",
+        description: "Aluguel",
+        amount: 110_000,
+        kind: "expense",
+        date: "2026-11-02",
+        status: "paid",
+        category: "Contas da casa",
+        accountId: "acc-1",
+        source: "manual",
+        currency: "BRL",
+        installmentNumber: null,
+        installmentTotal: null,
+      },
+    ],
+  };
+  const result = planClaraReply({
+    message: "qual foi o meu maior gasto em novembro de 2026?",
+    data,
+    currentView: "clara",
+  });
+  assert.equal(result.card?.type, "biggest-expense");
+  assert.equal(result.card?.transaction.category, "Alimentação");
+  assert.match(result.reply, /a gente tem que comer bem/i);
+});
+
+test("mock inclui frase de efeito quando o maior gasto é Compras", () => {
+  const data: FinanceData = {
+    ...fixtureAccounts,
+    transactions: [
+      {
+        id: "tx-shop",
+        description: "Amazon",
+        amount: 280_000,
+        kind: "expense",
+        date: "2026-11-12",
+        status: "paid",
+        category: "Compras",
+        accountId: "acc-1",
+        source: "manual",
+        currency: "BRL",
+        installmentNumber: null,
+        installmentTotal: null,
+      },
+    ],
+  };
+  const result = planClaraReply({
+    message: "qual foi o meu maior gasto em novembro de 2026?",
+    data,
+    currentView: "clara",
+  });
+  assert.equal(result.card?.type, "biggest-expense");
+  assert.equal(result.card?.transaction.category, "Compras");
+  assert.match(result.reply, /nossas coisinhas/i);
 });
 
 test("mock responde progresso das metas", () => {

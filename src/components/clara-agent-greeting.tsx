@@ -6,7 +6,7 @@ import { ClaraMark } from "@/components/clara-mark";
 import { cn } from "@/lib/utils";
 
 export const CLARA_AGENT_GREETING =
-  "Tá economizando certinho? Do que você precisa hoje?";
+  "Oi meu amor! Tá economizando certinho?";
 
 const BUBBLE_DELAY_MS = 160;
 const TYPE_START_MS = 420;

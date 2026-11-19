@@ -15,7 +15,12 @@ import {
   spendingPace,
   summarize,
 } from "../src/lib/analytics";
-import { localDate, parseMoney } from "../src/lib/format";
+import {
+  formatMoneyInput,
+  localDate,
+  maskMoneyInput,
+  parseMoney,
+} from "../src/lib/format";
 import {
   categorizeTransaction,
   cleanTransactionDescription,
@@ -81,7 +86,7 @@ test("banco cria demonstração isolada dos dados pessoais", () => {
           row.date.startsWith(localDate().slice(0, 7)),
       )
       .reduce((total, row) => total + row.amount, 0),
-    370000,
+    130000,
   );
   assert.equal(demo.investments.length, 7);
   assert.equal(
@@ -109,13 +114,15 @@ test("cartão Sicredi fictício tem faturas passadas, atuais e futuras isoladas"
       demo.transactions.filter(
         (row) => row.accountId === card?.id && row.date.startsWith(key),
       );
-    assert.equal(rows.length, 4);
+    assert.equal(rows.length, 3);
     assert.ok(cardInvoiceAmount(demo, card!.id, key) > 0);
-    const notebook = rows.find((row) => row.description.startsWith("Notebook"));
+    const notebook = rows.find((row) =>
+      row.description.includes("Notebook"),
+    );
     assert.equal(notebook?.installmentNumber, offset + 3);
     assert.equal(notebook?.installmentTotal, 8);
   }
-  assert.equal(cardInvoiceAmount(demo, card!.id, month), 98650);
+  assert.equal(cardInvoiceAmount(demo, card!.id, month), 36500);
   assert.equal(
     getData("personal").transactions.some((row) => row.accountId === card?.id),
     false,
@@ -130,14 +137,14 @@ test("Ultravioleta fictício tem compras e parcelas nos oito meses de faturas", 
     const rows = demo.transactions.filter(
       (row) => row.accountId === "demo-credit" && row.date.startsWith(key),
     );
-    assert.equal(rows.length, 5);
+    assert.equal(rows.length, 4);
     assert.ok(cardInvoiceAmount(demo, "demo-credit", key) > 0);
     assert.equal(rows.filter((row) => row.installmentTotal === 10).length, 2);
     assert.ok(
       rows.every((row) => row.status === (offset < 0 ? "paid" : "pending")),
     );
   }
-  assert.equal(cardInvoiceAmount(demo, "demo-credit", month), 214790);
+  assert.equal(cardInvoiceAmount(demo, "demo-credit", month), 46590);
   assert.equal(
     demo.transactions.some(
       (row) => row.id === "demo-iphone" || row.id === "demo-sofa",
@@ -182,12 +189,20 @@ test("categorias podem ser criadas, renomeadas e excluídas", async () => {
     !getData("personal").categories.some((row) => row.name === "Cursos online"),
   );
 });
-test("valores brasileiros mantêm centavos e rejeitam formatos ambíguos", () => {
+test("valores brasileiros mantêm centavos e aceitam milhar com ponto", () => {
   assert.equal(parseMoney("1234,56"), 123456);
   assert.equal(parseMoney("0,01"), 1);
   assert.equal(parseMoney("0.29"), 29);
-  assert.ok(Number.isNaN(parseMoney("1.234,56")));
+  assert.equal(parseMoney("1.234,56"), 123456);
+  assert.equal(parseMoney("1.000.000"), 100000000);
+  assert.equal(parseMoney("1.000.000,00"), 100000000);
   assert.ok(Number.isNaN(parseMoney("-20")));
+  assert.equal(formatMoneyInput(123456), "1.234,56");
+  assert.equal(formatMoneyInput(100000000), "1.000.000,00");
+  assert.equal(maskMoneyInput("1500"), "1.500");
+  assert.equal(maskMoneyInput("1500,5"), "1.500,5");
+  assert.equal(maskMoneyInput("1000000,00"), "1.000.000,00");
+  assert.equal(maskMoneyInput("1.234,56"), "1.234,56");
 });
 test("lançamento é persistido, validado e isolado por modo", async () => {
   const result = await POST(

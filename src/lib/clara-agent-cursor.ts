@@ -361,13 +361,11 @@ export async function completeGoalWithAgentCursor(goal: {
   const rootEl = await waitForGoalRoot(goal.id);
   if (!rootEl) return false;
 
+  const optionsLabel = `Opções da meta ${goal.name}`;
+  const optionsSelector = `button[aria-label="${cssEscape(optionsLabel)}"]`;
   const options =
-    rootEl.querySelector<HTMLElement>(
-      `button[aria-label="Opções da meta ${goal.name}"]`,
-    ) ??
-    document.querySelector<HTMLElement>(
-      `button[aria-label="Opções da meta ${goal.name}"]`,
-    );
+    rootEl.querySelector<HTMLElement>(optionsSelector) ??
+    document.querySelector<HTMLElement>(optionsSelector);
   if (!options) return false;
 
   await playAgentCursorClick(options, { dismiss: false });

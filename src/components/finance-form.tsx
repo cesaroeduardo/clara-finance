@@ -3,6 +3,7 @@ import { Field as FormField, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/loader";
 import { NumberInput } from "@/components/ui/number-input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { type ReactNode, useState } from "react";
 import { prepareGoalCelebration } from "@/lib/goal-celebration";
 import { ArrowRight, Trash } from "@/components/icons";
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollFade } from "@/components/ui/scroll-fade";
 import { formatAccountLabel } from "@/lib/accounts";
-import { localDate, monthLabel, parseMoney } from "@/lib/format";
+import { formatMoneyInput, localDate, monthLabel, parseMoney } from "@/lib/format";
 import { AnimatedLabel, MotionSegmentedControl } from "./finance-motion";
 import type { FinanceData } from "@/lib/types";
 
@@ -97,7 +98,7 @@ export function FinanceForm({
   };
   const isImported = row?.source === "pluggy";
   const moneyValue = (value: unknown) =>
-    typeof value === "number" ? (value / 100).toFixed(2).replace(".", ",") : "";
+    typeof value === "number" ? formatMoneyInput(value) : "";
   const categorySuggestions = [
     ...new Set([
       ...data.categories.map((item) => item.name),
@@ -158,7 +159,7 @@ export function FinanceForm({
       }
       body[key] = parseMoney(raw || "0");
       if (!Number.isSafeInteger(body[key])) {
-        setError("Use valores como 1500,00, sem separador de milhar.");
+        setError("Use valores como 1.500,00.");
         setBusy(false);
         return;
       }
@@ -277,10 +278,9 @@ export function FinanceForm({
             {form.contribute ? (
               <>
                 <Field title="Valor reservado (R$)" name="contribution">
-                  <Input
+                  <MoneyInput
                     id="contribution"
                     name="contribution"
-                    inputMode="decimal"
                     required
                     placeholder="0,00"
                     autoFocus
@@ -317,10 +317,9 @@ export function FinanceForm({
                         title={`Valor (${row?.currency && row.currency !== "BRL" ? row.currency : "R$"})`}
                         name="amount"
                       >
-                        <Input
+                        <MoneyInput
                           id="amount"
                           name="amount"
-                          inputMode="decimal"
                           defaultValue={moneyValue(row?.amount)}
                           required
                           placeholder="0,00"
@@ -470,20 +469,18 @@ export function FinanceForm({
                     </Field>
                     <div className="form-row">
                       <Field title="Valor da meta (R$)" name="target">
-                        <Input
+                        <MoneyInput
                           id="target"
                           name="target"
-                          inputMode="decimal"
                           defaultValue={moneyValue(row?.target)}
                           required
                           placeholder="0,00"
                         />
                       </Field>
                       <Field title="Valor reservado (R$)" name="current">
-                        <Input
+                        <MoneyInput
                           id="current"
                           name="current"
-                          inputMode="decimal"
                           defaultValue={moneyValue(row?.current) || "0,00"}
                           required
                         />
@@ -585,20 +582,18 @@ export function FinanceForm({
                         title={`Saldo atual (${row?.currency && row.currency !== "BRL" ? row.currency : "R$"})`}
                         name="balance"
                       >
-                        <Input
+                        <MoneyInput
                           id="balance"
                           name="balance"
-                          inputMode="decimal"
                           defaultValue={moneyValue(row?.balance)}
                           readOnly={isImported}
                           required
                         />
                       </Field>
                       <Field title="Custo de aquisição (R$)" name="invested">
-                        <Input
+                        <MoneyInput
                           id="invested"
                           name="invested"
-                          inputMode="decimal"
                           defaultValue={
                             row?.invested == null
                               ? ""
@@ -631,10 +626,9 @@ export function FinanceForm({
                         </div>
                       }
                     >
-                      <Input
+                      <MoneyInput
                         id="expectedSalary"
                         name="expectedSalary"
-                        inputMode="decimal"
                         defaultValue={moneyValue(row?.expectedSalary) || "0,00"}
                         required
                         autoFocus
@@ -656,10 +650,9 @@ export function FinanceForm({
                         </div>
                       }
                     >
-                      <Input
+                      <MoneyInput
                         id="expectedFreelance"
                         name="expectedFreelance"
-                        inputMode="decimal"
                         defaultValue={
                           moneyValue(row?.expectedFreelance) || "0,00"
                         }
@@ -680,10 +673,9 @@ export function FinanceForm({
                         </div>
                       }
                     >
-                      <Input
+                      <MoneyInput
                         id="monthlyLimit"
                         name="monthlyLimit"
-                        inputMode="decimal"
                         defaultValue={moneyValue(row?.monthlyLimit) || "0,00"}
                         required
                       />
@@ -704,10 +696,9 @@ export function FinanceForm({
                         </div>
                       }
                     >
-                      <Input
+                      <MoneyInput
                         id="fixedCost"
                         name="fixedCost"
-                        inputMode="decimal"
                         defaultValue={moneyValue(row?.fixedCost) || "0,00"}
                         required
                       />
@@ -728,10 +719,9 @@ export function FinanceForm({
                         </div>
                       }
                     >
-                      <Input
+                      <MoneyInput
                         id="monthlySavings"
                         name="monthlySavings"
-                        inputMode="decimal"
                         defaultValue={moneyValue(row?.monthlySavings) || "0,00"}
                         required
                       />
@@ -771,10 +761,9 @@ export function FinanceForm({
                     </Field>
                     <div className="form-row">
                       <Field title="Valor (R$)" name="amount">
-                        <Input
+                        <MoneyInput
                           id="amount"
                           name="amount"
-                          inputMode="decimal"
                           defaultValue={moneyValue(row?.amount)}
                           required
                           placeholder="0,00"
