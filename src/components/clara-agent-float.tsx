@@ -50,7 +50,7 @@ const savedFloatPos: { left: number | null; top: number | null } = {
 };
 
 function defaultFloatPos() {
-  const w = Math.min(320, window.innerWidth - 24);
+  const w = Math.min(420, window.innerWidth - 24);
   const h = Math.min(680, window.innerHeight - 88);
   return {
     left: Math.max(FLOAT_PAD, window.innerWidth - w - FLOAT_PAD),
@@ -63,7 +63,7 @@ function clampFloatPos(
   top: number,
   panel: HTMLElement | null,
 ) {
-  const w = panel?.offsetWidth || Math.min(320, window.innerWidth - 24);
+  const w = panel?.offsetWidth || Math.min(420, window.innerWidth - 24);
   const h = panel?.offsetHeight || Math.min(680, window.innerHeight - 88);
   return {
     left: Math.max(FLOAT_PAD, Math.min(left, window.innerWidth - w - FLOAT_PAD)),

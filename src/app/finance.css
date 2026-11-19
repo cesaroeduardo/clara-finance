@@ -5103,10 +5103,6 @@ body:has(.values-hidden) .amount {
   max-width: none;
   padding: 0;
 }
-html:not(.dark) .main-content-agent,
-html:not(.dark) .clara-agent-stage {
-  background: var(--card);
-}
 html:not(.dark) .clara-agent-composer-inner {
   background: #fff;
 }
@@ -5904,7 +5900,7 @@ html.dark .clara-agent-cursor-type.brand-type {
   isolation: auto;
 }
 .clara-agent-float {
-  width: min(320px, calc(100vw - 1.5rem));
+  width: min(420px, calc(100vw - 1.5rem));
   height: min(680px, calc(100dvh - 5.5rem - env(safe-area-inset-bottom, 0px)));
   padding: 6px;
   gap: 0;
@@ -6061,7 +6057,7 @@ html.dark .clara-agent-cursor-type.brand-type {
 }
 .clara-voice-bar {
   position: absolute;
-  width: min(320px, calc(100vw - 2rem));
+  width: min(420px, calc(100vw - 2rem));
   border: 0;
   border-radius: 18px;
   background: color-mix(in srgb, var(--background) 92%, var(--foreground));
