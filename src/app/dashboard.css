@@ -54,11 +54,23 @@
   gap: 10px;
   min-height: 25px;
 }
-.home-grid .home-card-heading h2 {
-  font-size: 11px;
-  font-weight: 500;
+.home-grid .home-card-heading h2,
+.home-grid .home-card-title {
+  font-family: var(--font-geist-pixel-square), var(--font-geist-sans), Arial, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
   color: var(--muted-foreground);
-  letter-spacing: 0;
+  letter-spacing: 0.02em;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+}
+.home-grid [data-slot="surface-header"] :is(h2, h3, h4) {
+  font-family: var(--font-geist-pixel-square), var(--font-geist-sans), Arial, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
 }
 .home-card-heading > span {
   color: var(--muted-foreground);

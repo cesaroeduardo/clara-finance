@@ -3,12 +3,13 @@ import { Field as FormField, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/loader";
 import { NumberInput } from "@/components/ui/number-input";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { prepareGoalCelebration } from "@/lib/goal-celebration";
 import { ArrowRight, Trash } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { categoryFieldOptions } from "@/components/category-mark";
 import { FieldSelect } from "@/components/ui/field-select";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input, inputClassName } from "@/components/ui/input";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { GoalDeadlinePicker } from "./goal-deadline-picker";
@@ -268,7 +269,7 @@ export function FinanceForm({
                   {form.contribute
                     ? "O valor será somado ao progresso. Não movimenta contas."
                     : form.resource === "plan"
-                      ? `Válido para ${monthLabel(planMonth)}. Limite do card = renda (previsto ou já entrada) − guardar. Teto digitado só vale se não houver renda.`
+                      ? `Válido para ${monthLabel(planMonth)}. O limite do mês é a renda prevista ou recebida, menos o quanto guardar. Sem renda, vale o teto de gastos.`
                       : "Valores importados. Edite a categoria ou o tipo."}
                 </DialogDescription>
               )}
@@ -617,7 +618,19 @@ export function FinanceForm({
                 )}
                 {form.resource === "plan" && (
                   <>
-                    <Field title="Salário CNPJ (R$)" name="expectedSalary">
+                    <Field
+                      title="Sua renda fixa (R$)"
+                      name="expectedSalary"
+                      tooltip={
+                        <div className="dashboard-info-copy">
+                          <p>
+                            Valor fixo que entra todo mês, como pró-labore ou
+                            salário CNPJ.
+                          </p>
+                          <p>Ex.: R$ 8.800,00 todo mês.</p>
+                        </div>
+                      }
+                    >
                       <Input
                         id="expectedSalary"
                         name="expectedSalary"
@@ -628,8 +641,20 @@ export function FinanceForm({
                       />
                     </Field>
                     <Field
-                      title="Freelas previstos (R$)"
+                      title="Sua renda variável prevista (R$)"
                       name="expectedFreelance"
+                      tooltip={
+                        <div className="dashboard-info-copy">
+                          <p>
+                            Quanto você espera receber além da renda fixa neste
+                            mês.
+                          </p>
+                          <p>
+                            Ex.: freelas, bônus ou comissões previstas de
+                            R$ 2.000,00.
+                          </p>
+                        </div>
+                      }
                     >
                       <Input
                         id="expectedFreelance"
@@ -641,7 +666,20 @@ export function FinanceForm({
                         required
                       />
                     </Field>
-                    <Field title="Teto fallback (R$)" name="monthlyLimit">
+                    <Field
+                      title="Seu teto de gastos (R$)"
+                      name="monthlyLimit"
+                      tooltip={
+                        <div className="dashboard-info-copy">
+                          <p>
+                            Limite do mês quando a renda ainda não está
+                            definida. Com renda prevista, o limite vira renda
+                            menos o valor a guardar.
+                          </p>
+                          <p>Ex.: teto de R$ 5.000,00 para não estourar.</p>
+                        </div>
+                      }
+                    >
                       <Input
                         id="monthlyLimit"
                         name="monthlyLimit"
@@ -650,7 +688,22 @@ export function FinanceForm({
                         required
                       />
                     </Field>
-                    <Field title="Reserva alimentação (R$)" name="fixedCost">
+                    <Field
+                      title="Reserva de gastos variáveis (R$)"
+                      name="fixedCost"
+                      tooltip={
+                        <div className="dashboard-info-copy">
+                          <p>
+                            Valor separado para despesas que mudam no mês, como
+                            alimentação, farmácia ou transporte.
+                          </p>
+                          <p>
+                            Ex.: R$ 1.500,00. Esse valor reduz o disponível,
+                            sem contar como gasto.
+                          </p>
+                        </div>
+                      }
+                    >
                       <Input
                         id="fixedCost"
                         name="fixedCost"
@@ -662,6 +715,18 @@ export function FinanceForm({
                     <Field
                       title="Quanto guardar por mês (R$)"
                       name="monthlySavings"
+                      tooltip={
+                        <div className="dashboard-info-copy">
+                          <p>
+                            Meta de poupança do mês. Sai da renda prevista antes
+                            de calcular o teto de gastos.
+                          </p>
+                          <p>
+                            Ex.: guardar R$ 1.000,00. Com renda de R$ 10.800,00,
+                            o teto fica em R$ 9.800,00.
+                          </p>
+                        </div>
+                      }
                     >
                       <Input
                         id="monthlySavings"
@@ -896,15 +961,22 @@ export function FinanceForm({
 function Field({
   title,
   name,
+  tooltip,
   children,
 }: {
   title: string;
   name: string;
-  children: React.ReactNode;
+  tooltip?: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <FormField className="form-field">
-      <FieldLabel htmlFor={name}>{title}</FieldLabel>
+      <div className="form-field-label-row">
+        <FieldLabel htmlFor={name}>{title}</FieldLabel>
+        {tooltip ? (
+          <InfoTooltip label={`Sobre ${title}`} content={tooltip} />
+        ) : null}
+      </div>
       {children}
     </FormField>
   );

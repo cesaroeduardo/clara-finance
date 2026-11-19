@@ -18,6 +18,9 @@ type CardOrigin = {
 const CARD_RATIO = 2 / 3;
 const CARD_WIDTH = 380;
 const CARD_HOLD_MS = 2200;
+const CARD_PIXEL_MAX = 28;
+const CARD_PIXEL_IN_MS = 720;
+const CARD_PIXEL_OUT_MS = 640;
 const GOAL_COMPLETE_SOUND = "/sounds/goal-complete.mp3";
 const GOAL_COMPLETE_VIDEO = "/videos/goal-complete.mp4";
 const GOAL_SOUND_AT_SEC = 0.6;
@@ -186,15 +189,13 @@ async function runCardCelebration(
 
   const centerLeft = (window.innerWidth - width) / 2;
   const centerTop = Math.max(36, (window.innerHeight - height) / 2 - 12);
-  // Enter and exit from below the vertical center of the viewport.
-  const belowTop = window.innerHeight + 28;
 
   Object.assign(flyer.style, {
     width: `${width}px`,
     height: `${height}px`,
     left: `${centerLeft}px`,
-    top: `${belowTop}px`,
-    transform: pose(0.88, 0, 12),
+    top: `${centerTop}px`,
+    transform: pose(1, 0, -8),
     opacity: "0",
   });
   videoHost.style.opacity = "0";
@@ -234,27 +235,8 @@ async function runCardCelebration(
     ),
   ]);
 
-  // Rise from below center into the dialog position.
-  await animateElement(
-    flyer,
-    [
-      {
-        top: `${belowTop}px`,
-        transform: pose(0.88, 0, 12),
-        opacity: 0,
-      },
-      {
-        top: `${centerTop}px`,
-        transform: pose(1, 0, -8),
-        opacity: 1,
-      },
-    ],
-    {
-      duration: 520,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      fill: "forwards",
-    },
-  );
+  // Materialize in place: coarse pixels resolve into the sharp card.
+  await pixelateFlyer(flyer, "in");
 
   flyer.classList.add("is-spinning");
 
@@ -296,34 +278,16 @@ async function runCardCelebration(
   // Hold for reading before the card exits.
   await wait(CARD_HOLD_MS);
 
-  // Exit below the center of the screen — keep the card fully opaque.
+  // Dissolve out in place: sharp card breaks into coarse pixels.
+  const pixelOut = pixelateFlyer(flyer, "out");
   await Promise.all([
-    animateElement(
-      flyer,
-      [
-        {
-          top: `${centerTop}px`,
-          transform: pose(1, 360, -4),
-          opacity: 1,
-        },
-        {
-          top: `${belowTop}px`,
-          transform: pose(0.88, 360, 12),
-          opacity: 1,
-        },
-      ],
-      {
-        duration: 520,
-        easing: "cubic-bezier(0.4, 0, 1, 1)",
-        fill: "forwards",
-      },
-    ),
+    pixelOut,
     animateElement(
       backdrop,
       [{ opacity: 1 }, { opacity: 0 }],
       {
         duration: VIDEO_FADE_OUT_MS,
-        delay: 40,
+        delay: 80,
         easing: "cubic-bezier(0.22, 1, 0.36, 1)",
         fill: "forwards",
       },
@@ -333,7 +297,7 @@ async function runCardCelebration(
       [{ opacity: VIDEO_OPACITY }, { opacity: 0 }],
       {
         duration: VIDEO_FADE_OUT_MS,
-        delay: 40,
+        delay: 80,
         easing: "cubic-bezier(0.22, 1, 0.36, 1)",
         fill: "forwards",
       },
@@ -341,6 +305,297 @@ async function runCardCelebration(
   ]);
 
   cleanup();
+}
+
+async function pixelateFlyer(flyer: HTMLElement, direction: "in" | "out") {
+  const duration = direction === "in" ? CARD_PIXEL_IN_MS : CARD_PIXEL_OUT_MS;
+  const fromBlock = direction === "in" ? CARD_PIXEL_MAX : 1;
+  const toBlock = direction === "in" ? 1 : CARD_PIXEL_MAX;
+
+  // Keep the live card hidden on enter so only the pixel canvas is seen.
+  if (direction === "in") {
+    flyer.style.opacity = "0";
+    flyer.style.visibility = "visible";
+  }
+  await waitForFlyerImages(flyer);
+  await yieldFrame();
+
+  const source = await rasterizeFlyer(flyer);
+  if (!source) {
+    if (direction === "in") {
+      await animateElement(
+        flyer,
+        [
+          { opacity: 0, transform: pose(0.94, 0, -8) },
+          { opacity: 1, transform: pose(1, 0, -8) },
+        ],
+        {
+          duration,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+          fill: "forwards",
+        },
+      );
+      return;
+    }
+    await animateElement(
+      flyer,
+      [
+        { opacity: 1, transform: pose(1, 360, -4) },
+        { opacity: 0, transform: pose(0.94, 360, -4) },
+      ],
+      {
+        duration,
+        easing: "cubic-bezier(0.4, 0, 1, 1)",
+        fill: "forwards",
+      },
+    );
+    return;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.className = "goal-celebration-pixel-canvas";
+  canvas.setAttribute("aria-hidden", "true");
+  const context = canvas.getContext("2d", { alpha: true });
+  if (!context) {
+    source.remove();
+    flyer.style.opacity = direction === "in" ? "1" : "0";
+    return;
+  }
+
+  const rect = flyer.getBoundingClientRect();
+  const cssWidth = Math.max(1, Math.round(rect.width));
+  const cssHeight = Math.max(1, Math.round(rect.height));
+  canvas.width = source.width;
+  canvas.height = source.height;
+  Object.assign(canvas.style, {
+    width: `${cssWidth}px`,
+    height: `${cssHeight}px`,
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+  });
+
+  // Swap to the pixel layer before the live card can flash.
+  flyer.style.opacity = "0";
+  flyer.parentElement?.append(canvas);
+
+  const buffer = document.createElement("canvas");
+  const bufferContext = buffer.getContext("2d", { alpha: true });
+  if (!bufferContext) {
+    canvas.remove();
+    source.remove();
+    flyer.style.opacity = direction === "in" ? "1" : "0";
+    return;
+  }
+
+  const ease =
+    direction === "in"
+      ? (t: number) => 1 - (1 - t) ** 3
+      : (t: number) => t ** 2;
+  const started = performance.now();
+
+  await new Promise<void>((resolve) => {
+    const drawFrame = (now: number) => {
+      const t = Math.min(1, (now - started) / duration);
+      const p = ease(t);
+      const block = Math.max(1, fromBlock + (toBlock - fromBlock) * p);
+      paintPixelated(source, context, buffer, bufferContext, block);
+      canvas.style.opacity =
+        direction === "in"
+          ? String(0.35 + 0.65 * Math.min(1, p * 1.35))
+          : String(1 - p * 0.15);
+      if (t < 1) {
+        requestAnimationFrame(drawFrame);
+        return;
+      }
+      resolve();
+    };
+    requestAnimationFrame(drawFrame);
+  });
+
+  canvas.remove();
+  source.remove();
+  flyer.style.opacity = direction === "in" ? "1" : "0";
+}
+
+function paintPixelated(
+  source: HTMLCanvasElement,
+  dest: CanvasRenderingContext2D,
+  buffer: HTMLCanvasElement,
+  bufferContext: CanvasRenderingContext2D,
+  block: number,
+) {
+  const width = source.width;
+  const height = source.height;
+  const smallW = Math.max(1, Math.floor(width / block));
+  const smallH = Math.max(1, Math.floor(height / block));
+  buffer.width = smallW;
+  buffer.height = smallH;
+  bufferContext.clearRect(0, 0, smallW, smallH);
+  bufferContext.imageSmoothingEnabled = true;
+  bufferContext.drawImage(source, 0, 0, smallW, smallH);
+  dest.clearRect(0, 0, width, height);
+  dest.imageSmoothingEnabled = false;
+  dest.drawImage(buffer, 0, 0, smallW, smallH, 0, 0, width, height);
+}
+
+async function rasterizeFlyer(flyer: HTMLElement) {
+  const width = flyer.offsetWidth;
+  const height = flyer.offsetHeight;
+  if (width < 8 || height < 8) return null;
+
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const clone = flyer.cloneNode(true) as HTMLElement;
+  clone.classList.remove("is-spinning");
+  Object.assign(clone.style, {
+    position: "relative",
+    left: "0",
+    top: "0",
+    opacity: "1",
+    visibility: "visible",
+    transform: "none",
+    filter: "none",
+    margin: "0",
+    width: `${width}px`,
+    height: `${height}px`,
+  });
+
+  await inlineCloneImages(clone);
+
+  const root = getComputedStyle(document.documentElement);
+  const varNames = [
+    "--background",
+    "--foreground",
+    "--muted-foreground",
+    "--border",
+    "--card",
+    "--font-sans",
+  ];
+  const rootVars = varNames
+    .map((name) => {
+      const value = root.getPropertyValue(name).trim();
+      return value ? `${name}:${value}` : "";
+    })
+    .filter(Boolean)
+    .join(";");
+
+  const styles = collectDocumentCss();
+  const wrapper = document.createElement("div");
+  wrapper.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  wrapper.setAttribute(
+    "style",
+    `${rootVars};width:${width}px;height:${height}px;background:transparent;overflow:hidden;`,
+  );
+  const styleTag = document.createElement("style");
+  styleTag.textContent = styles;
+  wrapper.append(styleTag, clone);
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width * ratio)}" height="${Math.round(height * ratio)}"><foreignObject width="${width}" height="${height}" transform="scale(${ratio})">${new XMLSerializer().serializeToString(wrapper)}</foreignObject></svg>`;
+  const url = URL.createObjectURL(
+    new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
+  );
+
+  try {
+    const image = await loadImage(url);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(width * ratio));
+    canvas.height = Math.max(1, Math.round(height * ratio));
+    const context = canvas.getContext("2d", { alpha: true });
+    if (!context) return null;
+    context.drawImage(image, 0, 0);
+    return canvas;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function collectDocumentCss() {
+  const chunks: string[] = [];
+  const relevant = /goal-lume|goal-celebration-flyer|:root|html|body|--background|--foreground|--font-sans/i;
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      const rules = sheet.cssRules;
+      if (!rules) continue;
+      for (const rule of Array.from(rules)) {
+        if (relevant.test(rule.cssText)) chunks.push(rule.cssText);
+      }
+    } catch {
+      // Cross-origin stylesheets are unavailable.
+    }
+  }
+  if (chunks.length === 0) {
+    for (const node of document.querySelectorAll("style")) {
+      const text = node.textContent;
+      if (text && relevant.test(text)) chunks.push(text);
+    }
+  }
+  return chunks.join("\n");
+}
+
+async function waitForFlyerImages(root: HTMLElement) {
+  const images = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    images.map(
+      (image) =>
+        new Promise<void>((resolve) => {
+          if (image.complete && image.naturalWidth > 0) {
+            resolve();
+            return;
+          }
+          const done = () => resolve();
+          image.addEventListener("load", done, { once: true });
+          image.addEventListener("error", done, { once: true });
+        }),
+    ),
+  );
+}
+
+async function inlineCloneImages(root: HTMLElement) {
+  const images = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    images.map(async (image) => {
+      const src = image.currentSrc || image.src;
+      if (!src || src.startsWith("data:")) return;
+      try {
+        const dataUrl = await fetchAsDataUrl(src);
+        if (dataUrl) {
+          image.setAttribute("src", dataUrl);
+          image.removeAttribute("srcset");
+        }
+      } catch {
+        // Keep the original src; foreignObject may still succeed for same-origin.
+      }
+    }),
+  );
+}
+
+async function fetchAsDataUrl(src: string) {
+  const response = await fetch(src, { credentials: "same-origin" });
+  if (!response.ok) return null;
+  const blob = await response.blob();
+  return await new Promise<string | null>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      resolve(typeof reader.result === "string" ? reader.result : null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImage(url: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("pixel snapshot failed"));
+    image.src = url;
+  });
+}
+
+function yieldFrame() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
 }
 
 function startCelebrationVideo(

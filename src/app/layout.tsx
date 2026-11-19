@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { GeistPixelSquare } from "geist/font/pixel/square";
 import { FinanceMotion } from "@/components/finance-motion";
 import { Toaster } from "@/components/ui/sonner";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
@@ -20,7 +21,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
-      className={`${geistSans.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${GeistPixelSquare.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

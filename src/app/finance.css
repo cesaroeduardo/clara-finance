@@ -2786,6 +2786,13 @@ h1 {
   gap: 8px;
   min-width: 0;
 }
+.form-field-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted-foreground);
+}
+.form-field-label-row label,
 .form-field label {
   font-size: 10px;
   font-weight: 500;
@@ -4450,6 +4457,15 @@ body:has(.values-hidden) .amount {
   will-change: transform, left, top, opacity;
   filter: drop-shadow(0 28px 60px rgba(8, 10, 18, 0.45));
 }
+.goal-celebration-pixel-canvas {
+  position: fixed;
+  z-index: 3;
+  pointer-events: none;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 28px 60px rgba(8, 10, 18, 0.45));
+}
 .goal-lume-card {
   width: 100%;
   height: 100%;
@@ -5260,6 +5276,7 @@ html:not(.dark) .clara-agent-float-body {
 .clara-agent-turn-text {
   margin: 0;
   white-space: pre-wrap;
+  text-wrap: balance;
   font-size: 15px;
   line-height: 1.5;
   color: var(--foreground);
@@ -5341,8 +5358,9 @@ html:not(.dark) .clara-agent-float-body {
 }
 .clara-agent-greeting-bubble {
   position: relative;
-  max-width: min(280px, calc(100vw - 4rem));
-  padding: 10px 14px 12px;
+  width: fit-content;
+  max-width: min(200px, calc(100vw - 4rem));
+  padding: 10px 12px 12px;
   border: 0;
   border-radius: 16px;
   background: var(--control-surface);
@@ -5350,8 +5368,8 @@ html:not(.dark) .clara-agent-float-body {
   text-align: center;
 }
 .clara-agent-greeting.is-compact .clara-agent-greeting-bubble {
-  max-width: min(240px, 100%);
-  padding: 8px 12px 10px;
+  max-width: min(168px, 100%);
+  padding: 8px 10px 10px;
   border-radius: 14px;
 }
 .clara-agent-greeting-bubble p {
@@ -5361,6 +5379,7 @@ html:not(.dark) .clara-agent-float-body {
   font-weight: 450;
   line-height: 1.4;
   letter-spacing: -0.01em;
+  text-wrap: balance;
   color: var(--muted-foreground);
 }
 .clara-agent-greeting.is-compact .clara-agent-greeting-bubble p {
@@ -5436,6 +5455,9 @@ html:not(.dark) .clara-agent-float-body {
   line-height: 1.4;
   color: var(--foreground);
   outline: none;
+}
+.clara-agent-composer-input::placeholder {
+  font-weight: 300;
 }
 .clara-agent-composer-input:focus,
 .clara-agent-composer-input:focus-visible {
@@ -5882,7 +5904,7 @@ html.dark .clara-agent-cursor-type.brand-type {
   isolation: auto;
 }
 .clara-agent-float {
-  width: min(420px, calc(100vw - 1.5rem));
+  width: min(320px, calc(100vw - 1.5rem));
   height: min(680px, calc(100dvh - 5.5rem - env(safe-area-inset-bottom, 0px)));
   padding: 6px;
   gap: 0;

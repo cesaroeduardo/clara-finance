@@ -2,6 +2,7 @@
 import { Switch, SwitchThumb } from "@/components/ui/switch";
 import { StatusPill } from "@/components/ui/status-pill";
 import { EmptyState } from "@/components/ui/empty-state";
+import { GeistPixelSquare } from "geist/font/pixel/square";
 import { ShellHeader } from "@/components/ui/surface";
 import { FinanceSurface } from "@/components/ui/finance-surface";
 import { StatCard } from "@/components/ui/stat-card";
@@ -617,7 +618,9 @@ export function DashboardView(props: Props) {
           )}
           <div className="home-forecast-body">
             <div className="home-card-heading">
-              <h2>
+              <h2
+                className={`home-card-title ${GeistPixelSquare.className}`}
+              >
                 {isPastMonth ? "Resultado do mês" : "Você ainda pode gastar"}
               </h2>
               <div className="home-pace-heading-actions">
