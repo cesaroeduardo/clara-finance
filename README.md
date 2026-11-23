@@ -15,7 +15,7 @@ Construído com **Next.js 16, React, TypeScript, Tailwind CSS 4, shadcn/ui e Rec
 
 Visão geral com dados fictícios: gastos por categoria, investimentos e faturas dos cartões.
 
-<img width="1919" height="990" alt="image" src="https://github.com/user-attachments/assets/91cc00b5-82a8-400c-a4d3-f8eaf651effd" />
+<img width="1917" height="938" alt="image" src="https://github.com/user-attachments/assets/adf1b693-03b3-4254-80bd-6cc6cc83053b" />
 
 Metas com valores reservados, prazos e acompanhamento do progresso.
 
