@@ -26,9 +26,38 @@ Agente com componentes agênticos.
 
 ## Começar
 
-Requer Node.js 22.13+ e npm. O banco é criado automaticamente na primeira leitura.
+Requer Node.js 22.13+ e npm. O banco é criado automaticamente na primeira leitura. O pacote nativo `better-sqlite3` pode precisar de compilação: no Windows, Visual Studio Build Tools e Windows SDK 10.0.26100; no macOS, Xcode Command Line Tools.
+
+### Windows (recomendado)
+
+O script detecta o que falta (Node, Build Tools, Windows SDK), instala via winget se necessário (pode pedir administrador e demorar) e roda `npm ci`:
 
 ```powershell
+git clone https://github.com/cesaroeduardo/clara-finance.git
+cd clara-finance
+.\setup-windows.cmd
+npm run dev
+```
+
+### macOS (recomendado)
+
+O script detecta Node e as Xcode Command Line Tools. Se faltar Node, instala via Homebrew; se faltarem as CLT, abre o instalador do sistema. Depois roda `npm ci`:
+
+```bash
+git clone https://github.com/cesaroeduardo/clara-finance.git
+cd clara-finance
+chmod +x ./setup-macos.sh
+./setup-macos.sh
+npm run dev
+```
+
+Se as Command Line Tools ainda estiverem instalando, conclua a janela do sistema e rode `./setup-macos.sh` de novo.
+
+### Manual
+
+Se Node e a toolchain nativa já estiverem ok:
+
+```bash
 git clone https://github.com/cesaroeduardo/clara-finance.git
 cd clara-finance
 npm ci
